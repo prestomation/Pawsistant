@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to DogLog",
+        "description": "Enter your DogLog Firebase refresh token.",
+        "data": {
+          "refresh_token": "Refresh Token"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid refresh token.",
+      "cannot_connect": "Unable to connect to DogLog.",
+      "no_packs": "No packs found for this account."
+    },
+    "abort": {
+      "already_configured": "This DogLog account is already configured."
+    }
+  }
+}
