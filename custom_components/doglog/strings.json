@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Connect to DogLog",
-        "description": "Enter your DogLog Firebase refresh token.",
+        "description": "Paste your DogLog refresh token below. You can get this from the DogLog CLI (`doglog auth token`) or the token-dumper app.",
         "data": {
           "refresh_token": "Refresh Token"
         }

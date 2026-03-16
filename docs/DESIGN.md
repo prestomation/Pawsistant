@@ -63,7 +63,7 @@ Pattern: `sensor.<dog>_daily_<type>_count` (e.g., `sensor.sharky_daily_walks_cou
 4. On success: stores `refresh_token`, `uid`, `email` in config entry titled "DogLog (<email>)"
 5. On token expiry: coordinator raises `ConfigEntryAuthFailed` → HA prompts reauthentication
 
-**How to get a refresh token**: Use the pydoglog CLI (`doglog login-email` or extract from an authenticated session), then copy the refresh token from `~/.doglog/config.json`.
+**How to get a refresh token**: Use the pydoglog CLI (`doglog auth token`) or the token-dumper app.
 
 ## HACS
 
@@ -83,3 +83,7 @@ Log a pet activity event to DogLog.
 | event_type | string | yes | Event type (food, walk, poop, etc.) |
 | note | string | no | Optional note |
 | value | float | no | Optional numeric value (e.g., weight) |
+
+## Automations
+
+See [AUTOMATIONS.md](./AUTOMATIONS.md) for ready-to-paste Home Assistant automation YAML examples, including daily medicine reminders, pee alerts, and poop count alerts.

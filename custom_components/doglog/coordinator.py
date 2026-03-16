@@ -11,8 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from pydoglog import DogLogClient, DogLogAuthError, DogLogAPIError
-from pydoglog.auth import refresh_id_token
+from pydoglog import AsyncDogLogClient, DogLogAuthError, DogLogAPIError
 from pydoglog.models import Dog, DogEvent, Pack
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,7 +26,7 @@ class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[DogEvent]]]):
         self,
         hass: HomeAssistant,
         entry: ConfigEntry,
-        client: DogLogClient,
+        client: AsyncDogLogClient,
         pack: Pack,
         dogs: list[Dog],
     ) -> None:
@@ -41,28 +40,29 @@ class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[DogEvent]]]):
         self.client = client
         self.pack = pack
         self.dogs = dogs
-        self.entry = entry
+        self._entry = entry
 
     async def _async_update_data(self) -> dict[str, list[DogEvent]]:
         """Fetch events from DogLog API."""
-        try:
-            self.client.ensure_token()
-        except Exception:
-            # Token expired, try to refresh
-            try:
-                token_data = await self.hass.async_add_executor_job(
-                    refresh_id_token, self.entry.data["refresh_token"]
-                )
-                self.client._id_token = token_data["id_token"]
-                self.client._token_expiry = token_data.get("expires_at", 0)
-            except Exception as err:
-                raise ConfigEntryAuthFailed(
-                    "Failed to refresh authentication token"
-                ) from err
+        old_refresh_token = self.client.refresh_token
 
         try:
-            events: list[DogEvent] = await self.hass.async_add_executor_job(
-                self.client.list_events, self.pack.id, None, 200
+            await self.client.ensure_token()
+        except DogLogAuthError as err:
+            raise ConfigEntryAuthFailed(
+                "Failed to refresh authentication token"
+            ) from err
+
+        # Persist new refresh token to config entry if it changed
+        if self.client.refresh_token != old_refresh_token:
+            self.hass.config_entries.async_update_entry(
+                self._entry,
+                data={**self._entry.data, "refresh_token": self.client.refresh_token},
+            )
+
+        try:
+            events: list[DogEvent] = await self.client.list_events(
+                self.pack.id, None, 200
             )
         except DogLogAuthError as err:
             raise ConfigEntryAuthFailed(

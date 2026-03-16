@@ -61,7 +61,6 @@ DAILY_COUNT_EVENT_TYPES = [
     EventType.TREAT,
     EventType.WALK,
     EventType.PEE,
-    EventType.POOP,
     EventType.WATER,
 ]
 
@@ -152,6 +151,11 @@ async def async_setup_entry(
                 DogLogDailyCountSensor(coordinator, description, dog)
             )
 
+        # Poop count today sensor (automation-friendly name)
+        entities.append(
+            DogLogPoopCountTodaySensor(coordinator, dog)
+        )
+
         # Weight sensor
         entities.append(DogLogWeightSensor(coordinator, dog))
 
@@ -239,6 +243,38 @@ class DogLogDailyCountSensor(CoordinatorEntity[DogLogCoordinator], SensorEntity)
         """Return the count of events today."""
         events = self.coordinator.data.get(self._dog.name, [])
         return _count_today(events, self.entity_description.event_type)
+
+
+class DogLogPoopCountTodaySensor(CoordinatorEntity[DogLogCoordinator], SensorEntity):
+    """Sensor showing the count of poop events today (automation-friendly name)."""
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_icon = "mdi:emoticon-poop"
+
+    def __init__(
+        self,
+        coordinator: DogLogCoordinator,
+        dog: Dog,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator)
+        self._dog = dog
+        slug = _slug(dog.name)
+        self._attr_unique_id = f"doglog_{dog.id}_{slug}_poop_count_today"
+        self._attr_name = f"{dog.name} Poop Count Today"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, dog.id)},
+            "name": dog.name,
+            "manufacturer": "DogLog",
+            "model": "Pet",
+        }
+
+    @property
+    def native_value(self) -> int:
+        """Return the count of poop events today."""
+        events = self.coordinator.data.get(self._dog.name, [])
+        return _count_today(events, EventType.POOP)
 
 
 class DogLogWeightSensor(CoordinatorEntity[DogLogCoordinator], SensorEntity):
