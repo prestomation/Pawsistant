@@ -18,11 +18,14 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install pydoglog homeassistant
+        run: pip install pydoglog homeassistant pytest
 
       - name: Compile check
         run: |
           find custom_components -name "*.py" -exec python -m py_compile {} +
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
 
       - name: Run hassfest
         run: |
