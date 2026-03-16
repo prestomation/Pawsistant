@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers import device_registry as dr
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
@@ -63,6 +64,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
+
+    # Look up TryFi device for each dog to wire up via_device_id
+    # TryFi devices use identifier ("tryfi", <dog_id>)
+    dev_reg = dr.async_get(hass)
+    coordinator.tryfi_device_ids: dict[str, str | None] = {}
+    for dog in dogs:
+        # TryFi uses the dog's external ID as its device identifier
+        # Search all tryfi devices for one whose name matches this dog
+        tryfi_device = dev_reg.async_get_device(identifiers={("tryfi", dog.id)})
+        if tryfi_device is None:
+            # Fall back: search by name
+            for device in dr.async_entries_for_config_entry(
+                dev_reg, entry.entry_id
+            ):
+                pass  # not a tryfi device
+            # Search entire registry by name match
+            for device in list(dev_reg.devices.values()):
+                if (
+                    device.manufacturer == "TryFi"
+                    and (device.name or "").lower() == dog.name.lower()
+                ):
+                    tryfi_device = device
+                    break
+        coordinator.tryfi_device_ids[dog.name] = (
+            tryfi_device.id if tryfi_device else None
+        )
+        if tryfi_device:
+            _LOGGER.debug(
+                "Linked DogLog dog '%s' to TryFi device %s", dog.name, tryfi_device.id
+            )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
