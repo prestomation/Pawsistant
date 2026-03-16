@@ -40,16 +40,25 @@ class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[DogEvent]]]):
         self.client = client
         self.pack = pack
         self.dogs = dogs
-        self.entry = entry
+        self._entry = entry
 
     async def _async_update_data(self) -> dict[str, list[DogEvent]]:
         """Fetch events from DogLog API."""
+        old_refresh_token = self.client.refresh_token
+
         try:
             await self.client.ensure_token()
         except DogLogAuthError as err:
             raise ConfigEntryAuthFailed(
                 "Failed to refresh authentication token"
             ) from err
+
+        # Persist new refresh token to config entry if it changed
+        if self.client.refresh_token != old_refresh_token:
+            self.hass.config_entries.async_update_entry(
+                self._entry,
+                data={**self._entry.data, "refresh_token": self.client.refresh_token},
+            )
 
         try:
             events: list[DogEvent] = await self.client.list_events(
