@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers import device_registry as dr
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
@@ -65,34 +64,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.runtime_data = coordinator
 
-    # Look up TryFi device identifier for each dog to wire up via_device
-    dev_reg = dr.async_get(hass)
+    # tryfi_identifiers will be populated lazily by the coordinator
+    # after HA fully loads (TryFi integration may not be ready at our setup time)
     coordinator.tryfi_identifiers: dict[str, tuple[str, str] | None] = {}
-    for dog in dogs:
-        tryfi_device = None
-        # Search registry for a TryFi device matching this dog's name
-        for device in dev_reg.devices.values():
-            if (
-                device.manufacturer == "TryFi"
-                and (device.name or "").lower() == dog.name.lower()
-            ):
-                tryfi_device = device
-                break
-        if tryfi_device:
-            # Get the tryfi identifier tuple for via_device
-            tryfi_id = next(
-                (ident[1] for ident in tryfi_device.identifiers if ident[0] == "tryfi"),
-                None,
-            )
-            coordinator.tryfi_identifiers[dog.name] = (
-                ("tryfi", tryfi_id) if tryfi_id else None
-            )
-            _LOGGER.debug(
-                "Linked DogLog dog '%s' to TryFi device %s (%s)",
-                dog.name, tryfi_device.id, tryfi_id,
-            )
-        else:
-            coordinator.tryfi_identifiers[dog.name] = None
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

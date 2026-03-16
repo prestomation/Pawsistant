@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from pydoglog import AsyncDogLogClient, DogLogAuthError, DogLogAPIError
@@ -71,6 +72,28 @@ class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[DogEvent]]]):
                 self._entry,
                 data={**self._entry.data, "refresh_token": self.client.refresh_token},
             )
+
+        # Lazily resolve TryFi device identifiers (TryFi may not be loaded at our setup time)
+        if not all(self.tryfi_identifiers.get(dog.name) for dog in self.dogs):
+            dev_reg = dr.async_get(self.hass)
+            for dog in self.dogs:
+                if self.tryfi_identifiers.get(dog.name):
+                    continue
+                for device in dev_reg.devices.values():
+                    if (
+                        device.manufacturer == "TryFi"
+                        and (device.name or "").lower() == dog.name.lower()
+                    ):
+                        tryfi_id = next(
+                            (i[1] for i in device.identifiers if i[0] == "tryfi"),
+                            None,
+                        )
+                        if tryfi_id:
+                            self.tryfi_identifiers[dog.name] = ("tryfi", tryfi_id)
+                            _LOGGER.debug(
+                                "Linked DogLog '%s' → TryFi device %s", dog.name, device.id
+                            )
+                        break
 
         try:
             events: list[DogEvent] = await self.client.list_events(
