@@ -7,10 +7,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.components.sensor import (
+    SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
 )
+from homeassistant.util import dt as dt_util
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -105,13 +107,13 @@ def _to_datetime(ts: Any) -> datetime:
 
 
 def _count_today(events: list[DogEvent], event_type: EventType) -> int:
-    """Count events of a given type from today."""
-    today = datetime.now(timezone.utc).date()
+    """Count events of a given type from today (in HA's configured local timezone)."""
+    today = dt_util.now().date()
     count = 0
     for event in events:
         if event.event_type != event_type:
             continue
-        event_date = _to_datetime(event.timestamp).date()
+        event_date = _to_datetime(event.timestamp).astimezone(dt_util.DEFAULT_TIME_ZONE).date()
         if event_date == today:
             count += 1
     return count
@@ -136,6 +138,7 @@ async def async_setup_entry(
                 key=f"{slug}_most_recent_{type_name}",
                 name=f"{dog.name} Most Recent {event_type.name.replace('_', ' ').title()}",
                 icon=EVENT_TYPE_ICONS.get(event_type, "mdi:paw"),
+                device_class=SensorDeviceClass.TIMESTAMP,
                 event_type=event_type,
             )
             entities.append(
@@ -196,13 +199,17 @@ class DogLogMostRecentSensor(CoordinatorEntity[DogLogCoordinator], SensorEntity)
         }
 
     @property
-    def native_value(self) -> str | None:
-        """Return the ISO timestamp of the most recent event."""
+    def native_value(self) -> datetime | None:
+        """Return the most recent event timestamp as a timezone-aware datetime.
+
+        SensorDeviceClass.TIMESTAMP requires a datetime object (not a string).
+        HA will display it in the user's configured timezone automatically.
+        """
         events = self.coordinator.data.get(self._dog.name, [])
         event = _get_most_recent_event(events, self.entity_description.event_type)
         if event is None:
             return None
-        return _to_datetime(event.timestamp).isoformat()
+        return _to_datetime(event.timestamp)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
