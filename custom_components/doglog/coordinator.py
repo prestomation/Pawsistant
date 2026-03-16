@@ -45,6 +45,7 @@ class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[DogEvent]]]):
         self.pack = pack
         self.dogs = dogs
         self._entry = entry
+        self.tryfi_identifiers: dict[str, tuple[str, str] | None] = {}
 
     def get_device_info(self, dog: Dog) -> DeviceInfo:
         """Return DeviceInfo for a dog."""

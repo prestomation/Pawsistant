@@ -64,10 +64,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.runtime_data = coordinator
 
-    # tryfi_identifiers will be populated lazily by the coordinator
-    # after HA fully loads (TryFi integration may not be ready at our setup time)
-    coordinator.tryfi_identifiers: dict[str, tuple[str, str] | None] = {}
-
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async def handle_log_event(call: ServiceCall) -> None:
