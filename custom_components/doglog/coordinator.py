@@ -1,4 +1,7 @@
-"""DataUpdateCoordinator for DogLog."""
+"""DataUpdateCoordinator for DogLog.
+
+Handles periodic data fetching and TryFi device linking.
+"""
 
 from __future__ import annotations
 
