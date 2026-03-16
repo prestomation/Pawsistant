@@ -83,3 +83,7 @@ Log a pet activity event to DogLog.
 | event_type | string | yes | Event type (food, walk, poop, etc.) |
 | note | string | no | Optional note |
 | value | float | no | Optional numeric value (e.g., weight) |
+
+## Automations
+
+See [AUTOMATIONS.md](./AUTOMATIONS.md) for ready-to-paste Home Assistant automation YAML examples, including daily medicine reminders, pee alerts, and poop count alerts.
