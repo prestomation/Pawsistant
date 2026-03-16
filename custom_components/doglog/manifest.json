@@ -1,11 +1,11 @@
 {
   "domain": "doglog",
   "name": "DogLog",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "codeowners": ["@ptamkin"],
   "config_flow": true,
-  "documentation": "https://github.com/ptamkin/ha-doglog",
+  "documentation": "https://github.com/prestomation/ha-doglog",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/ptamkin/ha-doglog/issues",
+  "issue_tracker": "https://github.com/prestomation/ha-doglog/issues",
   "requirements": ["pydoglog>=0.1.0"]
 }
