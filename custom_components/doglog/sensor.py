@@ -61,7 +61,6 @@ DAILY_COUNT_EVENT_TYPES = [
     EventType.TREAT,
     EventType.WALK,
     EventType.PEE,
-    EventType.POOP,
     EventType.WATER,
 ]
 
@@ -250,7 +249,7 @@ class DogLogPoopCountTodaySensor(CoordinatorEntity[DogLogCoordinator], SensorEnt
     """Sensor showing the count of poop events today (automation-friendly name)."""
 
     _attr_has_entity_name = True
-    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_icon = "mdi:emoticon-poop"
 
     def __init__(
