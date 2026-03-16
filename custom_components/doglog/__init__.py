@@ -65,35 +65,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.runtime_data = coordinator
 
-    # Look up TryFi device for each dog to wire up via_device_id
-    # TryFi devices use identifier ("tryfi", <dog_id>)
+    # Look up TryFi device identifier for each dog to wire up via_device
     dev_reg = dr.async_get(hass)
-    coordinator.tryfi_device_ids: dict[str, str | None] = {}
+    coordinator.tryfi_identifiers: dict[str, tuple[str, str] | None] = {}
     for dog in dogs:
-        # TryFi uses the dog's external ID as its device identifier
-        # Search all tryfi devices for one whose name matches this dog
-        tryfi_device = dev_reg.async_get_device(identifiers={("tryfi", dog.id)})
-        if tryfi_device is None:
-            # Fall back: search by name
-            for device in dr.async_entries_for_config_entry(
-                dev_reg, entry.entry_id
+        tryfi_device = None
+        # Search registry for a TryFi device matching this dog's name
+        for device in dev_reg.devices.values():
+            if (
+                device.manufacturer == "TryFi"
+                and (device.name or "").lower() == dog.name.lower()
             ):
-                pass  # not a tryfi device
-            # Search entire registry by name match
-            for device in list(dev_reg.devices.values()):
-                if (
-                    device.manufacturer == "TryFi"
-                    and (device.name or "").lower() == dog.name.lower()
-                ):
-                    tryfi_device = device
-                    break
-        coordinator.tryfi_device_ids[dog.name] = (
-            tryfi_device.id if tryfi_device else None
-        )
+                tryfi_device = device
+                break
         if tryfi_device:
-            _LOGGER.debug(
-                "Linked DogLog dog '%s' to TryFi device %s", dog.name, tryfi_device.id
+            # Get the tryfi identifier tuple for via_device
+            tryfi_id = next(
+                (ident[1] for ident in tryfi_device.identifiers if ident[0] == "tryfi"),
+                None,
             )
+            coordinator.tryfi_identifiers[dog.name] = (
+                ("tryfi", tryfi_id) if tryfi_id else None
+            )
+            _LOGGER.debug(
+                "Linked DogLog dog '%s' to TryFi device %s (%s)",
+                dog.name, tryfi_device.id, tryfi_id,
+            )
+        else:
+            coordinator.tryfi_identifiers[dog.name] = None
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

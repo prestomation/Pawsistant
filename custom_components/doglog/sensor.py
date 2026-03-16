@@ -186,13 +186,13 @@ class DogLogMostRecentSensor(CoordinatorEntity[DogLogCoordinator], SensorEntity)
         self.entity_description = description
         self._dog = dog
         self._attr_unique_id = f"doglog_{dog.id}_{description.key}"
-        _tryfi_device_id = getattr(coordinator, "tryfi_device_ids", {}).get(dog.name)
+        _via_device = getattr(coordinator, "tryfi_identifiers", {}).get(dog.name)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, dog.id)},
             "name": dog.name,
             "manufacturer": "DogLog",
             "model": "Pet",
-            **({"via_device_id": _tryfi_device_id} if _tryfi_device_id else {}),
+            **({"via_device": _via_device} if _via_device else {}),
         }
 
     @property
@@ -237,13 +237,13 @@ class DogLogDailyCountSensor(CoordinatorEntity[DogLogCoordinator], SensorEntity)
         self.entity_description = description
         self._dog = dog
         self._attr_unique_id = f"doglog_{dog.id}_{description.key}"
-        _tryfi_device_id = getattr(coordinator, "tryfi_device_ids", {}).get(dog.name)
+        _via_device = getattr(coordinator, "tryfi_identifiers", {}).get(dog.name)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, dog.id)},
             "name": dog.name,
             "manufacturer": "DogLog",
             "model": "Pet",
-            **({"via_device_id": _tryfi_device_id} if _tryfi_device_id else {}),
+            **({"via_device": _via_device} if _via_device else {}),
         }
 
     @property
@@ -271,13 +271,13 @@ class DogLogPoopCountTodaySensor(CoordinatorEntity[DogLogCoordinator], SensorEnt
         slug = _slug(dog.name)
         self._attr_unique_id = f"doglog_{dog.id}_{slug}_poop_count_today"
         self._attr_name = f"{dog.name} Poop Count Today"
-        _tryfi_device_id = getattr(coordinator, "tryfi_device_ids", {}).get(dog.name)
+        _via_device = getattr(coordinator, "tryfi_identifiers", {}).get(dog.name)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, dog.id)},
             "name": dog.name,
             "manufacturer": "DogLog",
             "model": "Pet",
-            **({"via_device_id": _tryfi_device_id} if _tryfi_device_id else {}),
+            **({"via_device": _via_device} if _via_device else {}),
         }
 
     @property
@@ -306,13 +306,13 @@ class DogLogWeightSensor(CoordinatorEntity[DogLogCoordinator], SensorEntity):
         slug = _slug(dog.name)
         self._attr_unique_id = f"doglog_{dog.id}_{slug}_weight"
         self._attr_name = f"{dog.name} Weight"
-        _tryfi_device_id = getattr(coordinator, "tryfi_device_ids", {}).get(dog.name)
+        _via_device = getattr(coordinator, "tryfi_identifiers", {}).get(dog.name)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, dog.id)},
             "name": dog.name,
             "manufacturer": "DogLog",
             "model": "Pet",
-            **({"via_device_id": _tryfi_device_id} if _tryfi_device_id else {}),
+            **({"via_device": _via_device} if _via_device else {}),
         }
 
     @property
