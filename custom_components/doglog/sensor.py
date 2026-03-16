@@ -94,6 +94,16 @@ def _get_most_recent_event(
     return None
 
 
+def _to_datetime(ts: Any) -> datetime:
+    """Convert a timestamp (datetime or numeric) to a timezone-aware datetime."""
+    if isinstance(ts, datetime):
+        return ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
+    # Numeric: milliseconds if > 1e12, else seconds
+    if ts > 1e12:
+        ts = ts / 1000
+    return datetime.fromtimestamp(ts, tz=timezone.utc)
+
+
 def _count_today(events: list[DogEvent], event_type: EventType) -> int:
     """Count events of a given type from today."""
     today = datetime.now(timezone.utc).date()
@@ -101,10 +111,7 @@ def _count_today(events: list[DogEvent], event_type: EventType) -> int:
     for event in events:
         if event.event_type != event_type:
             continue
-        event_date = datetime.fromtimestamp(
-            event.timestamp / 1000 if event.timestamp > 1e12 else event.timestamp,
-            tz=timezone.utc,
-        ).date()
+        event_date = _to_datetime(event.timestamp).date()
         if event_date == today:
             count += 1
     return count
@@ -193,10 +200,7 @@ class DogLogMostRecentSensor(CoordinatorEntity[DogLogCoordinator], SensorEntity)
         event = _get_most_recent_event(events, self.entity_description.event_type)
         if event is None:
             return None
-        ts = event.timestamp
-        if ts > 1e12:
-            ts = ts / 1000
-        return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+        return _to_datetime(event.timestamp).isoformat()
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
