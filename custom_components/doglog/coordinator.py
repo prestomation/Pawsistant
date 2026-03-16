@@ -9,10 +9,13 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from pydoglog import AsyncDogLogClient, DogLogAuthError, DogLogAPIError
 from pydoglog.models import Dog, DogEvent, Pack
+
+DOMAIN = "doglog"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,6 +44,15 @@ class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[DogEvent]]]):
         self.pack = pack
         self.dogs = dogs
         self._entry = entry
+
+    def get_device_info(self, dog: Dog) -> DeviceInfo:
+        """Return DeviceInfo for a dog."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, dog.id)},
+            name=dog.name,
+            manufacturer="DogLog",
+            model="Dog",
+        )
 
     async def _async_update_data(self) -> dict[str, list[DogEvent]]:
         """Fetch events from DogLog API."""

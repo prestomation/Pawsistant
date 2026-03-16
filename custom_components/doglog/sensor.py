@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-
-from homeassistant.util import dt as dt_util
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -108,12 +106,12 @@ def _to_datetime(ts: Any) -> datetime:
 
 def _count_today(events: list[DogEvent], event_type: EventType) -> int:
     """Count events of a given type from today."""
-    today = dt_util.now().date()
+    today = datetime.now(timezone.utc).date()
     count = 0
     for event in events:
         if event.event_type != event_type:
             continue
-        event_date = _to_datetime(event.timestamp).astimezone(dt_util.DEFAULT_TIME_ZONE).date()
+        event_date = _to_datetime(event.timestamp).date()
         if event_date == today:
             count += 1
     return count
