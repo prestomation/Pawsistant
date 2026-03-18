@@ -160,7 +160,6 @@ For users coming from the Firebase-backed version:
 - Multi-user sync (single HA instance)
 - Photo attachments
 - Firebase connectivity
-- TryFi device linking (remove)
 
 ## File Changes Summary
 
