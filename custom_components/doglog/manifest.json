@@ -1,11 +1,11 @@
 {
   "domain": "doglog",
-  "name": "Pawsistant",
-  "version": "1.0.1",
+  "name": "DogLog",
+  "version": "2.0.0",
   "codeowners": ["@ptamkin"],
   "config_flow": true,
   "documentation": "https://github.com/prestomation/ha-doglog",
-  "iot_class": "cloud_polling",
+  "iot_class": "local_push",
   "issue_tracker": "https://github.com/prestomation/ha-doglog/issues",
-  "requirements": ["pydoglog>=0.1.1"]
+  "requirements": []
 }

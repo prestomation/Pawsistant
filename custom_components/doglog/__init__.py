@@ -1,139 +1,292 @@
-"""Pawsistant (DogLog) integration for Home Assistant."""
+"""DogLog integration for Home Assistant.
+
+Replaces the Firebase/pydoglog backend with HA-native local storage.
+All dog and event data is stored in .storage/doglog and managed exclusively
+via HA service calls — no cloud dependency required.
+
+Services provided:
+  doglog.log_event      — Log an activity for a named dog
+  doglog.delete_event   — Delete an event by ID
+  doglog.add_dog        — Register a new dog
+  doglog.remove_dog     — Remove a dog and all its events
+  doglog.list_events    — Fire a HA event with query results (for automations)
+  doglog.import_events  — Bulk-import events from an external JSON array
+"""
 
 from __future__ import annotations
 
 import logging
+from typing import Any
+
+import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ConfigEntryAuthFailed
-
-from pydoglog import AsyncDogLogClient
-from pydoglog.auth import refresh_id_token
-from pydoglog.models import EventType
+from homeassistant.helpers import config_validation as cv
 
 from .coordinator import DogLogCoordinator
+from .store import DogLogStore, VALID_EVENT_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "doglog"
 PLATFORMS = ["sensor"]
 
+# ---------------------------------------------------------------------------
+# Service schemas
+# ---------------------------------------------------------------------------
+
+LOG_EVENT_SCHEMA = vol.Schema(
+    {
+        vol.Required("dog"): cv.string,
+        vol.Required("event_type"): vol.In(VALID_EVENT_TYPES),
+        vol.Optional("note", default=""): cv.string,
+        vol.Optional("value"): vol.Coerce(float),
+        vol.Optional("timestamp"): cv.string,
+    }
+)
+
+DELETE_EVENT_SCHEMA = vol.Schema(
+    {
+        vol.Required("event_id"): cv.string,
+    }
+)
+
+ADD_DOG_SCHEMA = vol.Schema(
+    {
+        vol.Required("name"): cv.string,
+        vol.Optional("breed", default=""): cv.string,
+        vol.Optional("birth_date", default=""): cv.string,
+    }
+)
+
+REMOVE_DOG_SCHEMA = vol.Schema(
+    {
+        vol.Required("dog"): cv.string,
+    }
+)
+
+LIST_EVENTS_SCHEMA = vol.Schema(
+    {
+        vol.Required("dog"): cv.string,
+        vol.Optional("event_type"): vol.In(VALID_EVENT_TYPES),
+        vol.Optional("days", default=7): vol.All(int, vol.Range(min=1, max=3650)),
+    }
+)
+
+IMPORT_EVENTS_SCHEMA = vol.Schema(
+    {
+        vol.Required("events"): list,
+    }
+)
+
+
+# ---------------------------------------------------------------------------
+# Integration setup
+# ---------------------------------------------------------------------------
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Pawsistant from a config entry."""
-    refresh_token = entry.data["refresh_token"]
-    uid = entry.data.get("uid", "")
+    """Set up DogLog from a config entry.
 
-    try:
-        token_data = await hass.async_add_executor_job(
-            refresh_id_token, refresh_token
-        )
-    except Exception as err:
-        raise ConfigEntryAuthFailed("Failed to refresh token") from err
+    Creates the DogLogStore, loads data from disk, and registers all services.
+    On first run (no dogs in store) the initial dog from the config-flow data
+    is automatically added.
+    """
+    store = DogLogStore(hass)
+    await store.load()
 
-    new_refresh_token = token_data.get("refresh_token", refresh_token)
+    # Seed the store with the initial dog captured during config flow
+    if not store.get_dogs():
+        initial_dog = entry.data.get("initial_dog", {})
+        dog_name = initial_dog.get("name", "")
+        if dog_name:
+            await store.add_dog(
+                name=dog_name,
+                breed=initial_dog.get("breed", ""),
+                birth_date=initial_dog.get("birth_date", ""),
+            )
+            _LOGGER.info("Created initial dog '%s' from config entry", dog_name)
 
-    # Persist rotated refresh token back to config entry
-    if new_refresh_token != refresh_token:
-        hass.config_entries.async_update_entry(
-            entry,
-            data={**entry.data, "refresh_token": new_refresh_token},
-        )
-
-    client = AsyncDogLogClient(
-        id_token=token_data["id_token"],
-        refresh_token=new_refresh_token,
-        uid=uid,
-    )
-    # Prevent the client from writing credentials to disk
-    client._save = lambda: None
-
-    packs = await client.get_packs()
-    if not packs:
-        _LOGGER.error("No packs found for user")
-        return False
-
-    dogs = await client.get_dogs()
-    if not dogs:
-        _LOGGER.error("No dogs found")
-        return False
-
-    coordinator = DogLogCoordinator(hass, entry, client, packs[0], dogs)
+    coordinator = DogLogCoordinator(hass, entry, store)
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Bug A fix: Only register the service once across all config entries.
-    # The handler looks up the coordinator from the entry's runtime_data,
-    # so it works for any entry.
+    # ------------------------------------------------------------------
+    # Register services — only once, regardless of how many entries exist
+    # (In practice there is always exactly one entry, but guard anyway.)
+    # ------------------------------------------------------------------
+
+    def _get_store_and_coord() -> tuple[DogLogStore, DogLogCoordinator]:
+        """Return the active store and coordinator for the single entry."""
+        for cfg_entry in hass.config_entries.async_entries(DOMAIN):
+            coord = getattr(cfg_entry, "runtime_data", None)
+            if isinstance(coord, DogLogCoordinator):
+                return coord.store, coord
+        raise RuntimeError("No active DogLog coordinator found")
+
+    def _find_dog_id(store: DogLogStore, dog_name: str) -> str | None:
+        """Return the dog_id for *dog_name* (case-insensitive) or None."""
+        result = store.get_dog_by_name(dog_name)
+        return result[0] if result else None
+
     if not hass.services.has_service(DOMAIN, "log_event"):
+
         async def handle_log_event(call: ServiceCall) -> None:
-            """Handle the doglog.log_event service call."""
-            dog_name = call.data["dog"]
-            event_type_str = call.data["event_type"]
-            note = call.data.get("note", "")
-            value = call.data.get("value")
+            """Handle doglog.log_event."""
+            store, coord = _get_store_and_coord()
+            dog_name: str = call.data["dog"]
+            event_type: str = call.data["event_type"]
+            note: str = call.data.get("note", "")
+            value: float | None = call.data.get("value")
+            timestamp: str | None = call.data.get("timestamp")
 
-            event_type = EventType.from_name(event_type_str)
-
-            # Bug C fix: Build extra kwargs to pass through to create_event
-            extra: dict[str, object] = {}
-            if value is not None:
-                extra["value"] = value
-
-            # Search all loaded config entries for the matching dog
-            target_coordinator: DogLogCoordinator | None = None
-            dog_id: str | None = None
-            for cfg_entry in hass.config_entries.async_entries(DOMAIN):
-                coord = getattr(cfg_entry, "runtime_data", None)
-                if not isinstance(coord, DogLogCoordinator):
-                    continue
-                for dog in coord.dogs:
-                    if dog.name.lower() == dog_name.lower():
-                        target_coordinator = coord
-                        dog_id = dog.id
-                        break
-                if dog_id is not None:
-                    break
-
-            if target_coordinator is None or dog_id is None:
-                _LOGGER.error("Dog '%s' not found in any loaded pack", dog_name)
+            dog_id = _find_dog_id(store, dog_name)
+            if dog_id is None:
+                _LOGGER.error("doglog.log_event: dog '%s' not found", dog_name)
                 return
 
-            # Bug B fix: Ensure token is fresh before making the API call
-            try:
-                await target_coordinator.client.ensure_token()
-            except Exception:
-                _LOGGER.error("Failed to refresh token for service call")
-                return
+            event = await store.add_event(
+                dog_id=dog_id,
+                event_type=event_type,
+                note=note,
+                value=value,
+                timestamp=timestamp,
+            )
+            _LOGGER.debug(
+                "Logged %s event for '%s' (id=%s)", event_type, dog_name, event["id"]
+            )
+            await coord.async_request_refresh()
 
-            # Bug D fix: Persist rotated token after ensure_token
-            stored_token = target_coordinator._entry.data["refresh_token"]
-            if target_coordinator.client.refresh_token != stored_token:
-                hass.config_entries.async_update_entry(
-                    target_coordinator._entry,
-                    data={
-                        **target_coordinator._entry.data,
-                        "refresh_token": target_coordinator.client.refresh_token,
-                    },
+        hass.services.async_register(
+            DOMAIN, "log_event", handle_log_event, schema=LOG_EVENT_SCHEMA
+        )
+
+    if not hass.services.has_service(DOMAIN, "delete_event"):
+
+        async def handle_delete_event(call: ServiceCall) -> None:
+            """Handle doglog.delete_event."""
+            store, coord = _get_store_and_coord()
+            event_id: str = call.data["event_id"]
+            deleted = await store.delete_event(event_id)
+            if deleted:
+                _LOGGER.debug("Deleted event %s", event_id)
+                await coord.async_request_refresh()
+            else:
+                _LOGGER.warning(
+                    "doglog.delete_event: event id '%s' not found", event_id
                 )
 
-            pack_id = target_coordinator.pack.id
-            await target_coordinator.client.create_event(
-                pack_id,
-                dog_id,
-                event_type,
-                note,
-                dog_name,
-                **extra,
+        hass.services.async_register(
+            DOMAIN, "delete_event", handle_delete_event, schema=DELETE_EVENT_SCHEMA
+        )
+
+    if not hass.services.has_service(DOMAIN, "add_dog"):
+
+        async def handle_add_dog(call: ServiceCall) -> None:
+            """Handle doglog.add_dog."""
+            store, coord = _get_store_and_coord()
+            name: str = call.data["name"].strip()
+            if not name:
+                _LOGGER.error("doglog.add_dog: name must not be empty")
+                return
+            dog_id = await store.add_dog(
+                name=name,
+                breed=call.data.get("breed", ""),
+                birth_date=call.data.get("birth_date", ""),
+            )
+            _LOGGER.info("Added dog '%s' via service (id=%s)", name, dog_id)
+            await coord.async_request_refresh()
+
+        hass.services.async_register(
+            DOMAIN, "add_dog", handle_add_dog, schema=ADD_DOG_SCHEMA
+        )
+
+    if not hass.services.has_service(DOMAIN, "remove_dog"):
+
+        async def handle_remove_dog(call: ServiceCall) -> None:
+            """Handle doglog.remove_dog."""
+            store, coord = _get_store_and_coord()
+            dog_name: str = call.data["dog"]
+            result = store.get_dog_by_name(dog_name)
+            if result is None:
+                _LOGGER.error(
+                    "doglog.remove_dog: dog '%s' not found", dog_name
+                )
+                return
+            dog_id, _ = result
+            await store.remove_dog(dog_id)
+            _LOGGER.info("Removed dog '%s' via service", dog_name)
+            await coord.async_request_refresh()
+
+        hass.services.async_register(
+            DOMAIN, "remove_dog", handle_remove_dog, schema=REMOVE_DOG_SCHEMA
+        )
+
+    if not hass.services.has_service(DOMAIN, "list_events"):
+
+        async def handle_list_events(call: ServiceCall) -> None:
+            """Handle doglog.list_events.
+
+            Fires a ``doglog_events`` HA event containing the matching events so
+            that automations can react to the results.
+            """
+            from datetime import timedelta
+            from homeassistant.util import dt as dt_util
+
+            store, _coord = _get_store_and_coord()
+            dog_name: str = call.data["dog"]
+            event_type: str | None = call.data.get("event_type")
+            days: int = call.data.get("days", 7)
+
+            result = store.get_dog_by_name(dog_name)
+            if result is None:
+                _LOGGER.error(
+                    "doglog.list_events: dog '%s' not found", dog_name
+                )
+                return
+            dog_id, _ = result
+            since = dt_util.now() - timedelta(days=days)
+            events = store.get_events(dog_id, event_type=event_type, since=since)
+
+            hass.bus.async_fire(
+                "doglog_events",
+                {
+                    "dog": dog_name,
+                    "event_type": event_type,
+                    "days": days,
+                    "events": events,
+                },
             )
 
-            await target_coordinator.async_request_refresh()
+        hass.services.async_register(
+            DOMAIN, "list_events", handle_list_events, schema=LIST_EVENTS_SCHEMA
+        )
 
-        hass.services.async_register(DOMAIN, "log_event", handle_log_event)
+    if not hass.services.has_service(DOMAIN, "import_events"):
+
+        async def handle_import_events(call: ServiceCall) -> None:
+            """Handle doglog.import_events.
+
+            Accepts a list of event dicts (e.g. exported from Firebase) and
+            bulk-imports them into the local store.  Duplicate IDs are skipped.
+            """
+            store, coord = _get_store_and_coord()
+            raw_events: list[Any] = call.data["events"]
+            if not isinstance(raw_events, list):
+                _LOGGER.error("doglog.import_events: 'events' must be a list")
+                return
+            count = await store.import_events(raw_events)
+            _LOGGER.info("import_events: imported %d new events", count)
+            if count > 0:
+                await coord.async_request_refresh()
+
+        hass.services.async_register(
+            DOMAIN, "import_events", handle_import_events, schema=IMPORT_EVENTS_SCHEMA
+        )
 
     return True
 
@@ -142,13 +295,21 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    # Bug A fix: Only remove the service when the last config entry is unloaded
+    # Remove services only when the last DogLog entry is unloaded
     remaining = [
         e
         for e in hass.config_entries.async_entries(DOMAIN)
         if e.entry_id != entry.entry_id
     ]
     if not remaining:
-        hass.services.async_remove(DOMAIN, "log_event")
+        for service in (
+            "log_event",
+            "delete_event",
+            "add_dog",
+            "remove_dog",
+            "list_events",
+            "import_events",
+        ):
+            hass.services.async_remove(DOMAIN, service)
 
     return unload_ok

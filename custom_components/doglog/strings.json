@@ -2,20 +2,28 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Pawsistant",
-        "description": "Paste your Pawsistant refresh token below. You can get this from the DogLog CLI (`doglog auth token`) or the token-dumper app.",
+        "title": "Set Up DogLog",
+        "description": "Enter the name of your first dog to get started. You can add more dogs later using the `doglog.add_dog` service.",
         "data": {
-          "refresh_token": "Refresh Token"
+          "dog_name": "Dog Name",
+          "breed": "Breed (optional)",
+          "birth_date": "Birth Date (optional, YYYY-MM-DD)"
         }
       }
     },
     "error": {
-      "invalid_auth": "Invalid refresh token.",
-      "cannot_connect": "Unable to connect to DogLog API.",
-      "no_packs": "No packs found for this account."
+      "name_required": "Dog name cannot be empty."
     },
     "abort": {
-      "already_configured": "This account is already configured."
+      "already_configured": "DogLog is already configured. Use the doglog.add_dog service to add more dogs."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "DogLog Options",
+        "description": "Use the `doglog.add_dog` and `doglog.remove_dog` services to manage your dogs."
+      }
     }
   }
 }

@@ -1,120 +1,105 @@
-"""DataUpdateCoordinator for Pawsistant (DogLog).
+"""DataUpdateCoordinator for DogLog.
 
-Handles periodic data fetching and TryFi device linking.
+Data is read from the local DogLogStore (no network calls).  The coordinator
+is refreshed immediately after each service call that mutates data, so sensors
+reflect the change within the current HA tick.
+
+Coordinator data shape (preserved from the old Firebase coordinator so that
+sensor.py requires minimal changes):
+
+    {
+        "<dog_name>": [  # newest-first list of event dicts
+            {
+                "id": "<uuid>",
+                "dog_id": "<dog_id>",
+                "event_type": "pee",
+                "timestamp": "2026-03-18T10:30:00-04:00",
+                "note": "",
+                "value": null   # may be absent for non-value events
+            },
+            ...
+        ],
+        ...
+    }
 """
 
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from pydoglog import AsyncDogLogClient, DogLogAuthError, DogLogAPIError
-from pydoglog.models import Dog, DogEvent, Pack
+from .store import DogLogStore
 
 DOMAIN = "doglog"
-
 _LOGGER = logging.getLogger(__name__)
 
-SCAN_INTERVAL = timedelta(minutes=5)
 
+class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
+    """Coordinator that reads DogLog events from the local store.
 
-class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[DogEvent]]]):
-    """Coordinator that fetches DogLog events for all dogs."""
+    Because data is local there is no periodic poll interval — updates happen
+    only when a service call explicitly triggers async_request_refresh().
+    """
 
     def __init__(
         self,
         hass: HomeAssistant,
         entry: ConfigEntry,
-        client: AsyncDogLogClient,
-        pack: Pack,
-        dogs: list[Dog],
+        store: DogLogStore,
     ) -> None:
-        """Initialize the coordinator."""
+        """Initialise the coordinator.
+
+        Args:
+            hass: The Home Assistant instance.
+            entry: The config entry this coordinator belongs to.
+            store: The DogLogStore instance shared across this entry.
+
+        """
         super().__init__(
             hass,
             _LOGGER,
-            name="Pawsistant",
-            update_interval=SCAN_INTERVAL,
+            name="DogLog",
+            # No update_interval — data is push-driven (service calls trigger refresh)
         )
-        self.client = client
-        self.pack = pack
-        self.dogs = dogs
+        self.store = store
         self._entry = entry
-        self.tryfi_identifiers: dict[str, tuple[str, str] | None] = {}
 
-    def get_device_info(self, dog: Dog) -> DeviceInfo:
-        """Return DeviceInfo for a dog."""
+    # ------------------------------------------------------------------
+    # DataUpdateCoordinator implementation
+    # ------------------------------------------------------------------
+
+    async def _async_update_data(self) -> dict[str, list[dict[str, Any]]]:
+        """Build coordinator data from the local store.
+
+        Runs event pruning here so stale entries are cleaned up on every
+        reload (at most once per coordinator refresh, which is infrequent).
+        """
+        try:
+            await self.store.prune_old_events()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Failed to prune old events: %s", err)
+
+        dogs = self.store.get_dogs()
+        result: dict[str, list[dict[str, Any]]] = {}
+        for dog_id, dog_info in dogs.items():
+            dog_name = dog_info["name"]
+            result[dog_name] = self.store.get_events(dog_id)
+        return result
+
+    # ------------------------------------------------------------------
+    # Device registry helpers
+    # ------------------------------------------------------------------
+
+    def get_device_info(self, dog_id: str, dog_name: str) -> DeviceInfo:
+        """Return DeviceInfo for a dog (used by sensor entities)."""
         return DeviceInfo(
-            identifiers={(DOMAIN, dog.id)},
-            name=dog.name,
-            manufacturer="Pawsistant",
+            identifiers={(DOMAIN, dog_id)},
+            name=dog_name,
+            manufacturer="DogLog",
             model="Dog",
         )
-
-    async def _async_update_data(self) -> dict[str, list[DogEvent]]:
-        """Fetch events from DogLog API."""
-        old_refresh_token = self.client.refresh_token
-
-        try:
-            await self.client.ensure_token()
-        except DogLogAuthError as err:
-            raise ConfigEntryAuthFailed(
-                "Failed to refresh authentication token"
-            ) from err
-
-        # Persist new refresh token to config entry if it changed
-        if self.client.refresh_token != old_refresh_token:
-            self.hass.config_entries.async_update_entry(
-                self._entry,
-                data={**self._entry.data, "refresh_token": self.client.refresh_token},
-            )
-
-        # Lazily resolve TryFi device identifiers (TryFi may not be loaded at our setup time)
-        if not all(self.tryfi_identifiers.get(dog.name) for dog in self.dogs):
-            dev_reg = dr.async_get(self.hass)
-            for dog in self.dogs:
-                if self.tryfi_identifiers.get(dog.name):
-                    continue
-                for device in dev_reg.devices.values():
-                    if (
-                        device.manufacturer == "TryFi"
-                        and (device.name or "").lower() == dog.name.lower()
-                    ):
-                        tryfi_id = next(
-                            (i[1] for i in device.identifiers if i[0] == "tryfi"),
-                            None,
-                        )
-                        if tryfi_id:
-                            self.tryfi_identifiers[dog.name] = ("tryfi", tryfi_id)
-                            _LOGGER.debug(
-                                "Linked DogLog '%s' → TryFi device %s", dog.name, device.id
-                            )
-                        break
-
-        try:
-            events: list[DogEvent] = await self.client.list_events(
-                self.pack.id, None, 200
-            )
-        except DogLogAuthError as err:
-            raise ConfigEntryAuthFailed(
-                "Authentication failed"
-            ) from err
-        except DogLogAPIError as err:
-            raise UpdateFailed(f"Error fetching DogLog data: {err}") from err
-
-        # Group events by dog name
-        result: dict[str, list[DogEvent]] = {}
-        for dog in self.dogs:
-            result[dog.name] = [
-                e for e in events if e.pet_name == dog.name or e.pet_id == dog.id
-            ]
-
-        return result
