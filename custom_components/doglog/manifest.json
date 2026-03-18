@@ -7,5 +7,5 @@
   "documentation": "https://github.com/prestomation/ha-doglog",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/prestomation/ha-doglog/issues",
-  "requirements": ["pydoglog>=0.1.1"]
+  "requirements": ["pydoglog @ git+https://github.com/prestomation/pydoglog.git@main"]
 }
