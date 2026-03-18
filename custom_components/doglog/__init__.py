@@ -1,4 +1,4 @@
-"""DogLog integration for Home Assistant."""
+"""Pawsistant (DogLog) integration for Home Assistant."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ PLATFORMS = ["sensor"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up DogLog from a config entry."""
+    """Set up Pawsistant from a config entry."""
     refresh_token = entry.data["refresh_token"]
     uid = entry.data.get("uid", "")
 
@@ -66,46 +66,89 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    async def handle_log_event(call: ServiceCall) -> None:
-        """Handle the doglog.log_event service call."""
-        dog_name = call.data["dog"]
-        event_type_str = call.data["event_type"]
-        note = call.data.get("note", "")
-        value = call.data.get("value")
+    # Bug A fix: Only register the service once across all config entries.
+    # The handler looks up the coordinator from the entry's runtime_data,
+    # so it works for any entry.
+    if not hass.services.has_service(DOMAIN, "log_event"):
+        async def handle_log_event(call: ServiceCall) -> None:
+            """Handle the doglog.log_event service call."""
+            dog_name = call.data["dog"]
+            event_type_str = call.data["event_type"]
+            note = call.data.get("note", "")
+            value = call.data.get("value")
 
-        event_type = EventType.from_name(event_type_str)
+            event_type = EventType.from_name(event_type_str)
 
-        extra = {}
-        if value is not None:
-            extra["value"] = value
+            # Bug C fix: Build extra kwargs to pass through to create_event
+            extra: dict[str, object] = {}
+            if value is not None:
+                extra["value"] = value
 
-        pack_id = coordinator.pack.id
-        dog_id = None
-        for dog in coordinator.dogs:
-            if dog.name.lower() == dog_name.lower():
-                dog_id = dog.id
-                break
+            # Search all loaded config entries for the matching dog
+            target_coordinator: DogLogCoordinator | None = None
+            dog_id: str | None = None
+            for cfg_entry in hass.config_entries.async_entries(DOMAIN):
+                coord = getattr(cfg_entry, "runtime_data", None)
+                if not isinstance(coord, DogLogCoordinator):
+                    continue
+                for dog in coord.dogs:
+                    if dog.name.lower() == dog_name.lower():
+                        target_coordinator = coord
+                        dog_id = dog.id
+                        break
+                if dog_id is not None:
+                    break
 
-        if dog_id is None:
-            _LOGGER.error("Dog '%s' not found", dog_name)
-            return
+            if target_coordinator is None or dog_id is None:
+                _LOGGER.error("Dog '%s' not found in any loaded pack", dog_name)
+                return
 
-        await client.create_event(
-            pack_id,
-            dog_id,
-            event_type,
-            note,
-            dog_name,
-        )
+            # Bug B fix: Ensure token is fresh before making the API call
+            try:
+                await target_coordinator.client.ensure_token()
+            except Exception:
+                _LOGGER.error("Failed to refresh token for service call")
+                return
 
-        await coordinator.async_request_refresh()
+            # Bug D fix: Persist rotated token after ensure_token
+            stored_token = target_coordinator._entry.data["refresh_token"]
+            if target_coordinator.client.refresh_token != stored_token:
+                hass.config_entries.async_update_entry(
+                    target_coordinator._entry,
+                    data={
+                        **target_coordinator._entry.data,
+                        "refresh_token": target_coordinator.client.refresh_token,
+                    },
+                )
 
-    hass.services.async_register(DOMAIN, "log_event", handle_log_event)
+            pack_id = target_coordinator.pack.id
+            await target_coordinator.client.create_event(
+                pack_id,
+                dog_id,
+                event_type,
+                note,
+                dog_name,
+                **extra,
+            )
+
+            await target_coordinator.async_request_refresh()
+
+        hass.services.async_register(DOMAIN, "log_event", handle_log_event)
 
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    hass.services.async_remove(DOMAIN, "log_event")
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    # Bug A fix: Only remove the service when the last config entry is unloaded
+    remaining = [
+        e
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if e.entry_id != entry.entry_id
+    ]
+    if not remaining:
+        hass.services.async_remove(DOMAIN, "log_event")
+
+    return unload_ok

@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to DogLog",
-        "description": "Paste your DogLog refresh token below. You can get this from the DogLog CLI (`doglog auth token`) or the token-dumper app.",
+        "title": "Connect to Pawsistant",
+        "description": "Paste your Pawsistant refresh token below. You can get this from the DogLog CLI (`doglog auth token`) or the token-dumper app.",
         "data": {
           "refresh_token": "Refresh Token"
         }
@@ -11,11 +11,11 @@
     },
     "error": {
       "invalid_auth": "Invalid refresh token.",
-      "cannot_connect": "Unable to connect to DogLog.",
+      "cannot_connect": "Unable to connect to DogLog API.",
       "no_packs": "No packs found for this account."
     },
     "abort": {
-      "already_configured": "This DogLog account is already configured."
+      "already_configured": "This account is already configured."
     }
   }
 }

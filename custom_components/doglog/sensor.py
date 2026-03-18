@@ -1,4 +1,4 @@
-"""Sensor platform for DogLog integration."""
+"""Sensor platform for Pawsistant (DogLog) integration."""
 
 from __future__ import annotations
 
@@ -193,7 +193,7 @@ class DogLogMostRecentSensor(CoordinatorEntity[DogLogCoordinator], SensorEntity)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, dog.id)},
             "name": dog.name,
-            "manufacturer": "DogLog",
+            "manufacturer": "Pawsistant",
             "model": "Pet",
             **({"via_device": _via_device} if _via_device else {}),
         }
@@ -248,7 +248,7 @@ class DogLogDailyCountSensor(CoordinatorEntity[DogLogCoordinator], SensorEntity)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, dog.id)},
             "name": dog.name,
-            "manufacturer": "DogLog",
+            "manufacturer": "Pawsistant",
             "model": "Pet",
             **({"via_device": _via_device} if _via_device else {}),
         }
@@ -282,7 +282,7 @@ class DogLogPoopCountTodaySensor(CoordinatorEntity[DogLogCoordinator], SensorEnt
         self._attr_device_info = {
             "identifiers": {(DOMAIN, dog.id)},
             "name": dog.name,
-            "manufacturer": "DogLog",
+            "manufacturer": "Pawsistant",
             "model": "Pet",
             **({"via_device": _via_device} if _via_device else {}),
         }
@@ -317,7 +317,7 @@ class DogLogWeightSensor(CoordinatorEntity[DogLogCoordinator], SensorEntity):
         self._attr_device_info = {
             "identifiers": {(DOMAIN, dog.id)},
             "name": dog.name,
-            "manufacturer": "DogLog",
+            "manufacturer": "Pawsistant",
             "model": "Pet",
             **({"via_device": _via_device} if _via_device else {}),
         }

@@ -1,6 +1,6 @@
 {
   "domain": "doglog",
-  "name": "DogLog",
+  "name": "Pawsistant",
   "version": "1.0.1",
   "codeowners": ["@ptamkin"],
   "config_flow": true,

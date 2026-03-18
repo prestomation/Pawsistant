@@ -1,5 +1,5 @@
 {
-  "name": "DogLog",
+  "name": "Pawsistant",
   "content_type": "integration",
   "config_flow": true,
   "homeassistant": "2024.1.0"

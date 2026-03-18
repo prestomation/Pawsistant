@@ -1,4 +1,4 @@
-"""DataUpdateCoordinator for DogLog.
+"""DataUpdateCoordinator for Pawsistant (DogLog).
 
 Handles periodic data fetching and TryFi device linking.
 """
@@ -41,7 +41,7 @@ class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[DogEvent]]]):
         super().__init__(
             hass,
             _LOGGER,
-            name="DogLog",
+            name="Pawsistant",
             update_interval=SCAN_INTERVAL,
         )
         self.client = client
@@ -55,7 +55,7 @@ class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[DogEvent]]]):
         return DeviceInfo(
             identifiers={(DOMAIN, dog.id)},
             name=dog.name,
-            manufacturer="DogLog",
+            manufacturer="Pawsistant",
             model="Dog",
         )
 
