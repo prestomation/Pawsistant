@@ -1,4 +1,4 @@
-"""Config flow for DogLog integration."""
+"""Config flow for Pawsistant (DogLog) integration."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def _decode_jwt_payload(token: str) -> dict:
 
 
 class DogLogConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for DogLog."""
+    """Handle a config flow for Pawsistant."""
 
     VERSION = 1
 
@@ -88,7 +88,7 @@ class DogLogConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._abort_if_unique_id_configured()
 
                     return self.async_create_entry(
-                        title=f"DogLog ({email})",
+                        title=f"Pawsistant ({email})",
                         data={
                             "refresh_token": refresh_token,
                             "uid": uid,
