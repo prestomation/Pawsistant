@@ -45,8 +45,9 @@ STORAGE_VERSION = 1
 # Event types that are retained indefinitely — never pruned
 PERSISTENT_EVENT_TYPES = {"weight", "medicine", "vaccine"}
 
-# High-frequency events older than this are pruned per year file
-DEFAULT_RETENTION_DAYS = 90
+# High-frequency events older than this are pruned per year file.
+# Set to 3 years — generous enough for full history but prevents unbounded growth.
+DEFAULT_RETENTION_DAYS = 1095
 
 # All valid event types (used for service schema validation)
 VALID_EVENT_TYPES = {

@@ -83,7 +83,7 @@ class DogLogConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> DogLogOptionsFlow:
         """Return the options flow handler."""
-        return DogLogOptionsFlow(config_entry)
+        return DogLogOptionsFlow()
 
 
 class DogLogOptionsFlow(OptionsFlow):
@@ -92,11 +92,6 @@ class DogLogOptionsFlow(OptionsFlow):
     Actual dog CRUD is performed via service calls (add_dog / remove_dog)
     which are more flexible.  The options flow here provides a UI hint.
     """
-
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        """Initialise the options flow."""
-        # ConfigEntry is accessed via self.config_entry in HA ≥ 2024.x
-        # We keep the arg for older compat but HA will inject it.
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

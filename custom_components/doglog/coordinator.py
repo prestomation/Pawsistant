@@ -29,6 +29,7 @@ sensor.py requires minimal changes):
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -41,13 +42,13 @@ from .store import DogLogStore
 DOMAIN = "doglog"
 _LOGGER = logging.getLogger(__name__)
 
+# Periodic refresh interval — needed so time-based sensors (days_since_medicine,
+# daily counts, poop_count_today) update even when no service calls fire.
+SCAN_INTERVAL = timedelta(minutes=5)
+
 
 class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
-    """Coordinator that reads DogLog events from the local year-partitioned store.
-
-    There is no ``update_interval`` — data is push-driven: every service call
-    that mutates the store triggers ``async_request_refresh()``.
-    """
+    """Coordinator that reads DogLog events from the local year-partitioned store."""
 
     def __init__(
         self,
@@ -55,54 +56,34 @@ class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
         entry: ConfigEntry,
         store: DogLogStore,
     ) -> None:
-        """Initialise the coordinator.
-
-        Args:
-            hass:   The Home Assistant instance.
-            entry:  The config entry this coordinator belongs to.
-            store:  The DogLogStore shared across this config entry.
-
-        """
+        """Initialise the coordinator."""
         super().__init__(
             hass,
             _LOGGER,
             name="DogLog",
-            # No update_interval — updates are triggered by service calls
+            update_interval=SCAN_INTERVAL,
         )
         self.store = store
         self._entry = entry
 
-    # -----------------------------------------------------------------------
-    # DataUpdateCoordinator implementation
-    # -----------------------------------------------------------------------
-
     async def _async_update_data(self) -> dict[str, list[dict[str, Any]]]:
-        """Build coordinator data from the local store.
-
-        Also runs event pruning on each refresh so stale entries are cleaned
-        up without a dedicated scheduled task.
-        """
+        """Build coordinator data from the local store."""
         try:
             await self.store.prune_old_events()
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("DogLog: failed to prune old events: %s", err)
 
-        dogs = self.store.get_dogs()  # {dog_id: {name, breed, birth_date}}
+        dogs = self.store.get_dogs()
         result: dict[str, list[dict[str, Any]]] = {}
         for dog_id, dog_info in dogs.items():
             dog_name = dog_info["name"]
             try:
-                # get_events is async — may lazy-load year files
                 result[dog_name] = await self.store.get_events(dog_id)
             except Exception as err:
                 raise UpdateFailed(
                     f"DogLog: failed to load events for '{dog_name}': {err}"
                 ) from err
         return result
-
-    # -----------------------------------------------------------------------
-    # Device registry helpers
-    # -----------------------------------------------------------------------
 
     def get_device_info(self, dog_id: str, dog_name: str) -> DeviceInfo:
         """Return DeviceInfo for a dog (used by sensor entities)."""
