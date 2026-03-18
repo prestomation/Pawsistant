@@ -1,16 +1,19 @@
 """DogLog integration for Home Assistant.
 
-Replaces the Firebase/pydoglog backend with HA-native local storage.
-All dog and event data is stored in .storage/doglog and managed exclusively
-via HA service calls — no cloud dependency required.
+All dog and event data is stored locally in HA's .storage directory using a
+year-partitioned layout — no cloud dependency required.
 
-Services provided:
+Storage files:
+  .storage/doglog                   — dogs registry + known_years index
+  .storage/doglog_events_YYYY       — events for each calendar year
+
+Services:
   doglog.log_event      — Log an activity for a named dog
   doglog.delete_event   — Delete an event by ID
   doglog.add_dog        — Register a new dog
   doglog.remove_dog     — Remove a dog and all its events
   doglog.list_events    — Fire a HA event with query results (for automations)
-  doglog.import_events  — Bulk-import events from an external JSON array
+  doglog.import_events  — Bulk-import events from a JSON array (Firebase migration)
 """
 
 from __future__ import annotations
@@ -232,7 +235,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             """Handle doglog.list_events.
 
             Fires a ``doglog_events`` HA event containing the matching events so
-            that automations can react to the results.
+            that automations can react to the results.  Older year files are
+            lazy-loaded by the store as needed.
             """
             from datetime import timedelta
             from homeassistant.util import dt as dt_util
@@ -250,7 +254,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 return
             dog_id, _ = result
             since = dt_util.now() - timedelta(days=days)
-            events = store.get_events(dog_id, event_type=event_type, since=since)
+            # get_events is async — may lazy-load historical year files
+            events = await store.get_events(dog_id, event_type=event_type, since=since)
 
             hass.bus.async_fire(
                 "doglog_events",
