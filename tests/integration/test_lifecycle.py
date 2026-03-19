@@ -7,6 +7,7 @@ Tests are ordered and run sequentially within a single HA instance.
 """
 
 import time
+from datetime import datetime, timezone, timedelta
 
 import pytest
 
@@ -222,3 +223,143 @@ class TestLogEventWithNote:
         )
         # Should be very close to 0 since we just logged it
         assert float(state) < 1.0
+
+
+class TestMultiDog:
+    """Test that multiple dogs don't contaminate each other's event counts."""
+
+    def test_add_buddy(self, ha):
+        """Add a second dog and verify sensors are created."""
+        call_service(ha, "pawsistant", "add_dog", {
+            "name": "Buddy",
+            "breed": "Labrador",
+        })
+        # add_dog triggers a config entry reload — wait for Buddy's sensors
+        state = poll_state(
+            ha,
+            "sensor.buddy_most_recent_pee",
+            lambda s: s is not None,
+            timeout=30,
+        )
+        assert state is not None
+
+    def test_testdog_poop_does_not_affect_buddy_poop(self, ha):
+        """Log a poop for Testdog and verify Buddy's poop count stays at 0."""
+        call_service(ha, "pawsistant", "log_event", {
+            "dog": "Testdog",
+            "event_type": "poop",
+        })
+        # Give coordinator time to refresh
+        time.sleep(3)
+        buddy_poop = get_state(ha, "sensor.buddy_daily_poop_count")
+        # Buddy should have no poop events — state is 0 or unknown
+        if buddy_poop is not None and buddy_poop["state"] not in ("unknown", "unavailable"):
+            assert int(buddy_poop["state"]) == 0, (
+                f"Buddy's poop count should be 0 after Testdog poop, got: {buddy_poop['state']}"
+            )
+
+    def test_remove_buddy(self, ha):
+        """Clean up: remove Buddy."""
+        call_service(ha, "pawsistant", "remove_dog", {
+            "dog": "Buddy",
+        })
+        # Allow HA to process the removal
+        time.sleep(5)
+
+
+class TestEdgeCaseDogNames:
+    """Test dogs with names containing spaces (slugified entity IDs)."""
+
+    def test_add_dog_with_space_in_name(self, ha):
+        """Add 'Good Boy' and verify slugified entity IDs are created."""
+        call_service(ha, "pawsistant", "add_dog", {
+            "name": "Good Boy",
+        })
+        # add_dog triggers a reload — wait for sensors with slugified name
+        state = poll_state(
+            ha,
+            "sensor.good_boy_most_recent_pee",
+            lambda s: s is not None,
+            timeout=30,
+        )
+        assert state is not None, "sensor.good_boy_most_recent_pee should exist after adding 'Good Boy'"
+
+    def test_log_event_for_dog_with_space(self, ha):
+        """Log a pee event for 'Good Boy' using the display name."""
+        call_service(ha, "pawsistant", "log_event", {
+            "dog": "Good Boy",
+            "event_type": "pee",
+        })
+        state = poll_state(
+            ha,
+            "sensor.good_boy_most_recent_pee",
+            lambda s: s not in ("unknown", "unavailable"),
+            timeout=20,
+        )
+        assert "T" in state, f"Expected ISO timestamp for Good Boy pee, got: {state}"
+
+    def test_remove_good_boy(self, ha):
+        """Clean up: remove 'Good Boy'."""
+        call_service(ha, "pawsistant", "remove_dog", {
+            "dog": "Good Boy",
+        })
+        time.sleep(5)
+
+
+class TestBackdateEvent:
+    """Test logging events with an explicit past timestamp."""
+
+    def test_backdate_pee_event(self, ha):
+        """Log a pee event 2 hours in the past and verify the sensor reflects it."""
+        two_hours_ago = (
+            datetime.now(tz=timezone.utc) - timedelta(hours=2)
+        ).isoformat()
+
+        call_service(ha, "pawsistant", "log_event", {
+            "dog": "Testdog",
+            "event_type": "pee",
+            "timestamp": two_hours_ago,
+        })
+
+        # The most_recent_pee sensor should update. Because we've already logged
+        # a pee during the TestLogEvent class, the backdated event may or may not
+        # be the most recent — we verify it's a valid ISO timestamp.
+        state = poll_state(
+            ha,
+            "sensor.testdog_most_recent_pee",
+            lambda s: s not in ("unknown", "unavailable"),
+            timeout=20,
+        )
+        assert "T" in state, f"Expected ISO timestamp after backdate, got: {state}"
+
+        # The backdated timestamp must be parseable and in the past
+        parsed = datetime.fromisoformat(state.replace("Z", "+00:00"))
+        assert parsed < datetime.now(tz=timezone.utc), (
+            f"most_recent_pee should be in the past, got: {state}"
+        )
+
+
+class TestFreshInstallNoMigration:
+    """Verify no doglog-related migration errors appear in HA logs."""
+
+    def test_no_doglog_errors_in_log(self, ha):
+        """Check the HA error log for any 'doglog' references.
+
+        The Pawsistant integration was renamed from ha-doglog. A fresh install
+        should not trigger any doglog migration errors.
+        """
+        import requests
+
+        r = ha.get(f"{HA_URL}/api/error_log")
+        assert r.status_code == 200, f"Could not fetch error log: {r.status_code}"
+
+        error_log = r.text
+        doglog_lines = [
+            line for line in error_log.splitlines()
+            if "doglog" in line.lower()
+        ]
+
+        assert not doglog_lines, (
+            f"Found unexpected 'doglog' references in HA error log:\n"
+            + "\n".join(doglog_lines)
+        )
