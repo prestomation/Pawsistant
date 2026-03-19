@@ -24,12 +24,9 @@ Benefits of partitioning
 * Migration: if an old flat store with an "events" key is found on first load,
   events are transparently migrated to year files.
 
-Storage migration from doglog
 ------------------------------
-If old .storage/doglog or .storage/doglog_events_YYYY files exist but the new
 pawsistant files don't, the load() method will attempt to read from the old
 keys and write to the new ones.  This ensures existing users don't lose data
-after renaming the domain from doglog → pawsistant.
 """
 
 from __future__ import annotations
@@ -49,9 +46,6 @@ STORAGE_KEY_META = "pawsistant"
 STORAGE_KEY_EVENTS_PREFIX = "pawsistant_events_"
 STORAGE_VERSION = 1
 
-# Legacy storage keys (doglog era) — used for one-time migration
-_LEGACY_STORAGE_KEY_META = "doglog"
-_LEGACY_STORAGE_KEY_EVENTS_PREFIX = "doglog_events_"
 
 # Event types that are retained indefinitely — never pruned
 PERSISTENT_EVENT_TYPES = {"weight", "medicine", "vaccine"}
@@ -77,13 +71,9 @@ VALID_EVENT_TYPES = {
     "teeth_brushing",
     "sick",
 }
-
-
 # ---------------------------------------------------------------------------
 # PawsistantStore
 # ---------------------------------------------------------------------------
-
-
 class PawsistantStore:
     """Year-partitioned local storage for Pawsistant.
 
@@ -171,59 +161,7 @@ class PawsistantStore:
         return year
 
     # -----------------------------------------------------------------------
-    # Storage migration: doglog keys → pawsistant keys
     # -----------------------------------------------------------------------
-
-    async def _maybe_migrate_from_doglog(self) -> None:
-        """One-time migration: read data from legacy doglog storage keys.
-
-        If .storage/doglog exists but .storage/pawsistant doesn't, we read
-        dogs/known_years from the old key and re-save under the new key.
-        Year event files are similarly migrated from doglog_events_YYYY →
-        pawsistant_events_YYYY.  After migration the legacy files are left
-        in place (HA has no public API to delete storage files safely).
-        """
-        legacy_meta_store = Store(self._hass, STORAGE_VERSION, _LEGACY_STORAGE_KEY_META)
-        legacy_raw = await legacy_meta_store.async_load()
-        if legacy_raw is None:
-            return  # No legacy data — nothing to migrate
-
-        _LOGGER.info(
-            "Pawsistant: migrating data from legacy doglog storage keys"
-        )
-        self._meta = legacy_raw
-        self._meta.setdefault("dogs", {})
-        self._meta.setdefault("known_years", [])
-
-        # Handle flat-events migration within legacy data first
-        if "events" in self._meta:
-            await self._maybe_migrate_flat_events()
-
-        # Migrate year files
-        for year in list(self._meta.get("known_years", [])):
-            legacy_year_store = Store(
-                self._hass,
-                STORAGE_VERSION,
-                f"{_LEGACY_STORAGE_KEY_EVENTS_PREFIX}{year}",
-            )
-            legacy_year_raw = await legacy_year_store.async_load()
-            if legacy_year_raw is None:
-                continue
-            events = legacy_year_raw.get("events", [])
-            if events:
-                self._year_events[year] = events
-                self._loaded_years.add(year)
-                await self._save_year(year)
-                _LOGGER.info(
-                    "Migrated %d events from doglog_events_%d → pawsistant_events_%d",
-                    len(events), year, year,
-                )
-
-        # Save meta under new key
-        await self._save_meta()
-        _LOGGER.info(
-            "Pawsistant: doglog → pawsistant storage migration complete"
-        )
 
     # -----------------------------------------------------------------------
     # Migration: flat → partitioned
@@ -289,13 +227,10 @@ class PawsistantStore:
         Loading two years by default ensures cross-year queries (e.g. "days
         since last medicine" in January) work without extra async calls.
 
-        If no pawsistant storage is found but legacy doglog storage exists,
         a one-time migration is performed automatically.
         """
         raw = await self._meta_store.async_load()
         if raw is None:
-            # Check for legacy doglog storage to migrate from
-            await self._maybe_migrate_from_doglog()
             if not self._meta.get("dogs"):
                 self._meta = {"dogs": {}, "known_years": []}
                 _LOGGER.debug("Pawsistant: no existing store found, starting fresh")
@@ -516,7 +451,7 @@ class PawsistantStore:
     async def import_events(self, events: list[dict[str, Any]]) -> int:
         """Bulk-import events, partitioning them by year.
 
-        Designed for one-time migration from Firebase/pydoglog.  Events whose
+        Designed for one-time migration from external sources.  Events whose
         ``id`` already exists in any loaded year are skipped; unrecognised years
         are lazy-loaded from disk before merging.  Entries missing required
         fields (event_type) are skipped with a warning.
@@ -628,13 +563,9 @@ class PawsistantStore:
     def known_years(self) -> list[int]:
         """Return all years that have ever had data (from the meta index)."""
         return list(self._meta.get("known_years", []))
-
-
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------
-
-
 def _parse_timestamp(ts: str) -> datetime:
     """Parse an ISO 8601 timestamp string to a timezone-aware datetime.
 
