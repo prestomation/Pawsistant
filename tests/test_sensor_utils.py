@@ -8,57 +8,7 @@ import pytest
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-# We need to mock homeassistant modules since HA is not installed
-# Use a universal mock that auto-creates submodules on demand
-import types
-import zoneinfo
-from enum import Enum
-
-class _HAModuleFinder:
-    """Auto-create mock modules for any homeassistant.* import."""
-    _cache = {}
-    
-    @classmethod
-    def find_module(cls, name, path=None):
-        if name == 'homeassistant' or name.startswith('homeassistant.'):
-            return cls
-        return None
-    
-    @classmethod
-    def load_module(cls, name):
-        if name in sys.modules:
-            return sys.modules[name]
-        mod = types.ModuleType(name)
-        # Add commonly needed attributes
-        mod.__path__ = []
-        mod.__package__ = name
-        sys.modules[name] = mod
-        cls._cache[name] = mod
-        return mod
-
-sys.meta_path.insert(0, _HAModuleFinder)
-
-# Pre-populate critical HA mock attributes
-import homeassistant.util.dt as ha_dt
-ha_dt.now = lambda tz=None: __import__('datetime').datetime.now(__import__('datetime').timezone.utc)
-ha_dt.DEFAULT_TIME_ZONE = zoneinfo.ZoneInfo('America/Los_Angeles')
-
-import homeassistant.components.sensor as ha_sensor
-class SensorDeviceClass(Enum):
-    TIMESTAMP = 'timestamp'
-    BATTERY = 'battery'
-    TEMPERATURE = 'temperature'
-class SensorStateClass(Enum):
-    MEASUREMENT = 'measurement'
-    TOTAL = 'total'
-ha_sensor.SensorDeviceClass = SensorDeviceClass
-ha_sensor.SensorStateClass = SensorStateClass
-ha_sensor.SensorEntity = type('SensorEntity', (), {})
-ha_sensor.SensorEntityDescription = type('SensorEntityDescription', (), {'__init_subclass__': lambda **kw: None})
-
-import homeassistant.helpers.update_coordinator as ha_uc
-ha_uc.CoordinatorEntity = type('CoordinatorEntity', (), {'__class_getitem__': classmethod(lambda cls, x: cls)})
-
+# homeassistant is installed in the test environment
 from custom_components.doglog.sensor import _to_datetime, _count_today, _get_most_recent_event
 
 
