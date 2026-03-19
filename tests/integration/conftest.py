@@ -75,24 +75,18 @@ def _complete_onboarding():
     headers = {"Authorization": f"Bearer {access_token}"}
 
     # Step 3: Complete remaining onboarding steps
-    requests.post(
-        f"{HA_URL}/api/onboarding/core_config",
-        headers=headers,
-        json={},
-        timeout=10,
-    )
-    requests.post(
-        f"{HA_URL}/api/onboarding/analytics",
-        headers=headers,
-        json={},
-        timeout=10,
-    )
-    requests.post(
-        f"{HA_URL}/api/onboarding/integration",
-        headers=headers,
-        json={"client_id": f"{HA_URL}/", "redirect_uri": f"{HA_URL}/?auth_callback=1"},
-        timeout=10,
-    )
+    for endpoint, payload in [
+        ("core_config", {}),
+        ("analytics", {}),
+        ("integration", {"client_id": f"{HA_URL}/", "redirect_uri": f"{HA_URL}/?auth_callback=1"}),
+    ]:
+        r = requests.post(
+            f"{HA_URL}/api/onboarding/{endpoint}",
+            headers=headers,
+            json=payload,
+            timeout=10,
+        )
+        r.raise_for_status()
 
     # Step 4: Create a long-lived access token via the websocket API (or reuse short-lived)
     # The short-lived token works fine for tests, but let's create a long-lived one

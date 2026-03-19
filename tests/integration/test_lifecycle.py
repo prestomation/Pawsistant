@@ -6,6 +6,8 @@ They exercise the full flow: services → storage → coordinator → sensors.
 Tests are ordered and run sequentially within a single HA instance.
 """
 
+import time
+
 import pytest
 
 from conftest import call_service, get_state, poll_state, poll_state_attrs, HA_URL
@@ -158,7 +160,6 @@ class TestAddRemoveDog:
         # After removal + coordinator refresh, buddy sensors should go away
         # Note: entity registry may keep the entity as "unavailable" rather
         # than fully removing it. That's expected HA behavior.
-        import time
         time.sleep(5)  # Give HA time to process the reload
 
         # We just verify the command didn't error — full entity removal
