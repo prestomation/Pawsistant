@@ -245,6 +245,13 @@ class TestMultiDog:
 
     def test_buddy_pee_count_is_isolated(self, ha):
         """Buddy's pee count starts at 0 and increments independently."""
+        # Wait for Buddy's sensor to be available after add_dog reload
+        poll_state(
+            ha,
+            "sensor.buddy_daily_pee_count",
+            lambda s: s not in ("unavailable", None),
+            timeout=30,
+        )
         # Log a pee for Buddy
         call_service(ha, "pawsistant", "log_event", {
             "dog": "Buddy",
@@ -253,8 +260,8 @@ class TestMultiDog:
         state = poll_state(
             ha,
             "sensor.buddy_daily_pee_count",
-            lambda s: int(s) >= 1,
-            timeout=20,
+            lambda s: s not in ("unavailable", "unknown") and int(s) >= 1,
+            timeout=30,
         )
         assert int(state) == 1, f"Buddy's pee count should be 1, got: {state}"
 
