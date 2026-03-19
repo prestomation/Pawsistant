@@ -26,6 +26,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN, PLATFORMS, URL_BASE, CARD_VERSION
@@ -125,7 +126,6 @@ class PawsistantCardRegistration:
             await self._register_lovelace_resource()
 
     async def _register_static_path(self) -> None:
-        from homeassistant.components.http import StaticPathConfig
         frontend_dir = Path(__file__).parent / "frontend"
         try:
             await self.hass.http.async_register_static_paths(
@@ -180,17 +180,9 @@ class PawsistantCardRegistration:
 
 
 async def _ensure_frontend_registered(hass: HomeAssistant) -> None:
-    """Register frontend resources, deferring if HA hasn't fully started yet."""
-    from homeassistant.core import CoreState, EVENT_HOMEASSISTANT_STARTED
+    """Register frontend resources directly (no deferral)."""
     reg = PawsistantCardRegistration(hass)
-
-    async def _do_register(_event=None) -> None:
-        await reg.async_register()
-
-    if hass.state == CoreState.running:
-        await _do_register()
-    else:
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _do_register)
+    await reg.async_register()
 
 
 # ---------------------------------------------------------------------------
