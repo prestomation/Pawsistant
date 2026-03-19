@@ -328,6 +328,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def handle_remove_dog(call: ServiceCall) -> None:
         """Handle pawsistant.remove_dog."""
+        from homeassistant.helpers import entity_registry as er
+
         store, coord = _get_store_and_coord()
         dog_name: str = call.data["dog"]
         result = store.get_dog_by_name(dog_name)
@@ -337,6 +339,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             return
         dog_id, _ = result
+
+        # Clean up entity registry entries for this dog *before* removing from
+        # the store.  Without this, the entity registry keeps the old entries
+        # as orphaned/unavailable forever.  If a new dog with the same name is
+        # added later, its sensors would get different entity_ids (e.g.
+        # sensor.buddy_daily_pee_count_2) because the original entity_ids are
+        # still "taken" by the orphaned entries — causing tests and automations
+        # that reference the expected entity_ids to fail.
+        ent_reg = er.async_get(hass)
+        cfg_entries = hass.config_entries.async_entries(DOMAIN)
+        if cfg_entries:
+            entry_id = cfg_entries[0].entry_id
+            entity_entries = er.async_entries_for_config_entry(ent_reg, entry_id)
+            prefix = f"pawsistant_{dog_id}_"
+            for entity_entry in entity_entries:
+                if entity_entry.unique_id.startswith(prefix):
+                    ent_reg.async_remove(entity_entry.entity_id)
+                    _LOGGER.debug(
+                        "Removed entity registry entry %s for dog '%s'",
+                        entity_entry.entity_id,
+                        dog_name,
+                    )
+
         await store.remove_dog(dog_id)
         _LOGGER.info("Removed dog '%s' via service", dog_name)
         await coord.async_request_refresh()
