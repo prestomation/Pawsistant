@@ -18,7 +18,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install pydoglog homeassistant pytest
+        run: pip install pydoglog pytest pytest-homeassistant-custom-component
 
       - name: Compile check
         run: |

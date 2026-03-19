@@ -1,17 +1,15 @@
-"""Tests for pure sensor utility functions (no HA runtime needed)."""
+"""Tests for pure sensor utility functions."""
 
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 import pytest
-
-# Adjust sys.path so we can import without installing HA
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-# homeassistant is installed in the test environment
 import zoneinfo
-PACIFIC = zoneinfo.ZoneInfo('America/Los_Angeles')
+
+from homeassistant.util import dt as dt_util
+
 from custom_components.doglog.sensor import _to_datetime, _count_today, _get_most_recent_event
+
+PACIFIC = zoneinfo.ZoneInfo("America/Los_Angeles")
 
 
 def make_event(event_type: str, timestamp: datetime) -> dict:
@@ -52,7 +50,7 @@ class TestCountToday:
             make_event("poop", today_noon.astimezone(timezone.utc) - timedelta(hours=2)),
             make_event("pee", today_noon.astimezone(timezone.utc)),
         ]
-        with patch('custom_components.doglog.sensor.dt_util.now', return_value=now_pacific):
+        with patch("custom_components.doglog.sensor.dt_util.now", return_value=now_pacific):
             assert _count_today(events, "poop") == 2
             assert _count_today(events, "pee") == 1
 
@@ -60,14 +58,14 @@ class TestCountToday:
         now_pacific = datetime.now(PACIFIC)
         yesterday = now_pacific - timedelta(days=1)
         events = [make_event("poop", yesterday.astimezone(timezone.utc))]
-        with patch('custom_components.doglog.sensor.dt_util.now', return_value=now_pacific):
+        with patch("custom_components.doglog.sensor.dt_util.now", return_value=now_pacific):
             assert _count_today(events, "poop") == 0
 
     def test_timezone_boundary(self):
         # 11pm Pacific = next day UTC — should count as today in Pacific
         pacific_11pm = datetime(2026, 3, 15, 23, 0, tzinfo=PACIFIC)
         events = [make_event("poop", pacific_11pm.astimezone(timezone.utc))]
-        with patch('custom_components.doglog.sensor.dt_util.now', return_value=pacific_11pm):
+        with patch("custom_components.doglog.sensor.dt_util.now", return_value=pacific_11pm):
             assert _count_today(events, "poop") == 1
 
 
