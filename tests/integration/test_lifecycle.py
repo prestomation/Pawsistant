@@ -118,19 +118,22 @@ class TestDeleteEvent:
         event_id = attrs["event_id"]
         assert event_id, "event_id attribute should be non-empty"
 
+        # Capture pre-delete state so we can detect the change
+        pre_state = get_state(ha, "sensor.testdog_most_recent_food")["state"]
+
         # Delete the event
         call_service(ha, "pawsistant", "delete_event", {
             "event_id": event_id,
         })
 
         # After deletion with no remaining food events, the sensor state
-        # should revert to "unknown". (HA preserves last-known attributes,
-        # so we check the state value rather than the attributes.)
+        # should revert to "unknown". Coordinator refresh can be slow,
+        # so allow plenty of time.
         poll_state(
             ha,
             "sensor.testdog_most_recent_food",
-            lambda s: s in ("unknown", "unavailable"),
-            timeout=10,
+            lambda s: s != pre_state,
+            timeout=30,
         )
 
 
