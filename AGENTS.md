@@ -23,12 +23,6 @@
 - Use HA CSS variables in card styling (dark mode compat)
 - Escape all user content before innerHTML injection (`_escape()` helper)
 
-## Migration Note
-
-The domain was renamed from `doglog` to `pawsistant` in March 2026. Existing users
-must remove and re-add the integration (config entry). Storage data is automatically
-migrated from `.storage/doglog*` keys to `.storage/pawsistant*` on first load.
-
 ## CI
 
 - GitHub Actions workflow at `.github/workflows/lint.yml`
