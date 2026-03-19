@@ -3,25 +3,31 @@
 ## Testing
 
 - **Always run tests locally before pushing.** Never use CI as the test runner.
-- Install test deps: `pip install pydoglog pytest pytest-homeassistant-custom-component`
+- Install test deps: `pip install pytest pytest-homeassistant-custom-component`
 - Run: `pytest tests/ -v`
 - Only push when all tests pass.
 
 ## Project Structure
 
-- **Domain:** `doglog` (internal, do not change — would break all entity IDs)
+- **Domain:** `pawsistant` (renamed from `doglog` in March 2026)
 - **Display name:** Pawsistant
-- **Storage:** Local only, year-partitioned in `.storage/doglog_events_YYYY`
-- **Frontend:** Bundled card at `custom_components/doglog/frontend/pawsistant-card.js` — vanilla JS, no build step
+- **Storage:** Local only, year-partitioned in `.storage/pawsistant_events_YYYY`
+- **Frontend:** Bundled card at `custom_components/pawsistant/frontend/pawsistant-card.js` — vanilla JS, no build step
 - **Tests:** Use `pytest-homeassistant-custom-component` for proper HA test fixtures. No hand-rolled HA mocks.
 
 ## Conventions
 
-- Sensor utility functions operate on `list[dict]` (not pydoglog model objects)
+- Sensor utility functions operate on `list[dict]` (not model objects)
 - Events are stored as plain dicts with keys: `id`, `event_type`, `timestamp`, `note`, `value`, `dog_id`
 - Entity unique IDs are anchored to `dog_id` (survives renames)
 - Use HA CSS variables in card styling (dark mode compat)
 - Escape all user content before innerHTML injection (`_escape()` helper)
+
+## Migration Note
+
+The domain was renamed from `doglog` to `pawsistant` in March 2026. Existing users
+must remove and re-add the integration (config entry). Storage data is automatically
+migrated from `.storage/doglog*` keys to `.storage/pawsistant*` on first load.
 
 ## CI
 

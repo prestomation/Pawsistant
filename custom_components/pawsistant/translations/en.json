@@ -15,7 +15,7 @@
       "name_required": "Dog name is required."
     },
     "abort": {
-      "already_configured": "Pawsistant is already configured. Use the doglog.add_dog service to add more dogs."
+      "already_configured": "Pawsistant is already configured. Use the pawsistant.add_dog service to add more dogs."
     }
   },
   "options": {

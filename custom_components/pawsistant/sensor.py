@@ -1,7 +1,7 @@
-"""Sensor platform for DogLog integration.
+"""Sensor platform for Pawsistant integration.
 
-All sensors read from DogLogCoordinator.data which has the shape:
-    { "<dog_name>": [ {event_dict}, ... ] }   (newest-first)
+All sensors read from PawsistantCoordinator.data which has the shape:
+    { "<dog_id>": [ {event_dict}, ... ] }   (newest-first)
 
 Backward-compatible entity IDs are preserved so existing HA dashboards and
 automations continue to work:
@@ -9,7 +9,7 @@ automations continue to work:
     sensor.<dog_name_slug>_daily_pee_count
     sensor.<dog_name_slug>_poop_count_today
     sensor.<dog_name_slug>_weight
-    sensor.<dog_name_slug>_days_since_medicine  (new)
+    sensor.<dog_name_slug>_days_since_medicine
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
-from .coordinator import DogLogCoordinator
+from .coordinator import PawsistantCoordinator
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -162,15 +162,15 @@ def _days_since(events: list[dict[str, Any]], event_type: str) -> float | None:
 
 
 @dataclass(kw_only=True)
-class DogLogMostRecentSensorDescription(SensorEntityDescription):
-    """Describe a DogLog most-recent-event sensor."""
+class PawsistantMostRecentSensorDescription(SensorEntityDescription):
+    """Describe a Pawsistant most-recent-event sensor."""
 
     event_type: str = ""
 
 
 @dataclass(kw_only=True)
-class DogLogDailyCountSensorDescription(SensorEntityDescription):
-    """Describe a DogLog daily-count sensor."""
+class PawsistantDailyCountSensorDescription(SensorEntityDescription):
+    """Describe a Pawsistant daily-count sensor."""
 
     event_type: str = ""
 
@@ -185,8 +185,8 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up DogLog sensor entities from a config entry."""
-    coordinator: DogLogCoordinator = entry.runtime_data
+    """Set up Pawsistant sensor entities from a config entry."""
+    coordinator: PawsistantCoordinator = entry.runtime_data
     entities: list[SensorEntity] = []
 
     dogs = coordinator.store.get_dogs()  # {dog_id: {name, breed, birth_date}}
@@ -200,7 +200,7 @@ async def async_setup_entry(
         # ------------------------------------------------------------------
         for event_type in MOST_RECENT_EVENT_TYPES:
             display_name = event_type.replace("_", " ").title()
-            description = DogLogMostRecentSensorDescription(
+            description = PawsistantMostRecentSensorDescription(
                 key=f"{slug}_most_recent_{event_type}",
                 name=f"{dog_name} Most Recent {display_name}",
                 icon=EVENT_TYPE_ICONS.get(event_type, "mdi:paw"),
@@ -208,7 +208,7 @@ async def async_setup_entry(
                 event_type=event_type,
             )
             entities.append(
-                DogLogMostRecentSensor(coordinator, description, dog_id, dog_name)
+                PawsistantMostRecentSensor(coordinator, description, dog_id, dog_name)
             )
 
         # ------------------------------------------------------------------
@@ -217,7 +217,7 @@ async def async_setup_entry(
         for event_type in DAILY_COUNT_EVENT_TYPES:
             # Backward-compatible: "walk" → "walks" in the key
             display_key = event_type + "s" if event_type == "walk" else event_type
-            description = DogLogDailyCountSensorDescription(
+            description = PawsistantDailyCountSensorDescription(
                 key=f"{slug}_daily_{display_key}_count",
                 name=f"{dog_name} Daily {event_type.replace('_', ' ').title()} Count",
                 icon=EVENT_TYPE_ICONS.get(event_type, "mdi:paw"),
@@ -225,23 +225,23 @@ async def async_setup_entry(
                 event_type=event_type,
             )
             entities.append(
-                DogLogDailyCountSensor(coordinator, description, dog_id, dog_name)
+                PawsistantDailyCountSensor(coordinator, description, dog_id, dog_name)
             )
 
         # ------------------------------------------------------------------
         # Weight sensor
         # ------------------------------------------------------------------
-        entities.append(DogLogWeightSensor(coordinator, dog_id, dog_name))
+        entities.append(PawsistantWeightSensor(coordinator, dog_id, dog_name))
 
         # ------------------------------------------------------------------
-        # Days since last medicine sensor (new)
+        # Days since last medicine sensor
         # ------------------------------------------------------------------
-        entities.append(DogLogDaysSinceMedicineSensor(coordinator, dog_id, dog_name))
+        entities.append(PawsistantDaysSinceMedicineSensor(coordinator, dog_id, dog_name))
 
         # ------------------------------------------------------------------
         # Recent timeline sensor (last 24h events for dashboard)
         # ------------------------------------------------------------------
-        entities.append(DogLogRecentTimelineSensor(coordinator, dog_id, dog_name))
+        entities.append(PawsistantRecentTimelineSensor(coordinator, dog_id, dog_name))
 
     async_add_entities(entities)
 
@@ -251,14 +251,14 @@ async def async_setup_entry(
 # ---------------------------------------------------------------------------
 
 
-class _DogLogSensorBase(CoordinatorEntity[DogLogCoordinator], SensorEntity):
+class _PawsistantSensorBase(CoordinatorEntity[PawsistantCoordinator], SensorEntity):
     """Base class providing shared dog-device binding."""
 
     _attr_has_entity_name = True
 
     def __init__(
         self,
-        coordinator: DogLogCoordinator,
+        coordinator: PawsistantCoordinator,
         dog_id: str,
         dog_name: str,
     ) -> None:
@@ -272,7 +272,6 @@ class _DogLogSensorBase(CoordinatorEntity[DogLogCoordinator], SensorEntity):
         """Shortcut to this dog's event list from coordinator data."""
         if self.coordinator.data is None:
             return []
-        # I2 — Coordinator data keyed by dog_id, not dog_name
         return self.coordinator.data.get(self._dog_id, [])
 
 
@@ -281,15 +280,15 @@ class _DogLogSensorBase(CoordinatorEntity[DogLogCoordinator], SensorEntity):
 # ---------------------------------------------------------------------------
 
 
-class DogLogMostRecentSensor(_DogLogSensorBase):
+class PawsistantMostRecentSensor(_PawsistantSensorBase):
     """Sensor: timestamp of the most recent event of a given type."""
 
-    entity_description: DogLogMostRecentSensorDescription
+    entity_description: PawsistantMostRecentSensorDescription
 
     def __init__(
         self,
-        coordinator: DogLogCoordinator,
-        description: DogLogMostRecentSensorDescription,
+        coordinator: PawsistantCoordinator,
+        description: PawsistantMostRecentSensorDescription,
         dog_id: str,
         dog_name: str,
     ) -> None:
@@ -297,7 +296,7 @@ class DogLogMostRecentSensor(_DogLogSensorBase):
         super().__init__(coordinator, dog_id, dog_name)
         self.entity_description = description
         # Unique ID anchored to dog_id so it survives dog renames
-        self._attr_unique_id = f"doglog_{dog_id}_{description.key}"
+        self._attr_unique_id = f"pawsistant_{dog_id}_{description.key}"
 
     @property
     def native_value(self) -> datetime | None:
@@ -329,22 +328,22 @@ class DogLogMostRecentSensor(_DogLogSensorBase):
         return attrs
 
 
-class DogLogDailyCountSensor(_DogLogSensorBase):
+class PawsistantDailyCountSensor(_PawsistantSensorBase):
     """Sensor: count of events of a given type today."""
 
-    entity_description: DogLogDailyCountSensorDescription
+    entity_description: PawsistantDailyCountSensorDescription
 
     def __init__(
         self,
-        coordinator: DogLogCoordinator,
-        description: DogLogDailyCountSensorDescription,
+        coordinator: PawsistantCoordinator,
+        description: PawsistantDailyCountSensorDescription,
         dog_id: str,
         dog_name: str,
     ) -> None:
         """Initialise the sensor."""
         super().__init__(coordinator, dog_id, dog_name)
         self.entity_description = description
-        self._attr_unique_id = f"doglog_{dog_id}_{description.key}"
+        self._attr_unique_id = f"pawsistant_{dog_id}_{description.key}"
 
     @property
     def native_value(self) -> int:
@@ -352,10 +351,9 @@ class DogLogDailyCountSensor(_DogLogSensorBase):
         return _count_today(self._dog_events(), self.entity_description.event_type)
 
 
-class DogLogWeightSensor(_DogLogSensorBase):
+class PawsistantWeightSensor(_PawsistantSensorBase):
     """Sensor: most recent weight value (lbs)."""
 
-    # I1 — Use HA constant for weight unit
     _attr_native_unit_of_measurement = UnitOfMass.POUNDS
     _attr_device_class = SensorDeviceClass.WEIGHT
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -363,14 +361,14 @@ class DogLogWeightSensor(_DogLogSensorBase):
 
     def __init__(
         self,
-        coordinator: DogLogCoordinator,
+        coordinator: PawsistantCoordinator,
         dog_id: str,
         dog_name: str,
     ) -> None:
         """Initialise the sensor."""
         super().__init__(coordinator, dog_id, dog_name)
         slug = _slug(dog_name)
-        self._attr_unique_id = f"doglog_{dog_id}_{slug}_weight"
+        self._attr_unique_id = f"pawsistant_{dog_id}_{slug}_weight"
         self._attr_name = f"{dog_name} Weight"
 
     @property
@@ -383,7 +381,7 @@ class DogLogWeightSensor(_DogLogSensorBase):
         return float(val) if val is not None else None
 
 
-class DogLogDaysSinceMedicineSensor(_DogLogSensorBase):
+class PawsistantDaysSinceMedicineSensor(_PawsistantSensorBase):
     """Sensor: days since the last medicine event was logged.
 
     Useful for reminder automations: if this value exceeds the expected
@@ -397,14 +395,14 @@ class DogLogDaysSinceMedicineSensor(_DogLogSensorBase):
 
     def __init__(
         self,
-        coordinator: DogLogCoordinator,
+        coordinator: PawsistantCoordinator,
         dog_id: str,
         dog_name: str,
     ) -> None:
         """Initialise the sensor."""
         super().__init__(coordinator, dog_id, dog_name)
         slug = _slug(dog_name)
-        self._attr_unique_id = f"doglog_{dog_id}_{slug}_days_since_medicine"
+        self._attr_unique_id = f"pawsistant_{dog_id}_{slug}_days_since_medicine"
         self._attr_name = f"{dog_name} Days Since Medicine"
 
     @property
@@ -426,7 +424,7 @@ class DogLogDaysSinceMedicineSensor(_DogLogSensorBase):
         return attrs
 
 
-class DogLogRecentTimelineSensor(_DogLogSensorBase):
+class PawsistantRecentTimelineSensor(_PawsistantSensorBase):
     """Sensor: count of events in the last 24 hours.
 
     The state is the count.  The ``events`` extra-state-attribute carries a
@@ -439,18 +437,17 @@ class DogLogRecentTimelineSensor(_DogLogSensorBase):
 
     def __init__(
         self,
-        coordinator: DogLogCoordinator,
+        coordinator: PawsistantCoordinator,
         dog_id: str,
         dog_name: str,
     ) -> None:
         super().__init__(coordinator, dog_id, dog_name)
         slug = _slug(dog_name)
-        self._attr_unique_id = f"doglog_{dog_id}_{slug}_recent_timeline"
+        self._attr_unique_id = f"pawsistant_{dog_id}_{slug}_recent_timeline"
         self._attr_name = f"{dog_name} Recent Timeline"
 
     def _recent_events(self) -> list[dict[str, Any]]:
         """Return events from the last 24 hours, sorted newest-first."""
-        # C4 — Use already-imported timedelta directly
         from datetime import timedelta
         cutoff = dt_util.now() - timedelta(hours=24)
         result = []
@@ -458,7 +455,7 @@ class DogLogRecentTimelineSensor(_DogLogSensorBase):
             ts = _to_datetime(event.get("timestamp"))
             if ts >= cutoff:
                 result.append(event)
-        # Sort by timestamp descending (newest first) — don't rely on store order
+        # Sort by timestamp descending (newest first)
         result.sort(key=lambda e: _to_datetime(e.get("timestamp")), reverse=True)
         return result
 
@@ -470,7 +467,7 @@ class DogLogRecentTimelineSensor(_DogLogSensorBase):
     def extra_state_attributes(self) -> dict[str, Any]:
         events = self._recent_events()
         timeline = []
-        for e in events:  # oldest-first for display
+        for e in events:
             ts = _to_datetime(e.get("timestamp"))
             local_ts = ts.astimezone(dt_util.DEFAULT_TIME_ZONE)
             timeline.append({

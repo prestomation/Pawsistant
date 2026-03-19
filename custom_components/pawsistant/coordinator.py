@@ -1,6 +1,6 @@
-"""DataUpdateCoordinator for DogLog.
+"""DataUpdateCoordinator for Pawsistant.
 
-Data is read from the local DogLogStore (no network calls).  The coordinator
+Data is read from the local PawsistantStore (no network calls).  The coordinator
 is refreshed immediately after each service call that mutates data, so sensors
 reflect the change within the current HA tick.
 
@@ -11,7 +11,7 @@ Coordinator data shape (preserved from the old Firebase coordinator so that
 sensor.py requires minimal changes):
 
     {
-        "<dog_name>": [  # newest-first list of event dicts
+        "<dog_id>": [  # newest-first list of event dicts
             {
                 "id": "<uuid>",
                 "dog_id": "<dog_id>",
@@ -41,7 +41,7 @@ except ImportError:
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DOMAIN
-from .store import DogLogStore
+from .store import PawsistantStore
 _LOGGER = logging.getLogger(__name__)
 
 # Periodic refresh interval — needed so time-based sensors (days_since_medicine,
@@ -49,48 +49,47 @@ _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(minutes=5)
 
 
-class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
-    """Coordinator that reads DogLog events from the local year-partitioned store."""
+class PawsistantCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
+    """Coordinator that reads Pawsistant events from the local year-partitioned store."""
 
     def __init__(
         self,
         hass: HomeAssistant,
         entry: ConfigEntry,
-        store: DogLogStore,
+        store: PawsistantStore,
     ) -> None:
         """Initialise the coordinator."""
         super().__init__(
             hass,
             _LOGGER,
-            name="DogLog",
+            name="Pawsistant",
             update_interval=SCAN_INTERVAL,
         )
         self.store = store
         self._entry = entry
-        # I3 — Track last prune time so pruning only happens once per day
+        # Track last prune time so pruning only happens once per day
         self._last_prune: datetime | None = None
 
     async def _async_update_data(self) -> dict[str, list[dict[str, Any]]]:
         """Build coordinator data from the local store."""
-        # I3 — Only prune once per day, not on every 5-min refresh
+        # Only prune once per day, not on every 5-min refresh
         now = datetime.now(tz=timezone.utc)
         if self._last_prune is None or (now - self._last_prune).total_seconds() >= 86400:
             try:
                 await self.store.prune_old_events()
                 self._last_prune = now
             except Exception as err:  # noqa: BLE001
-                _LOGGER.warning("DogLog: failed to prune old events: %s", err)
+                _LOGGER.warning("Pawsistant: failed to prune old events: %s", err)
 
         dogs = self.store.get_dogs()
         result: dict[str, list[dict[str, Any]]] = {}
         for dog_id, dog_info in dogs.items():
             dog_name = dog_info["name"]
             try:
-                # I2 — Key coordinator data by dog_id (not dog_name)
                 result[dog_id] = await self.store.get_events(dog_id)
             except Exception as err:
                 raise UpdateFailed(
-                    f"DogLog: failed to load events for '{dog_name}': {err}"
+                    f"Pawsistant: failed to load events for '{dog_name}': {err}"
                 ) from err
         return result
 
@@ -99,6 +98,6 @@ class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
         return DeviceInfo(
             identifiers={(DOMAIN, dog_id)},
             name=dog_name,
-            manufacturer="DogLog",
+            manufacturer="Pawsistant",
             model="Dog",
         )

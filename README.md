@@ -31,7 +31,7 @@ A local-only dog activity tracker for Home Assistant. Log walks, bathroom breaks
 
 ### Manual
 
-1. Copy `custom_components/doglog/` into your HA config's `custom_components/` directory
+1. Copy `custom_components/pawsistant/` into your HA config's `custom_components/` directory
 2. Restart Home Assistant
 
 ---
@@ -77,7 +77,7 @@ dog: Sharky
 
 ## Services
 
-### `doglog.log_event`
+### `pawsistant.log_event`
 Log an activity for a dog.
 
 | Field | Required | Description |
@@ -88,14 +88,14 @@ Log an activity for a dog.
 | `value` | — | Numeric value (required for `weight` events; lbs) |
 | `timestamp` | — | ISO 8601 timestamp for backdating; defaults to now |
 
-### `doglog.delete_event`
+### `pawsistant.delete_event`
 Delete an event by ID.
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `event_id` | ✅ | Event ID (available in sensor `extra_state_attributes`) |
 
-### `doglog.add_dog`
+### `pawsistant.add_dog`
 Register a new dog (triggers integration reload to create sensors).
 
 | Field | Required | Description |
@@ -104,14 +104,14 @@ Register a new dog (triggers integration reload to create sensors).
 | `breed` | — | Breed |
 | `birth_date` | — | Birth date (YYYY-MM-DD) |
 
-### `doglog.remove_dog`
+### `pawsistant.remove_dog`
 Remove a dog and all associated events.
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `dog` | ✅ | Dog name (case-insensitive) |
 
-### `doglog.list_events`
+### `pawsistant.list_events`
 Query events for a dog. Returns data via service response (`response_variable`).
 
 | Field | Required | Default | Description |
@@ -123,7 +123,7 @@ Query events for a dog. Returns data via service response (`response_variable`).
 **Example automation:**
 ```yaml
 action:
-  - service: doglog.list_events
+  - service: pawsistant.list_events
     data:
       dog: Sharky
       event_type: medicine
@@ -131,7 +131,7 @@ action:
     response_variable: medicine_events
 ```
 
-### `doglog.import_events`
+### `pawsistant.import_events`
 Bulk-import events from a JSON array (for migrating from other systems).
 
 | Field | Required | Description |
@@ -164,10 +164,26 @@ For a dog named `Sharky`, the following entities are created:
 
 Events are stored in HA's `.storage` directory:
 
-- `.storage/doglog` — dog registry (names, breeds, IDs)
-- `.storage/doglog_events_YYYY` — events partitioned by year
+- `.storage/pawsistant` — dog registry (names, breeds, IDs)
+- `.storage/pawsistant_events_YYYY` — events partitioned by year
 
 No external database, no cloud sync, no tokens.
+
+---
+
+## Migrating from doglog → Pawsistant
+
+If you previously had the `doglog` integration installed (domain `doglog`), you must:
+
+1. Remove the old integration: **Settings → Devices & Services → Pawsistant → Delete**
+2. Restart Home Assistant
+3. Re-add the integration: **Settings → Devices & Services → Add Integration → Pawsistant**
+
+Storage data (dogs and events) is **automatically migrated** from `.storage/doglog*` to
+`.storage/pawsistant*` on first load — no events are lost.
+
+Entity IDs will change from `sensor.doglog_*` to `sensor.pawsistant_*` after re-adding,
+so update any automations or dashboards that reference the old entity IDs.
 
 ---
 

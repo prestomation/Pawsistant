@@ -1,19 +1,19 @@
-"""DogLog integration for Home Assistant.
+"""Pawsistant integration for Home Assistant.
 
 All dog and event data is stored locally in HA's .storage directory using a
 year-partitioned layout — no cloud dependency required.
 
 Storage files:
-  .storage/doglog                   — dogs registry + known_years index
-  .storage/doglog_events_YYYY       — events for each calendar year
+  .storage/pawsistant                   — dogs registry + known_years index
+  .storage/pawsistant_events_YYYY       — events for each calendar year
 
 Services:
-  doglog.log_event      — Log an activity for a named dog
-  doglog.delete_event   — Delete an event by ID
-  doglog.add_dog        — Register a new dog
-  doglog.remove_dog     — Remove a dog and all its events
-  doglog.list_events    — Fire a HA event with query results (for automations)
-  doglog.import_events  — Bulk-import events from a JSON array (Firebase migration)
+  pawsistant.log_event      — Log an activity for a named dog
+  pawsistant.delete_event   — Delete an event by ID
+  pawsistant.add_dog        — Register a new dog
+  pawsistant.remove_dog     — Remove a dog and all its events
+  pawsistant.list_events    — Fire a HA event with query results (for automations)
+  pawsistant.import_events  — Bulk-import events from a JSON array (Firebase migration)
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN, PLATFORMS, URL_BASE, CARD_VERSION
-from .coordinator import DogLogCoordinator
-from .store import DogLogStore, VALID_EVENT_TYPES
+from .coordinator import PawsistantCoordinator
+from .store import PawsistantStore, VALID_EVENT_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -158,7 +158,6 @@ class PawsistantCardRegistration:
                         )
                         _LOGGER.info("Updated Pawsistant card resource to %s", card_url)
                     except Exception as err:  # noqa: BLE001
-                        # I7 — Log resource update errors instead of swallowing them
                         _LOGGER.warning(
                             "Pawsistant: failed to update Lovelace resource: %s", err
                         )
@@ -175,7 +174,6 @@ class PawsistantCardRegistration:
             try:
                 await resources.async_delete_item(r["id"])
             except Exception as err:  # noqa: BLE001
-                # I7 — Log resource delete errors instead of swallowing them
                 _LOGGER.warning(
                     "Pawsistant: failed to remove Lovelace resource: %s", err
                 )
@@ -212,16 +210,16 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up DogLog from a config entry.
+    """Set up Pawsistant from a config entry.
 
-    Creates the DogLogStore, loads data from disk, and registers all services.
+    Creates the PawsistantStore, loads data from disk, and registers all services.
     On first run (no dogs in store) the initial dog from the config-flow data
     is automatically added.
     """
     # Register frontend resources (safe to call multiple times due to guard)
     await _ensure_frontend_registered(hass)
 
-    store = DogLogStore(hass)
+    store = PawsistantStore(hass)
     await store.load()
 
     # Seed the store with the initial dog captured during config flow
@@ -236,7 +234,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             _LOGGER.info("Created initial dog '%s' from config entry", dog_name)
 
-    coordinator = DogLogCoordinator(hass, entry, store)
+    coordinator = PawsistantCoordinator(hass, entry, store)
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
@@ -245,24 +243,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # ------------------------------------------------------------------
     # Register services — always register unconditionally so reload is
-    # handled correctly. C6 — removed has_service guards.
+    # handled correctly.
     # ------------------------------------------------------------------
 
-    def _get_store_and_coord() -> tuple[DogLogStore, DogLogCoordinator]:
+    def _get_store_and_coord() -> tuple[PawsistantStore, PawsistantCoordinator]:
         """Return the active store and coordinator for the single entry."""
         for cfg_entry in hass.config_entries.async_entries(DOMAIN):
             coord = getattr(cfg_entry, "runtime_data", None)
-            if isinstance(coord, DogLogCoordinator):
+            if isinstance(coord, PawsistantCoordinator):
                 return coord.store, coord
-        raise RuntimeError("No active DogLog coordinator found")
+        raise RuntimeError("No active Pawsistant coordinator found")
 
-    def _find_dog_id(store: DogLogStore, dog_name: str) -> str | None:
+    def _find_dog_id(store: PawsistantStore, dog_name: str) -> str | None:
         """Return the dog_id for *dog_name* (case-insensitive) or None."""
         result = store.get_dog_by_name(dog_name)
         return result[0] if result else None
 
     async def handle_log_event(call: ServiceCall) -> None:
-        """Handle doglog.log_event."""
+        """Handle pawsistant.log_event."""
         store, coord = _get_store_and_coord()
         dog_name: str = call.data["dog"]
         event_type: str = call.data["event_type"]
@@ -272,7 +270,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         dog_id = _find_dog_id(store, dog_name)
         if dog_id is None:
-            _LOGGER.error("doglog.log_event: dog '%s' not found", dog_name)
+            _LOGGER.error("pawsistant.log_event: dog '%s' not found", dog_name)
             return
 
         event = await store.add_event(
@@ -292,7 +290,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def handle_delete_event(call: ServiceCall) -> None:
-        """Handle doglog.delete_event."""
+        """Handle pawsistant.delete_event."""
         store, coord = _get_store_and_coord()
         event_id: str = call.data["event_id"]
         deleted = await store.delete_event(event_id)
@@ -301,7 +299,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await coord.async_request_refresh()
         else:
             _LOGGER.warning(
-                "doglog.delete_event: event id '%s' not found", event_id
+                "pawsistant.delete_event: event id '%s' not found", event_id
             )
 
     hass.services.async_register(
@@ -309,11 +307,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def handle_add_dog(call: ServiceCall) -> None:
-        """Handle doglog.add_dog."""
+        """Handle pawsistant.add_dog."""
         store, coord = _get_store_and_coord()
         name: str = call.data["name"].strip()
         if not name:
-            _LOGGER.error("doglog.add_dog: name must not be empty")
+            _LOGGER.error("pawsistant.add_dog: name must not be empty")
             return
         try:
             dog_id = await store.add_dog(
@@ -322,10 +320,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 birth_date=call.data.get("birth_date", ""),
             )
         except ValueError as err:
-            _LOGGER.error("doglog.add_dog: %s", err)
+            _LOGGER.error("pawsistant.add_dog: %s", err)
             return
         _LOGGER.info("Added dog '%s' via service (id=%s)", name, dog_id)
-        # C5 — Reload the entry so new sensor entities are created
+        # Reload the entry so new sensor entities are created
         entries = hass.config_entries.async_entries(DOMAIN)
         if entries:
             await hass.config_entries.async_reload(entries[0].entry_id)
@@ -337,13 +335,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def handle_remove_dog(call: ServiceCall) -> None:
-        """Handle doglog.remove_dog."""
+        """Handle pawsistant.remove_dog."""
         store, coord = _get_store_and_coord()
         dog_name: str = call.data["dog"]
         result = store.get_dog_by_name(dog_name)
         if result is None:
             _LOGGER.error(
-                "doglog.remove_dog: dog '%s' not found", dog_name
+                "pawsistant.remove_dog: dog '%s' not found", dog_name
             )
             return
         dog_id, _ = result
@@ -356,7 +354,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def handle_list_events(call: ServiceCall) -> dict:
-        """Handle doglog.list_events.
+        """Handle pawsistant.list_events.
 
         Returns matching events directly as a service response so that
         automations can use the data via response_variable.
@@ -372,7 +370,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         result = store.get_dog_by_name(dog_name)
         if result is None:
             _LOGGER.error(
-                "doglog.list_events: dog '%s' not found", dog_name
+                "pawsistant.list_events: dog '%s' not found", dog_name
             )
             return {"dog": dog_name, "event_type": event_type, "days": days, "events": []}
         dog_id, _ = result
@@ -396,7 +394,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def handle_import_events(call: ServiceCall) -> None:
-        """Handle doglog.import_events.
+        """Handle pawsistant.import_events.
 
         Accepts a list of event dicts (e.g. exported from Firebase) and
         bulk-imports them into the local store.  Duplicate IDs are skipped.
@@ -404,7 +402,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         store, coord = _get_store_and_coord()
         raw_events: list[Any] = call.data["events"]
         if not isinstance(raw_events, list):
-            _LOGGER.error("doglog.import_events: 'events' must be a list")
+            _LOGGER.error("pawsistant.import_events: 'events' must be a list")
             return
         count = await store.import_events(raw_events)
         _LOGGER.info("import_events: imported %d new events", count)
@@ -425,14 +423,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     Add handling here for future schema bumps.
     """
     _LOGGER.debug(
-        "Migrating DogLog config entry from version %s", entry.version
+        "Migrating Pawsistant config entry from version %s", entry.version
     )
     if entry.version == 1:
         # Current version — nothing to migrate
         return True
     # Unknown future version
     _LOGGER.error(
-        "Cannot migrate DogLog config entry: unknown version %s", entry.version
+        "Cannot migrate Pawsistant config entry: unknown version %s", entry.version
     )
     return False
 
@@ -441,7 +439,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    # Remove services only when the last DogLog entry is unloaded
+    # Remove services only when the last Pawsistant entry is unloaded
     remaining = [
         e
         for e in hass.config_entries.async_entries(DOMAIN)

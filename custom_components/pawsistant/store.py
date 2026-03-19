@@ -1,14 +1,14 @@
-"""Local JSON storage for DogLog — year-partitioned design.
+"""Local JSON storage for Pawsistant — year-partitioned design.
 
 Storage layout in HA's .storage directory:
 
-    doglog
+    pawsistant
         Dogs registry + metadata only.  No events.
         Shape:  {"dogs": {dog_id: {name, breed, birth_date}},
                  "known_years": [2025, 2026, ...]}
 
-    doglog_events_2025
-    doglog_events_2026
+    pawsistant_events_2025
+    pawsistant_events_2026
     ...
         One file per calendar year of event data.
         Shape:  {"events": [{id, dog_id, event_type, timestamp, note, value?}, ...]}
@@ -21,8 +21,15 @@ Benefits of partitioning
 * Historical queries (weight trend, medicine history across years) lazy-load
   older year files on demand.
 * Pruning operates per year file, never touching other years.
-* Migration: if an old flat doglog store with an "events" key is found on
-  first load, events are transparently migrated to year files.
+* Migration: if an old flat store with an "events" key is found on first load,
+  events are transparently migrated to year files.
+
+Storage migration from doglog
+------------------------------
+If old .storage/doglog or .storage/doglog_events_YYYY files exist but the new
+pawsistant files don't, the load() method will attempt to read from the old
+keys and write to the new ones.  This ensures existing users don't lose data
+after renaming the domain from doglog → pawsistant.
 """
 
 from __future__ import annotations
@@ -38,9 +45,13 @@ from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
 
-STORAGE_KEY_META = "doglog"
-STORAGE_KEY_EVENTS_PREFIX = "doglog_events_"
+STORAGE_KEY_META = "pawsistant"
+STORAGE_KEY_EVENTS_PREFIX = "pawsistant_events_"
 STORAGE_VERSION = 1
+
+# Legacy storage keys (doglog era) — used for one-time migration
+_LEGACY_STORAGE_KEY_META = "doglog"
+_LEGACY_STORAGE_KEY_EVENTS_PREFIX = "doglog_events_"
 
 # Event types that are retained indefinitely — never pruned
 PERSISTENT_EVENT_TYPES = {"weight", "medicine", "vaccine"}
@@ -69,12 +80,12 @@ VALID_EVENT_TYPES = {
 
 
 # ---------------------------------------------------------------------------
-# DogLogStore
+# PawsistantStore
 # ---------------------------------------------------------------------------
 
 
-class DogLogStore:
-    """Year-partitioned local storage for DogLog.
+class PawsistantStore:
+    """Year-partitioned local storage for Pawsistant.
 
     Usage pattern
     -------------
@@ -160,13 +171,68 @@ class DogLogStore:
         return year
 
     # -----------------------------------------------------------------------
+    # Storage migration: doglog keys → pawsistant keys
+    # -----------------------------------------------------------------------
+
+    async def _maybe_migrate_from_doglog(self) -> None:
+        """One-time migration: read data from legacy doglog storage keys.
+
+        If .storage/doglog exists but .storage/pawsistant doesn't, we read
+        dogs/known_years from the old key and re-save under the new key.
+        Year event files are similarly migrated from doglog_events_YYYY →
+        pawsistant_events_YYYY.  After migration the legacy files are left
+        in place (HA has no public API to delete storage files safely).
+        """
+        legacy_meta_store = Store(self._hass, STORAGE_VERSION, _LEGACY_STORAGE_KEY_META)
+        legacy_raw = await legacy_meta_store.async_load()
+        if legacy_raw is None:
+            return  # No legacy data — nothing to migrate
+
+        _LOGGER.info(
+            "Pawsistant: migrating data from legacy doglog storage keys"
+        )
+        self._meta = legacy_raw
+        self._meta.setdefault("dogs", {})
+        self._meta.setdefault("known_years", [])
+
+        # Handle flat-events migration within legacy data first
+        if "events" in self._meta:
+            await self._maybe_migrate_flat_events()
+
+        # Migrate year files
+        for year in list(self._meta.get("known_years", [])):
+            legacy_year_store = Store(
+                self._hass,
+                STORAGE_VERSION,
+                f"{_LEGACY_STORAGE_KEY_EVENTS_PREFIX}{year}",
+            )
+            legacy_year_raw = await legacy_year_store.async_load()
+            if legacy_year_raw is None:
+                continue
+            events = legacy_year_raw.get("events", [])
+            if events:
+                self._year_events[year] = events
+                self._loaded_years.add(year)
+                await self._save_year(year)
+                _LOGGER.info(
+                    "Migrated %d events from doglog_events_%d → pawsistant_events_%d",
+                    len(events), year, year,
+                )
+
+        # Save meta under new key
+        await self._save_meta()
+        _LOGGER.info(
+            "Pawsistant: doglog → pawsistant storage migration complete"
+        )
+
+    # -----------------------------------------------------------------------
     # Migration: flat → partitioned
     # -----------------------------------------------------------------------
 
     async def _maybe_migrate_flat_events(self) -> None:
         """If the old single-file store contained an 'events' list, migrate it.
 
-        The old store used a single doglog file with both dogs and events.
+        The old store used a single file with both dogs and events.
         This method moves those events into year-partitioned files and removes
         the events key from the meta store.
         """
@@ -175,7 +241,7 @@ class DogLogStore:
             return
 
         _LOGGER.info(
-            "DogLog: migrating %d events from flat store to year-partitioned files",
+            "Pawsistant: migrating %d events from flat store to year-partitioned files",
             len(flat_events),
         )
 
@@ -206,12 +272,12 @@ class DogLogStore:
             self._record_year(year)
             await self._save_year(year)
             _LOGGER.info(
-                "Migration: wrote %d events to doglog_events_%d", added, year
+                "Migration: wrote %d events to pawsistant_events_%d", added, year
             )
 
         # Save meta without events key
         await self._save_meta()
-        _LOGGER.info("DogLog flat-store migration complete")
+        _LOGGER.info("Pawsistant flat-store migration complete")
 
     # -----------------------------------------------------------------------
     # Lifecycle
@@ -222,15 +288,21 @@ class DogLogStore:
 
         Loading two years by default ensures cross-year queries (e.g. "days
         since last medicine" in January) work without extra async calls.
+
+        If no pawsistant storage is found but legacy doglog storage exists,
+        a one-time migration is performed automatically.
         """
         raw = await self._meta_store.async_load()
         if raw is None:
-            self._meta = {"dogs": {}, "known_years": []}
-            _LOGGER.debug("DogLog: no existing store found, starting fresh")
+            # Check for legacy doglog storage to migrate from
+            await self._maybe_migrate_from_doglog()
+            if not self._meta.get("dogs"):
+                self._meta = {"dogs": {}, "known_years": []}
+                _LOGGER.debug("Pawsistant: no existing store found, starting fresh")
         else:
             self._meta = raw
             _LOGGER.debug(
-                "DogLog: loaded meta — %d dogs, known years: %s",
+                "Pawsistant: loaded meta — %d dogs, known years: %s",
                 len(self._meta.get("dogs", {})),
                 self._meta.get("known_years", []),
             )
@@ -262,11 +334,10 @@ class DogLogStore:
 
         Raises ValueError if a dog with the same name (case-insensitive) already exists.
         """
-        # I8 — enforce name uniqueness (case-insensitive)
         existing = self.get_dog_by_name(name)
         if existing is not None:
             raise ValueError(
-                f"DogLog: a dog named '{existing[1]['name']}' already exists"
+                f"Pawsistant: a dog named '{existing[1]['name']}' already exists"
             )
 
         dog_id = str(uuid.uuid4())
@@ -276,7 +347,7 @@ class DogLogStore:
             "birth_date": birth_date,
         }
         await self._save_meta()
-        _LOGGER.info("DogLog: added dog '%s' (id=%s)", name, dog_id)
+        _LOGGER.info("Pawsistant: added dog '%s' (id=%s)", name, dog_id)
         return dog_id
 
     async def remove_dog(self, dog_id: str) -> bool:
@@ -309,7 +380,7 @@ class DogLogStore:
 
         await self._save_meta()
         _LOGGER.info(
-            "DogLog: removed dog '%s' and %d events", name, total_removed
+            "Pawsistant: removed dog '%s' and %d events", name, total_removed
         )
         return True
 
@@ -365,7 +436,6 @@ class DogLogStore:
             event["value"] = value
 
         # Insert and re-sort newest-first so backdated events land in the correct position
-        # C1 — Backdated events break sort order: always re-sort after insert
         self._year_events.setdefault(year, []).append(event)
         self._year_events[year].sort(
             key=lambda e: e.get("timestamp", ""), reverse=True
@@ -383,7 +453,6 @@ class DogLogStore:
 
         Searches all known year files (loading them if necessary).
         Returns True if found and deleted, False if the event ID does not exist.
-        C2 — Load all known years before searching so old-year events can be deleted.
         """
         for year in self._meta.get("known_years", []):
             await self._ensure_year_loaded(year)
@@ -460,7 +529,6 @@ class DogLogStore:
         # Group incoming events by year
         by_year: dict[int, list[dict[str, Any]]] = {}
         for raw in events:
-            # I4 — Validate required fields; skip invalid entries
             if not isinstance(raw, dict):
                 _LOGGER.warning(
                     "import_events: skipping non-dict entry: %r", raw
@@ -515,7 +583,7 @@ class DogLogStore:
 
         Operates independently on each loaded year file.  Weight, medicine,
         and vaccine events are never pruned — they form the longitudinal
-        history that's the core value of DogLog.
+        history that's the core value of Pawsistant.
 
         Returns the total number of events removed.
         """
@@ -543,7 +611,7 @@ class DogLogStore:
 
         if total_removed:
             _LOGGER.info(
-                "DogLog: pruned %d events older than %d days",
+                "Pawsistant: pruned %d events older than %d days",
                 total_removed,
                 DEFAULT_RETENTION_DAYS,
             )

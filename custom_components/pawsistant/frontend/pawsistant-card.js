@@ -1,6 +1,6 @@
 /**
  * Pawsistant Card — All-in-one dog activity dashboard for Home Assistant
- * Bundled with the ha-doglog (Pawsistant) integration — no manual setup required.
+ * Bundled with the Pawsistant integration — no manual setup required.
  * Version: 2.1.1
  */
 
@@ -1057,7 +1057,7 @@ class PawsistantCard extends HTMLElement {
     };
     if (note) payload.note = note;
 
-    this._hass.callService('doglog', 'log_event', payload)
+    this._hass.callService('pawsistant', 'log_event', payload)
       .then(() => {
         this._showSuccessFlash(btn);
         this._setTimeout(() => {
@@ -1074,7 +1074,7 @@ class PawsistantCard extends HTMLElement {
 
   /* ── Submit weight ─────────────────────────────────────────────────── */
   _submitWeight(btn, value) {
-    this._hass.callService('doglog', 'log_event', {
+    this._hass.callService('pawsistant', 'log_event', {
       dog: this._config.dog,
       event_type: 'weight',
       value: value,
@@ -1106,7 +1106,7 @@ class PawsistantCard extends HTMLElement {
 
   /* ── Service calls ─────────────────────────────────────────────────── */
   _logEvent(eventType, extra = {}) {
-    return this._hass.callService('doglog', 'log_event', {
+    return this._hass.callService('pawsistant', 'log_event', {
       dog: this._config.dog,
       event_type: eventType,
       ...extra,
@@ -1116,7 +1116,7 @@ class PawsistantCard extends HTMLElement {
   _deleteEvent(eventId, btn) {
     /* U7 — debounce via pending attr */
     if (btn) btn.dataset.pending = '1';
-    this._hass.callService('doglog', 'delete_event', {
+    this._hass.callService('pawsistant', 'delete_event', {
       event_id: eventId,
     }).then(() => {
       if (btn) delete btn.dataset.pending;

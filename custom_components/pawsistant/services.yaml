@@ -108,7 +108,7 @@ remove_dog:
 list_events:
   name: List Events
   description: >
-    Query events for a dog and fire a `doglog_events` HA event containing
+    Query events for a dog and fire a `pawsistant_events` HA event containing
     the results. Use this in automations to inspect recent activity.
   fields:
     dog:

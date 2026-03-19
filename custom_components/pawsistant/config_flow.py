@@ -1,13 +1,12 @@
-"""Config flow for DogLog integration.
+"""Config flow for Pawsistant integration.
 
-Replaces the Firebase-token-based flow with a simple local dog-setup flow.
-No authentication is required — all data is stored locally in HA's .storage
-directory.
+Local dog-setup flow — no authentication required. All data is stored locally
+in HA's .storage directory.
 
 Flow:
   1. async_step_user  — Enter the first dog's name (required) plus optional
                         breed and birth_date.  Creates the config entry titled
-                        "DogLog".
+                        "Pawsistant".
   2. Options flow     — Add or remove dogs after initial setup.
 """
 
@@ -39,10 +38,10 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
-class DogLogConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle the initial config flow for DogLog.
+class PawsistantConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle the initial config flow for Pawsistant.
 
-    Only one DogLog config entry is allowed.  Multiple dogs are managed via
+    Only one Pawsistant config entry is allowed.  Multiple dogs are managed via
     the add_dog / remove_dog services (or the options flow).
     """
 
@@ -60,11 +59,11 @@ class DogLogConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["dog_name"] = "name_required"
             else:
                 # Prevent duplicate config entries
-                await self.async_set_unique_id("doglog_local")
+                await self.async_set_unique_id("pawsistant_local")
                 self._abort_if_unique_id_configured()
 
                 return self.async_create_entry(
-                    title="DogLog",
+                    title="Pawsistant",
                     data={
                         "initial_dog": {
                             "name": dog_name,
@@ -82,13 +81,13 @@ class DogLogConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: ConfigEntry) -> DogLogOptionsFlow:
+    def async_get_options_flow(config_entry: ConfigEntry) -> PawsistantOptionsFlow:
         """Return the options flow handler."""
-        return DogLogOptionsFlow()
+        return PawsistantOptionsFlow()
 
 
-class DogLogOptionsFlow(OptionsFlow):
-    """Options flow for DogLog.
+class PawsistantOptionsFlow(OptionsFlow):
+    """Options flow for Pawsistant.
 
     Shows currently registered dogs and instructions for managing them.
     Actual dog CRUD is performed via service calls (add_dog / remove_dog).
@@ -121,7 +120,7 @@ class DogLogOptionsFlow(OptionsFlow):
             description_placeholders={
                 "current_dogs": dogs_info,
                 "manage_dogs_tip": (
-                    "Use the doglog.add_dog and doglog.remove_dog services "
+                    "Use the pawsistant.add_dog and pawsistant.remove_dog services "
                     "to manage your dogs."
                 ),
             },
