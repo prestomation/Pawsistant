@@ -1,10 +1,12 @@
 log_event:
   name: Log Event
-  description: Log a pet activity event to DogLog.
+  description: >
+    Log a pet activity event for a named dog. The event is stored locally
+    and triggers an immediate sensor update.
   fields:
     dog:
       name: Dog
-      description: The name of the dog.
+      description: The name of the dog (case-insensitive).
       required: true
       selector:
         text:
@@ -17,29 +19,148 @@ log_event:
           options:
             - food
             - treat
+            - water
             - walk
             - pee
             - poop
-            - teeth_brushing
-            - grooming
-            - training
             - medicine
             - weight
-            - temperature
-            - water
-            - sleep
             - vaccine
-            - blood_glucose
+            - sleep
+            - grooming
+            - training
+            - teeth_brushing
+            - sick
     note:
       name: Note
-      description: Optional note for the event.
+      description: >
+        Optional note for the event (e.g. medicine name, vet comments).
       required: false
       selector:
         text:
     value:
       name: Value
-      description: Optional numeric value (e.g., weight in lbs).
+      description: Optional numeric value (e.g. weight in lbs).
       required: false
       selector:
         number:
           mode: box
+    timestamp:
+      name: Timestamp
+      description: >
+        Optional ISO 8601 timestamp override (e.g. "2026-03-18T10:30:00-04:00").
+        Defaults to now if omitted.
+      required: false
+      selector:
+        text:
+
+delete_event:
+  name: Delete Event
+  description: >
+    Delete a previously logged event by its unique ID. The event_id is
+    available as an attribute on most-recent-event sensors.
+  fields:
+    event_id:
+      name: Event ID
+      description: The UUID of the event to delete.
+      required: true
+      selector:
+        text:
+
+add_dog:
+  name: Add Dog
+  description: >
+    Register a new dog. A new set of sensors will appear after HA reloads
+    the integration (or after the next coordinator refresh).
+  fields:
+    name:
+      name: Name
+      description: The dog's name (must be unique).
+      required: true
+      selector:
+        text:
+    breed:
+      name: Breed
+      description: Optional breed.
+      required: false
+      selector:
+        text:
+    birth_date:
+      name: Birth Date
+      description: Optional birth date (YYYY-MM-DD).
+      required: false
+      selector:
+        text:
+
+remove_dog:
+  name: Remove Dog
+  description: >
+    Remove a dog and permanently delete all of its events.
+    This action cannot be undone.
+  fields:
+    dog:
+      name: Dog
+      description: The name of the dog to remove (case-insensitive).
+      required: true
+      selector:
+        text:
+
+list_events:
+  name: List Events
+  description: >
+    Query events for a dog and fire a `doglog_events` HA event containing
+    the results. Use this in automations to inspect recent activity.
+  fields:
+    dog:
+      name: Dog
+      description: The name of the dog.
+      required: true
+      selector:
+        text:
+    event_type:
+      name: Event Type
+      description: Filter by event type (optional).
+      required: false
+      selector:
+        select:
+          options:
+            - food
+            - treat
+            - water
+            - walk
+            - pee
+            - poop
+            - medicine
+            - weight
+            - vaccine
+            - sleep
+            - grooming
+            - training
+            - teeth_brushing
+            - sick
+    days:
+      name: Days
+      description: How many days back to search (default 7, max 3650).
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+
+import_events:
+  name: Import Events
+  description: >
+    Bulk-import events from an external JSON array. Intended for one-time
+    migration from the Firebase-backed version of DogLog. Events whose `id`
+    already exists in the local store are skipped.
+  fields:
+    events:
+      name: Events
+      description: >
+        A JSON array of event objects. Each object should have at minimum:
+        dog_id, event_type, timestamp. An `id` field is optional — one will
+        be generated if absent.
+      required: true
+      selector:
+        object:
