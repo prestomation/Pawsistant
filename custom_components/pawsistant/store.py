@@ -257,10 +257,10 @@ class PawsistantStore:
             existing_ids = {e["id"] for e in self._year_events[year]}
             added = 0
             for ev in year_events:
+                ev = dict(ev)  # always copy to avoid mutating caller's data
                 if ev.get("id") and ev["id"] in existing_ids:
                     continue
                 if not ev.get("id"):
-                    ev = dict(ev)
                     ev["id"] = str(uuid.uuid4())
                 self._year_events[year].append(ev)
                 existing_ids.add(ev["id"])
