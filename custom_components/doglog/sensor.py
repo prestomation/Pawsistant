@@ -498,7 +498,7 @@ class DogLogRecentTimelineSensor(_DogLogSensorBase):
             local_ts = ts.astimezone(dt_util.DEFAULT_TIME_ZONE)
             timeline.append({
                 "type": e.get("event_type", ""),
-                "time": local_ts.strftime("%-I:%M %p"),
+                "time": local_ts.strftime("%I:%M %p").lstrip("0"),
                 "day": local_ts.strftime("%a"),
                 "date": local_ts.strftime("%m/%d"),
                 "iso": local_ts.isoformat(),
