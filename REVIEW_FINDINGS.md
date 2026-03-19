@@ -7,48 +7,48 @@ Items marked ✅ are already fixed. Items marked 🔄 are pending.
 
 | # | Sev | Issue | Status |
 |---|-----|-------|--------|
-| E1 | 🔴 | `strings.json`/`translations/en.json` describe old Firebase flow | 🔄 |
-| E2 | 🔴 | Card version mismatch (__init__.py 2.1.1 vs JS 2.1.0) | 🔄 |
-| E3 | 🔴 | No `const.py` — DOMAIN defined in 4 files | 🔄 |
-| E4 | 🔴 | README documents old Firebase integration | 🔄 |
-| E5 | 🟡 | Weight sensor missing `SensorDeviceClass.WEIGHT` | 🔄 |
-| E6 | 🟡 | Days-since-medicine should use `UnitOfTime.DAYS` | 🔄 |
-| E7 | 🟡 | `list_events` should use `ServiceResponse` pattern | 🔄 |
-| E8 | 🟡 | Options flow is dead-end empty form | 🔄 |
-| E9 | 🟡 | No `async_migrate_entry` for schema versions | 🔄 |
+| E1 | 🔴 | `strings.json`/`translations/en.json` describe old Firebase flow | ✅ |
+| E2 | 🔴 | Card version mismatch (__init__.py 2.1.1 vs JS 2.1.0) | ✅ |
+| E3 | 🔴 | No `const.py` — DOMAIN defined in 4 files | ✅ |
+| E4 | 🔴 | README documents old Firebase integration | ✅ |
+| E5 | 🟡 | Weight sensor missing `SensorDeviceClass.WEIGHT` | ✅ |
+| E6 | 🟡 | Days-since-medicine should use `UnitOfTime.DAYS` | ✅ |
+| E7 | 🟡 | `list_events` should use `ServiceResponse` pattern | ✅ |
+| E8 | 🟡 | Options flow is dead-end empty form | ✅ |
+| E9 | 🟡 | No `async_migrate_entry` for schema versions | ✅ |
 | E10 | 🟡 | Zero integration tests | 🔄 |
-| E11 | 🟡 | `pydoglib` in CI but not in manifest requirements | 🔄 |
-| E12 | 🔵 | Missing `hacs.json` with `render_readme` | 🔄 |
-| E13 | 🔵 | CI should use `hassfest` + `hacs/action` | 🔄 |
+| E11 | 🟡 | `pydoglib` in CI but not in manifest requirements | ✅ |
+| E12 | 🔵 | Missing `hacs.json` with `render_readme` | ✅ |
+| E13 | 🔵 | CI should use `hassfest` + `hacs/action` | ✅ |
 | E14 | 🔵 | No `quality_scale.yaml` | 🔄 |
-| E15 | 🔵 | Frontend `__init__.py` placeholder unnecessary | 🔄 |
+| E15 | 🔵 | Frontend `__init__.py` placeholder unnecessary | ✅ |
 
 ## UX / Frontend
 
 | # | Sev | Issue | Status |
 |---|-----|-------|--------|
-| U1 | 🔴 | Long-press undiscoverable — no visual hint | 🔄 |
-| U2 | 🔴 | No aria-labels on buttons | 🔄 |
-| U3 | 🔴 | Backdate form keyboard-inaccessible | 🔄 |
-| U4 | 🔴 | Hard-coded pill colors bypass theming | 🔄 |
-| U5 | 🔴 | No disconnectedCallback — timer leaks | 🔄 |
-| U6 | 🟡 | Delete button touch target ~22px (need 44px) | 🔄 |
-| U7 | 🟡 | No debounce on rapid taps | 🔄 |
-| U8 | 🟡 | Form panel overflows in landscape | 🔄 |
-| U9 | 🟡 | `window.confirm()` unreliable in HA webviews | 🔄 |
-| U10 | 🟡 | Form labels not `<label for>` | 🔄 |
-| U11 | 🟡 | No feedback on failure | 🔄 |
-| U12 | 🟡 | Timeline scroll bleeds (overscroll-behavior) | 🔄 |
-| U13 | 🟡 | `slugify()` breaks on non-ASCII names | 🔄 |
-| U14 | 🟡 | Long notes truncated, no expand | 🔄 |
-| U15 | 🟡 | Slider range too restrictive (10-180min) | 🔄 |
-| U16 | 🟡 | 9 event types not reachable from card | 🔄 |
-| U17 | 🟡 | Focus not returned after form close | 🔄 |
-| U18 | 🔵 | Medicine status color-only (colorblind) | 🔄 |
-| U19 | 🔵 | `--rgb-primary-color` not standard HA var | 🔄 |
-| U20 | 🔵 | Dead code: `_loggedTypes` Set | 🔄 |
-| U21 | 🔵 | Weight input needs `inputmode="decimal"` | 🔄 |
-| U22 | 🔵 | Weight hardcoded lbs, no metric option | 🔄 |
+| U1 | 🔴 | Long-press undiscoverable — no visual hint | ✅ |
+| U2 | 🔴 | No aria-labels on buttons | ✅ |
+| U3 | 🔴 | Backdate form keyboard-inaccessible | ✅ |
+| U4 | 🔴 | Hard-coded pill colors bypass theming | ✅ |
+| U5 | 🔴 | No disconnectedCallback — timer leaks | ✅ |
+| U6 | 🟡 | Delete button touch target ~22px (need 44px) | ✅ |
+| U7 | 🟡 | No debounce on rapid taps | ✅ |
+| U8 | 🟡 | Form panel overflows in landscape | ✅ |
+| U9 | 🟡 | `window.confirm()` unreliable in HA webviews | ✅ |
+| U10 | 🟡 | Form labels not `<label for>` | ✅ |
+| U11 | 🟡 | No feedback on failure | ✅ |
+| U12 | 🟡 | Timeline scroll bleeds (overscroll-behavior) | ✅ |
+| U13 | 🟡 | `slugify()` breaks on non-ASCII names | ✅ |
+| U14 | 🟡 | Long notes truncated, no expand | ✅ |
+| U15 | 🟡 | Slider range too restrictive (10-180min) | ✅ |
+| U16 | 🟡 | 9 event types not reachable from card | ✅ |
+| U17 | 🟡 | Focus not returned after form close | ✅ |
+| U18 | 🔵 | Medicine status color-only (colorblind) | ✅ |
+| U19 | 🔵 | `--rgb-primary-color` not standard HA var | ✅ |
+| U20 | 🔵 | Dead code: `_loggedTypes` Set | ✅ |
+| U21 | 🔵 | Weight input needs `inputmode="decimal"` | ✅ |
+| U22 | 🔵 | Weight hardcoded lbs, no metric option | ✅ |
 
 ## Prior Code Review (already fixed)
 
@@ -73,3 +73,6 @@ Items marked ✅ are already fixed. Items marked 🔄 are pending.
 
 - `iot_class: local_push` is CORRECT — data changes are user-initiated push via service calls. The 5-min coordinator recalculates time-derived values (days_since_medicine, daily counts), not fetching new data.
 - Full domain rename `doglog` → `pawsistant` planned as final step.
+- E10 (integration tests) and E14 (quality_scale.yaml) remain deferred — not in scope for this pass.
+- Coordinator DeviceInfo import made compatible with older HA packages (fallback import path).
+- Dataclass `frozen=True` removed from sensor description classes for compatibility with older `SensorEntityDescription` base.

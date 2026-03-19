@@ -25,15 +25,14 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfMass
+from homeassistant.const import UnitOfMass, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
+from .const import DOMAIN
 from .coordinator import DogLogCoordinator
-
-DOMAIN = "doglog"
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -162,14 +161,14 @@ def _days_since(events: list[dict[str, Any]], event_type: str) -> float | None:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class DogLogMostRecentSensorDescription(SensorEntityDescription):
     """Describe a DogLog most-recent-event sensor."""
 
     event_type: str = ""
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class DogLogDailyCountSensorDescription(SensorEntityDescription):
     """Describe a DogLog daily-count sensor."""
 
@@ -358,6 +357,7 @@ class DogLogWeightSensor(_DogLogSensorBase):
 
     # I1 — Use HA constant for weight unit
     _attr_native_unit_of_measurement = UnitOfMass.POUNDS
+    _attr_device_class = SensorDeviceClass.WEIGHT
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:scale-bathroom"
 
@@ -390,7 +390,8 @@ class DogLogDaysSinceMedicineSensor(_DogLogSensorBase):
     dosing interval the automation can fire a notification.
     """
 
-    _attr_native_unit_of_measurement = "d"
+    _attr_native_unit_of_measurement = UnitOfTime.DAYS
+    _attr_device_class = SensorDeviceClass.DURATION
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:pill"
 

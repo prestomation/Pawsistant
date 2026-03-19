@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one dog activity dashboard for Home Assistant
  * Bundled with the ha-doglog (Pawsistant) integration — no manual setup required.
- * Version: 2.1.0
+ * Version: 2.1.1
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -15,29 +15,33 @@ window.customCards.push({
 
 /* ── Event-type metadata ────────────────────────────────────────────────── */
 const EVENT_META = {
-  poop:     { emoji: '💩', label: 'Poop',     color: '#8B4513' },
-  pee:      { emoji: '💧', label: 'Pee',      color: '#4FC3F7' },
-  medicine: { emoji: '💊', label: 'Medicine', color: '#AB47BC' },
-  sick:     { emoji: '🤒', label: 'Sick',     color: '#EF5350' },
-  food:     { emoji: '🍖', label: 'Food',     color: '#FF8A65' },
-  treat:    { emoji: '🍪', label: 'Treat',    color: '#FFCA28' },
-  walk:     { emoji: '🦮', label: 'Walk',     color: '#66BB6A' },
-  water:    { emoji: '🥤', label: 'Water',    color: '#29B6F6' },
-  sleep:    { emoji: '😴', label: 'Sleep',    color: '#7E57C2' },
-  vaccine:  { emoji: '💉', label: 'Vaccine',  color: '#26A69A' },
-  training: { emoji: '🎓', label: 'Training', color: '#5C6BC0' },
-  weight:   { emoji: '⚖️',  label: 'Weight',   color: '#78909C' },
-  teeth_brushing: { emoji: '🦷', label: 'Teeth', color: '#B0BEC5' },
-  grooming: { emoji: '✂️',  label: 'Grooming', color: '#EC407A' },
+  poop:     { emoji: '💩', label: 'Poop',     color: 'var(--warning-color, #FF8A65)' },
+  pee:      { emoji: '💧', label: 'Pee',      color: 'var(--info-color, #4FC3F7)' },
+  medicine: { emoji: '💊', label: 'Medicine', color: 'var(--error-color, #EF5350)' },
+  sick:     { emoji: '🤒', label: 'Sick',     color: 'var(--error-color, #EF5350)' },
+  food:     { emoji: '🍖', label: 'Food',     color: 'var(--warning-color, #FF8A65)' },
+  treat:    { emoji: '🍪', label: 'Treat',    color: 'var(--warning-color, #FFCA28)' },
+  walk:     { emoji: '🦮', label: 'Walk',     color: 'var(--success-color, #66BB6A)' },
+  water:    { emoji: '🥤', label: 'Water',    color: 'var(--info-color, #29B6F6)' },
+  sleep:    { emoji: '😴', label: 'Sleep',    color: 'var(--info-color, #7E57C2)' },
+  vaccine:  { emoji: '💉', label: 'Vaccine',  color: 'var(--info-color, #26A69A)' },
+  training: { emoji: '🎓', label: 'Training', color: 'var(--info-color, #5C6BC0)' },
+  weight:   { emoji: '⚖️',  label: 'Weight',   color: 'var(--secondary-text-color, #78909C)' },
+  teeth_brushing: { emoji: '🦷', label: 'Teeth', color: 'var(--secondary-text-color, #B0BEC5)' },
+  grooming: { emoji: '✂️',  label: 'Grooming', color: 'var(--warning-color, #EC407A)' },
 };
 
+const DEFAULT_SHOWN_TYPES = ['poop', 'pee', 'medicine', 'sick', 'weight'];
+
 function getMeta(type) {
-  return EVENT_META[type] || { emoji: '📝', label: type, color: '#888' };
+  return EVENT_META[type] || { emoji: '📝', label: type, color: 'var(--secondary-text-color, #888)' };
 }
 
 /* ── Utilities ──────────────────────────────────────────────────────────── */
+
+/** U13 — slugify handles non-ASCII names */
 function slugify(name) {
-  return name.toLowerCase().replace(/\s+/g, '_');
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
 function deriveEntities(dog) {
@@ -87,7 +91,6 @@ function buildHash(hass, cfg) {
 }
 
 /* ── Shared escape helper (XSS prevention) ──────────────────────────────── */
-// C7 — Extracted from PawsistantCard so PawsistantCardEditor can use it too
 function _escapeHTML(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -114,13 +117,14 @@ class PawsistantCardEditor extends HTMLElement {
   _render() {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     const cfg = this._config;
-    // C7 — Escape all config values before injecting into innerHTML
     const esc = _escapeHTML;
+    const shownTypes = Array.isArray(cfg.shown_types) ? cfg.shown_types.join(', ') : '';
+    const weightUnit = cfg.weight_unit || 'lbs';
     this.shadowRoot.innerHTML = `
       <style>
         .form { display: flex; flex-direction: column; gap: 12px; padding: 8px 0; }
         label { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 2px; display: block; }
-        input {
+        input, select {
           width: 100%;
           box-sizing: border-box;
           padding: 8px 10px;
@@ -130,54 +134,75 @@ class PawsistantCardEditor extends HTMLElement {
           color: var(--primary-text-color);
           font-size: 14px;
         }
-        input:focus { outline: 2px solid var(--primary-color); border-color: transparent; }
+        input:focus, select:focus { outline: 2px solid var(--primary-color); border-color: transparent; }
         .hint { font-size: 11px; color: var(--secondary-text-color); margin-top: 2px; }
       </style>
       <div class="form">
         <div>
-          <label>Dog name *</label>
-          <input name="dog" value="${esc(cfg.dog || '')}" placeholder="Sharky" />
+          <label for="ed-dog">Dog name *</label>
+          <input id="ed-dog" name="dog" value="${esc(cfg.dog || '')}" placeholder="Sharky" />
         </div>
         <div>
-          <label>Timeline entity (auto-detected from dog name)</label>
-          <input name="timeline_entity" value="${esc(cfg.timeline_entity || '')}" placeholder="sensor.sharky_recent_timeline" />
+          <label for="ed-weight-unit">Weight unit</label>
+          <select id="ed-weight-unit" name="weight_unit">
+            <option value="lbs" ${weightUnit === 'lbs' ? 'selected' : ''}>lbs</option>
+            <option value="kg" ${weightUnit === 'kg' ? 'selected' : ''}>kg</option>
+          </select>
+        </div>
+        <div>
+          <label for="ed-shown-types">Shown button types (comma-separated)</label>
+          <input id="ed-shown-types" name="shown_types_str" value="${esc(shownTypes)}" placeholder="poop, pee, medicine, sick, weight" />
+          <div class="hint">Available: poop, pee, medicine, sick, food, treat, walk, water, sleep, vaccine, training, weight, grooming, teeth_brushing</div>
+        </div>
+        <div>
+          <label for="ed-timeline">Timeline entity (auto-detected from dog name)</label>
+          <input id="ed-timeline" name="timeline_entity" value="${esc(cfg.timeline_entity || '')}" placeholder="sensor.sharky_recent_timeline" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
-          <label>Pee count entity</label>
-          <input name="pee_count_entity" value="${esc(cfg.pee_count_entity || '')}" placeholder="sensor.sharky_daily_pee_count" />
+          <label for="ed-pee">Pee count entity</label>
+          <input id="ed-pee" name="pee_count_entity" value="${esc(cfg.pee_count_entity || '')}" placeholder="sensor.sharky_daily_pee_count" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
-          <label>Poop count entity</label>
-          <input name="poop_count_entity" value="${esc(cfg.poop_count_entity || '')}" placeholder="sensor.sharky_poop_count_today" />
+          <label for="ed-poop">Poop count entity</label>
+          <input id="ed-poop" name="poop_count_entity" value="${esc(cfg.poop_count_entity || '')}" placeholder="sensor.sharky_poop_count_today" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
-          <label>Days since medicine entity</label>
-          <input name="medicine_days_entity" value="${esc(cfg.medicine_days_entity || '')}" placeholder="sensor.sharky_days_since_medicine" />
+          <label for="ed-med">Days since medicine entity</label>
+          <input id="ed-med" name="medicine_days_entity" value="${esc(cfg.medicine_days_entity || '')}" placeholder="sensor.sharky_days_since_medicine" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
-          <label>Weight entity (optional)</label>
-          <input name="weight_entity" value="${esc(cfg.weight_entity || '')}" placeholder="sensor.sharky_weight" />
+          <label for="ed-weight">Weight entity (optional)</label>
+          <input id="ed-weight" name="weight_entity" value="${esc(cfg.weight_entity || '')}" placeholder="sensor.sharky_weight" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
       </div>
     `;
 
-    this.shadowRoot.querySelectorAll('input').forEach(input => {
-      input.addEventListener('change', () => this._valueChanged());
+    this.shadowRoot.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener('change', () => this._valueChanged());
     });
   }
 
   _valueChanged() {
     const newConfig = { ...this._config };
-    this.shadowRoot.querySelectorAll('input').forEach(input => {
-      const key = input.name;
-      const val = input.value.trim();
-      if (val) newConfig[key] = val;
-      else delete newConfig[key];
+    this.shadowRoot.querySelectorAll('input, select').forEach(el => {
+      const key = el.name;
+      const val = el.value.trim();
+      if (key === 'shown_types_str') {
+        if (val) {
+          newConfig['shown_types'] = val.split(',').map(s => s.trim()).filter(Boolean);
+        } else {
+          delete newConfig['shown_types'];
+        }
+      } else if (val) {
+        newConfig[key] = val;
+      } else {
+        delete newConfig[key];
+      }
     });
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: newConfig }, bubbles: true, composed: true }));
   }
@@ -193,10 +218,14 @@ class PawsistantCard extends HTMLElement {
     this._config = {};
     this._hass = null;
     this._lastHash = null;
-    this._loggedTypes = new Set();
     // Inline form state
     this._activeForm = null; // null | 'backdate' | 'weight'
     this._activeType = null; // event type for backdate form
+    this._activeTriggerBtn = null; // U17 — return focus to trigger btn
+    // U5 — track all setTimeout IDs for cleanup
+    this._timers = [];
+    // U9 — delete confirm state: eventId -> timeout id
+    this._deleteConfirmState = new Map();
   }
 
   static getConfigElement() {
@@ -224,6 +253,28 @@ class PawsistantCard extends HTMLElement {
     }
   }
 
+  /* U5 — disconnectedCallback clears all timers */
+  disconnectedCallback() {
+    for (const id of this._timers) {
+      clearTimeout(id);
+    }
+    this._timers = [];
+    for (const id of this._deleteConfirmState.values()) {
+      clearTimeout(id);
+    }
+    this._deleteConfirmState.clear();
+  }
+
+  /** Schedule a timeout and track its ID for cleanup */
+  _setTimeout(fn, delay) {
+    const id = setTimeout(() => {
+      this._timers = this._timers.filter(t => t !== id);
+      fn();
+    }, delay);
+    this._timers.push(id);
+    return id;
+  }
+
   /* ── Entity resolution ─────────────────────────────────────────────── */
   _entities() {
     const auto = deriveEntities(this._config.dog);
@@ -234,6 +285,16 @@ class PawsistantCard extends HTMLElement {
       medicine_days: this._config.medicine_days_entity || auto.medicine_days,
       weight:        this._config.weight_entity        || auto.weight,
     };
+  }
+
+  _weightUnit() {
+    return this._config.weight_unit === 'kg' ? 'kg' : 'lbs';
+  }
+
+  _shownTypes() {
+    const t = this._config.shown_types;
+    if (Array.isArray(t) && t.length > 0) return t;
+    return DEFAULT_SHOWN_TYPES;
   }
 
   /* ── Render ────────────────────────────────────────────────────────── */
@@ -249,12 +310,18 @@ class PawsistantCard extends HTMLElement {
     const poopCount = stateNum(hass, ent.poop_count);
     const medDays = stateNum(hass, ent.medicine_days);
     const events = stateAttr(hass, ent.timeline, 'events') || [];
+    const weightUnit = this._weightUnit();
 
-    const medColor = medDays === null ? '#888' :
-                     medDays > 30 ? '#EF5350' :
-                     medDays > 14 ? '#FFA726' : '#66BB6A';
+    /* U4 — use HA CSS vars for medicine status color */
+    const medColor = medDays === null ? 'var(--secondary-text-color, #888)' :
+                     medDays > 30 ? 'var(--error-color, #EF5350)' :
+                     medDays > 14 ? 'var(--warning-color, #FFA726)' : 'var(--success-color, #66BB6A)';
 
-    const medLabel = medDays === null ? 'unknown' : `${Math.floor(medDays)}d`;
+    /* U18 — add text status alongside color */
+    const medDaysText = medDays === null ? '—' : Math.floor(medDays) + 'd';
+    const medStatusText = medDays === null ? '' :
+                          medDays > 30 ? ' (overdue)' :
+                          medDays > 14 ? ' (due soon)' : '';
 
     /* Build timeline HTML */
     let timelineHTML = '';
@@ -267,20 +334,46 @@ class PawsistantCard extends HTMLElement {
         const evDate = ev.date || '';
         if (evDate !== lastDate) {
           const label = evDate || ev.day || '';
-          timelineHTML += `<div class="day-header">${label}</div>`;
+          timelineHTML += `<div class="day-header">${_escapeHTML(label)}</div>`;
           lastDate = evDate;
         }
-        const noteHTML = ev.note ? `<span class="event-note">${this._escape(ev.note)}</span>` : '';
+        /* U14 — add title attr to truncated notes */
+        const noteHTML = ev.note
+          ? `<span class="event-note" title="${_escapeHTML(ev.note)}">${_escapeHTML(ev.note)}</span>`
+          : '';
+        /* U2 — aria-label on delete button */
+        const delAriaLabel = `Delete ${_escapeHTML(ev.type)} event at ${_escapeHTML(ev.time)}`;
         timelineHTML += `
-          <div class="event-row" data-id="${ev.event_id}">
+          <div class="event-row" data-id="${_escapeHTML(ev.event_id)}">
             <span class="event-emoji">${meta.emoji}</span>
-            <span class="event-time">${ev.time}</span>
-            <span class="event-type">${meta.label}</span>
+            <span class="event-time">${_escapeHTML(ev.time)}</span>
+            <span class="event-type">${_escapeHTML(meta.label)}</span>
             ${noteHTML}
-            <button class="delete-btn" data-id="${ev.event_id}" title="Delete event">🗑️</button>
+            <button class="delete-btn" data-id="${_escapeHTML(ev.event_id)}"
+              aria-label="${delAriaLabel}" title="Delete event">🗑️</button>
           </div>
         `;
       }
+    }
+
+    /* Build quick-log buttons */
+    const shownTypes = this._shownTypes();
+    let buttonsHTML = '';
+    for (const type of shownTypes) {
+      const meta = getMeta(type);
+      const isWeight = type === 'weight';
+      const ariaLabel = isWeight
+        ? `Log weight`
+        : `Log ${meta.label} now. Hold to backdate.`;
+      const dataAttrs = isWeight
+        ? `data-type="weight" data-weight="true"`
+        : `data-type="${_escapeHTML(type)}" data-longpress="true"`;
+      buttonsHTML += `
+        <button class="log-btn" ${dataAttrs} aria-label="${_escapeHTML(ariaLabel)}">
+          <span class="btn-emoji" aria-hidden="true">${meta.emoji}</span>
+          <span class="btn-label">${_escapeHTML(meta.label)}</span>
+        </button>
+      `;
     }
 
     this.shadowRoot.innerHTML = `
@@ -316,6 +409,7 @@ class PawsistantCard extends HTMLElement {
           border-bottom: 1px solid var(--divider-color, #e0e0e0);
           justify-content: space-between;
         }
+        /* U4 — use HA CSS vars; colors applied via inline style */
         .stat-pill {
           display: inline-flex;
           align-items: center;
@@ -325,7 +419,7 @@ class PawsistantCard extends HTMLElement {
           border-radius: 20px;
           font-size: 12px;
           font-weight: 600;
-          color: #fff;
+          color: var(--text-primary-color, #fff);
           white-space: nowrap;
           flex: 1;
           min-width: 0;
@@ -334,11 +428,15 @@ class PawsistantCard extends HTMLElement {
           font-size: 15px;
           font-weight: 700;
         }
+        .med-status-text {
+          font-size: 10px;
+          font-weight: 500;
+          opacity: 0.9;
+        }
 
         /* ── Quick-log grid ── */
         .quick-log {
           display: grid;
-          grid-template-columns: repeat(5, 1fr);
           gap: 8px;
           padding: 12px 16px 0;
         }
@@ -374,17 +472,17 @@ class PawsistantCard extends HTMLElement {
         /* Active/highlighted state */
         .log-btn.active-btn {
           background: var(--primary-color, #2196f3);
-          color: #fff;
+          color: var(--text-primary-color, #fff);
           box-shadow: 0 2px 8px rgba(33,150,243,0.35);
         }
-        /* Flash animation on instant log */
+        /* Flash animation on instant log — U19 use color-mix instead of --rgb-primary-color */
         .log-btn.flash {
           animation: flash-anim 0.5s ease;
         }
         @keyframes flash-anim {
-          0%   { box-shadow: 0 0 0 0 rgba(var(--rgb-primary-color, 33,150,243), 0.7); transform: scale(1); }
-          30%  { box-shadow: 0 0 0 8px rgba(var(--rgb-primary-color, 33,150,243), 0.2); transform: scale(0.93); }
-          100% { box-shadow: 0 0 0 0 rgba(var(--rgb-primary-color, 33,150,243), 0); transform: scale(1); }
+          0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary-color, #2196f3) 70%, transparent); transform: scale(1); }
+          30%  { box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary-color, #2196f3) 20%, transparent); transform: scale(0.93); }
+          100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary-color, #2196f3) 0%, transparent); transform: scale(1); }
         }
         /* Success check flash */
         .log-btn.success-flash {
@@ -395,6 +493,19 @@ class PawsistantCard extends HTMLElement {
           40%  { transform: scale(0.93); }
           100% { background: var(--success-color, #4caf50); transform: scale(1); }
         }
+        /* Pending state (debounce) */
+        .log-btn[data-pending] {
+          opacity: 0.6;
+          pointer-events: none;
+        }
+        /* U1 — long-press hint */
+        .longpress-hint {
+          text-align: center;
+          font-size: 11px;
+          color: var(--secondary-text-color);
+          padding: 6px 16px 2px;
+          opacity: 0.7;
+        }
 
         /* ── Inline form panel ── */
         .inline-form-wrap {
@@ -402,8 +513,10 @@ class PawsistantCard extends HTMLElement {
           max-height: 0;
           transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        /* U8 — fix landscape overflow */
         .inline-form-wrap.open {
-          max-height: 400px;
+          max-height: min(400px, 60vh);
+          overflow-y: auto;
         }
         .inline-form {
           margin: 8px 16px 0;
@@ -472,7 +585,7 @@ class PawsistantCard extends HTMLElement {
           border: none;
           border-radius: 8px;
           background: var(--primary-color, #2196f3);
-          color: #fff;
+          color: var(--text-primary-color, #fff);
           font-size: 14px;
           font-weight: 600;
           cursor: pointer;
@@ -507,6 +620,16 @@ class PawsistantCard extends HTMLElement {
         .weight-input-row input {
           flex: 1;
         }
+        /* U11 — error feedback */
+        .form-error {
+          color: var(--error-color, #EF5350);
+          font-size: 12px;
+          padding: 6px 10px;
+          border-radius: 6px;
+          background: color-mix(in srgb, var(--error-color, #EF5350) 10%, transparent);
+          display: none;
+        }
+        .form-error.visible { display: block; }
         /* Spacer below button grid + form */
         .quick-log-section {
           border-bottom: 1px solid var(--divider-color, #e0e0e0);
@@ -523,10 +646,12 @@ class PawsistantCard extends HTMLElement {
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
+        /* U12 — overscroll-behavior: contain */
         .timeline-body {
           padding: 0 8px 12px;
           max-height: 380px;
           overflow-y: auto;
+          overscroll-behavior: contain;
         }
         .day-header {
           font-size: 11px;
@@ -548,20 +673,34 @@ class PawsistantCard extends HTMLElement {
         .event-emoji { font-size: 18px; flex-shrink: 0; width: 24px; text-align: center; }
         .event-time { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; flex-shrink: 0; min-width: 65px; }
         .event-type { font-size: 13px; font-weight: 500; color: var(--primary-text-color); flex-shrink: 0; }
+        /* U14 — truncated notes with title attr for tooltip */
         .event-note { font-size: 12px; color: var(--secondary-text-color); flex: 1; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* U6 — 44px touch target for delete button */
         .delete-btn {
           background: none;
           border: none;
           cursor: pointer;
           opacity: 0.4;
           font-size: 14px;
-          padding: 4px;
+          padding: 10px;
           border-radius: 4px;
+          min-width: 44px;
+          min-height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           transition: opacity 0.15s, background 0.15s;
           flex-shrink: 0;
           margin-left: auto;
         }
-        .delete-btn:hover { opacity: 1; background: rgba(239,83,80,0.12); }
+        .delete-btn:hover { opacity: 1; background: color-mix(in srgb, var(--error-color, #ef5350) 12%, transparent); }
+        /* U9 — confirm state */
+        .delete-btn.confirm-pending {
+          opacity: 1;
+          color: var(--error-color, #ef5350);
+          background: color-mix(in srgb, var(--error-color, #ef5350) 15%, transparent);
+          font-size: 11px;
+        }
         .empty {
           text-align: center;
           padding: 24px;
@@ -569,7 +708,7 @@ class PawsistantCard extends HTMLElement {
           font-size: 14px;
         }
         @media (max-width: 420px) {
-          .quick-log { grid-template-columns: repeat(5, 1fr); gap: 5px; padding: 10px 10px 0; }
+          .quick-log { gap: 5px; padding: 10px 10px 0; }
           .log-btn { padding: 8px 2px; min-height: 54px; }
           .log-btn .btn-emoji { font-size: 20px; }
           .log-btn .btn-label { font-size: 10px; }
@@ -577,50 +716,34 @@ class PawsistantCard extends HTMLElement {
       </style>
       <ha-card class="card">
         <div class="card-header">
-          <span class="card-title">🐾 ${this._escape(dogName)}</span>
+          <span class="card-title">🐾 ${_escapeHTML(dogName)}</span>
         </div>
 
         <div class="stats-row">
-          <div class="stat-pill" style="background:#4FC3F7;">
-            <span>💧</span>
+          <div class="stat-pill" style="background:var(--info-color, #4FC3F7);">
+            <span aria-hidden="true">💧</span>
             <span class="pill-val">${peeCount !== null ? peeCount : '—'}</span>
             <span>pee</span>
           </div>
-          <div class="stat-pill" style="background:#8B6914;">
-            <span>💩</span>
+          <div class="stat-pill" style="background:var(--warning-color, #FF8A65);">
+            <span aria-hidden="true">💩</span>
             <span class="pill-val">${poopCount !== null ? poopCount : '—'}</span>
             <span>poop</span>
           </div>
           <div class="stat-pill" style="background:${medColor};">
-            <span>💊</span>
-            <span class="pill-val">${medLabel}</span>
+            <span aria-hidden="true">💊</span>
+            <span class="pill-val">${medDaysText}</span>
             <span>meds</span>
+            ${medStatusText ? `<span class="med-status-text">${_escapeHTML(medStatusText)}</span>` : ''}
           </div>
         </div>
 
         <div class="quick-log-section">
-          <div class="quick-log">
-            <button class="log-btn" data-type="poop" data-longpress="true">
-              <span class="btn-emoji">💩</span>
-              <span class="btn-label">Poop</span>
-            </button>
-            <button class="log-btn" data-type="pee" data-longpress="true">
-              <span class="btn-emoji">💧</span>
-              <span class="btn-label">Pee</span>
-            </button>
-            <button class="log-btn" data-type="medicine" data-longpress="true">
-              <span class="btn-emoji">💊</span>
-              <span class="btn-label">Medicine</span>
-            </button>
-            <button class="log-btn" data-type="sick" data-longpress="true">
-              <span class="btn-emoji">🤒</span>
-              <span class="btn-label">Sick</span>
-            </button>
-            <button class="log-btn" data-type="weight" data-weight="true">
-              <span class="btn-emoji">⚖️</span>
-              <span class="btn-label">Weight</span>
-            </button>
+          <div class="quick-log" id="quick-log-grid" style="grid-template-columns: repeat(${Math.min(shownTypes.length, 5)}, 1fr);">
+            ${buttonsHTML}
           </div>
+          <!-- U1 — long-press hint -->
+          <div class="longpress-hint" aria-live="polite">Hold to backdate</div>
 
           <!-- Inline form panel (hidden by default) -->
           <div class="inline-form-wrap" id="inline-form-wrap">
@@ -631,7 +754,7 @@ class PawsistantCard extends HTMLElement {
         </div>
 
         <div class="timeline-header">📋 Last 24 hours</div>
-        <div class="timeline-body">${timelineHTML}</div>
+        <div class="timeline-body" id="timeline-body">${timelineHTML}</div>
       </ha-card>
     `;
 
@@ -647,16 +770,24 @@ class PawsistantCard extends HTMLElement {
       const hasLongPress = btn.dataset.longpress === 'true';
 
       if (isWeight) {
-        // Weight: tap always opens form
-        btn.addEventListener('pointerdown', (e) => {
-          e.preventDefault();
-        });
+        btn.addEventListener('pointerdown', (e) => { e.preventDefault(); });
         btn.addEventListener('pointerup', (e) => {
           e.preventDefault();
           if (this._activeForm === 'weight') {
             this._closeForm();
           } else {
             this._openWeightForm(btn);
+          }
+        });
+        /* U3 — keyboard: Enter opens form, Space = instant log (weight just opens form) */
+        btn.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (this._activeForm === 'weight') {
+              this._closeForm();
+            } else {
+              this._openWeightForm(btn);
+            }
           }
         });
         return;
@@ -678,15 +809,16 @@ class PawsistantCard extends HTMLElement {
               this._openBackdateForm(btn, type);
             }
           }, 500);
+          this._timers.push(pressTimer);
         };
 
         const endPress = (e) => {
           if (pressTimer) {
             clearTimeout(pressTimer);
+            this._timers = this._timers.filter(t => t !== pressTimer);
             pressTimer = null;
           }
           if (!didLongPress && e.type !== 'pointerleave' && e.type !== 'pointercancel') {
-            // Normal tap — instant log (only if no form open for this button)
             const type = btn.dataset.type;
             this._instantLog(btn, type);
           }
@@ -697,22 +829,56 @@ class PawsistantCard extends HTMLElement {
         btn.addEventListener('pointerup', endPress);
         btn.addEventListener('pointerleave', endPress);
         btn.addEventListener('pointercancel', endPress);
+
+        /* U3 — keyboard: Enter = backdate form, Space = instant log */
+        btn.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const type = btn.dataset.type;
+            if (this._activeForm === 'backdate' && this._activeType === type) {
+              this._closeForm();
+            } else {
+              this._openBackdateForm(btn, type);
+            }
+          } else if (e.key === ' ') {
+            e.preventDefault();
+            this._instantLog(btn, btn.dataset.type);
+          }
+        });
+
         return;
       }
 
-      // Fallback: simple click log
+      // Fallback: simple click
       btn.addEventListener('click', () => {
         this._instantLog(btn, btn.dataset.type);
       });
     });
 
+    /* U9 — two-tap delete confirmation */
     root.querySelectorAll('.delete-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const eventId = btn.dataset.id;
         if (!eventId) return;
-        if (window.confirm('Delete this event?')) {
-          this._deleteEvent(eventId);
+
+        if (this._deleteConfirmState.has(eventId)) {
+          // Second tap — confirm and delete
+          clearTimeout(this._deleteConfirmState.get(eventId));
+          this._deleteConfirmState.delete(eventId);
+          btn.classList.remove('confirm-pending');
+          btn.textContent = '🗑️';
+          this._deleteEvent(eventId, btn);
+        } else {
+          // First tap — show confirm state
+          btn.classList.add('confirm-pending');
+          btn.textContent = 'Delete?';
+          const revertId = this._setTimeout(() => {
+            this._deleteConfirmState.delete(eventId);
+            btn.classList.remove('confirm-pending');
+            btn.textContent = '🗑️';
+          }, 3000);
+          this._deleteConfirmState.set(eventId, revertId);
         }
       });
     });
@@ -720,44 +886,56 @@ class PawsistantCard extends HTMLElement {
 
   /* ── Instant log (tap) ─────────────────────────────────────────────── */
   _instantLog(btn, type) {
-    this._logEvent(type);
-    btn.classList.remove('flash');
-    void btn.offsetWidth;
-    btn.classList.add('flash');
-    btn.addEventListener('animationend', () => btn.classList.remove('flash'), { once: true });
+    /* U7 — debounce: set pending, re-enable after service call */
+    if (btn.dataset.pending) return;
+    btn.dataset.pending = '1';
+    this._logEvent(type)
+      .then(() => {
+        delete btn.dataset.pending;
+        btn.classList.remove('flash');
+        void btn.offsetWidth;
+        btn.classList.add('flash');
+        btn.addEventListener('animationend', () => btn.classList.remove('flash'), { once: true });
+      })
+      .catch(() => {
+        delete btn.dataset.pending;
+      });
   }
 
   /* ── Backdate form ─────────────────────────────────────────────────── */
   _openBackdateForm(activeBtn, type) {
     this._activeForm = 'backdate';
     this._activeType = type;
+    this._activeTriggerBtn = activeBtn;
 
     const meta = getMeta(type);
     const formEl = this.shadowRoot.getElementById('inline-form');
+    /* U10 — proper <label for> on all inputs */
     formEl.innerHTML = `
-      <div class="form-title">${meta.emoji} Log ${meta.label}</div>
+      <div class="form-title">${meta.emoji} Log ${_escapeHTML(meta.label)}</div>
       <div class="form-field">
         <div class="form-label-row">
-          <span class="form-label">Minutes ago</span>
-          <span class="slider-value" id="slider-display">10 min ago</span>
+          <label class="form-label" for="minutes-slider">Minutes ago</label>
+          <span class="slider-value" id="slider-display">1 min ago</span>
         </div>
-        <input type="range" id="minutes-slider" min="10" max="180" step="5" value="10" />
+        <input type="range" id="minutes-slider" min="1" max="480" step="1" value="1" aria-label="Minutes ago" />
       </div>
       <div class="form-field">
-        <span class="form-label">Note (optional)</span>
+        <label class="form-label" for="backdate-note">Note (optional)</label>
         <input type="text" id="backdate-note" placeholder="Add a note…" />
       </div>
+      <div class="form-error" id="form-error" role="alert"></div>
       <div class="form-actions">
         <button class="btn-cancel" id="form-cancel">Cancel</button>
         <button class="btn-submit" id="form-submit">Log Event</button>
       </div>
     `;
 
-    // Update slider display
     const slider = formEl.querySelector('#minutes-slider');
     const display = formEl.querySelector('#slider-display');
     slider.addEventListener('input', () => {
-      display.textContent = `${slider.value} min ago`;
+      const v = parseInt(slider.value, 10);
+      display.textContent = v === 1 ? '1 min ago' : `${v} min ago`;
     });
 
     formEl.querySelector('#form-cancel').addEventListener('click', () => this._closeForm());
@@ -775,22 +953,27 @@ class PawsistantCard extends HTMLElement {
   _openWeightForm(activeBtn) {
     this._activeForm = 'weight';
     this._activeType = 'weight';
+    this._activeTriggerBtn = activeBtn;
 
     const ent = this._entities();
     const currentWeight = stateNum(this._hass, ent.weight);
+    const unit = this._weightUnit();
 
     const formEl = this.shadowRoot.getElementById('inline-form');
+    /* U10 — <label for>, U21 — inputmode="decimal", U22 — configurable unit */
     formEl.innerHTML = `
       <div class="form-title">⚖️ Log Weight</div>
       <div class="form-field">
-        <span class="form-label">Weight</span>
+        <label class="form-label" for="weight-input">Weight (${_escapeHTML(unit)})</label>
         <div class="weight-input-row">
-          <input type="number" id="weight-input" min="1" max="300" step="0.1"
+          <input type="number" id="weight-input" min="1" max="999" step="0.1"
+            inputmode="decimal"
             value="${currentWeight !== null ? currentWeight : ''}"
             placeholder="0.0" />
-          <span class="weight-unit">lbs</span>
+          <span class="weight-unit">${_escapeHTML(unit)}</span>
         </div>
       </div>
+      <div class="form-error" id="form-error" role="alert"></div>
       <div class="form-actions">
         <button class="btn-cancel" id="form-cancel">Cancel</button>
         <button class="btn-submit" id="form-submit">Log Weight</button>
@@ -801,13 +984,14 @@ class PawsistantCard extends HTMLElement {
     formEl.querySelector('#form-submit').addEventListener('click', () => {
       const weightInput = formEl.querySelector('#weight-input');
       const value = parseFloat(weightInput.value);
-      // I6 — Updated validation range from [20, 150] to [1, 300]
-      if (isNaN(value) || value < 1 || value > 300) {
-        weightInput.style.outline = '2px solid #ef5350';
+      if (isNaN(value) || value < 1 || value > 999) {
+        weightInput.style.outline = '2px solid var(--error-color, #ef5350)';
         weightInput.focus();
         return;
       }
-      this._submitWeight(activeBtn, value);
+      /* If unit is kg, convert to lbs before storing (store is always lbs) */
+      const valueLbs = unit === 'kg' ? Math.round(value * 2.20462 * 10) / 10 : value;
+      this._submitWeight(activeBtn, valueLbs);
     });
 
     this._applyFormOpenState(activeBtn);
@@ -815,7 +999,6 @@ class PawsistantCard extends HTMLElement {
 
   /* ── Apply visual state when form opens ───────────────────────────── */
   _applyFormOpenState(activeBtn) {
-    // Dim all other buttons, highlight active
     this.shadowRoot.querySelectorAll('.log-btn').forEach(b => {
       if (b === activeBtn) {
         b.classList.add('active-btn');
@@ -826,14 +1009,12 @@ class PawsistantCard extends HTMLElement {
       }
     });
 
-    // Slide open
     const wrap = this.shadowRoot.getElementById('inline-form-wrap');
-    // Force reflow before adding 'open' so transition fires
     void wrap.offsetWidth;
     wrap.classList.add('open');
 
     // Focus first input after animation
-    setTimeout(() => {
+    this._setTimeout(() => {
       const first = this.shadowRoot.querySelector('#inline-form input');
       if (first) first.focus();
     }, 300);
@@ -841,8 +1022,10 @@ class PawsistantCard extends HTMLElement {
 
   /* ── Close form ────────────────────────────────────────────────────── */
   _closeForm() {
+    const triggerBtn = this._activeTriggerBtn;
     this._activeForm = null;
     this._activeType = null;
+    this._activeTriggerBtn = null;
 
     const wrap = this.shadowRoot.getElementById('inline-form-wrap');
     if (wrap) wrap.classList.remove('open');
@@ -850,6 +1033,19 @@ class PawsistantCard extends HTMLElement {
     this.shadowRoot.querySelectorAll('.log-btn').forEach(b => {
       b.classList.remove('dimmed', 'active-btn');
     });
+
+    /* U17 — return focus to trigger button */
+    if (triggerBtn) {
+      this._setTimeout(() => triggerBtn.focus(), 50);
+    }
+  }
+
+  /* ── Show form error ───────────────────────────────────────────────── */
+  _showFormError(msg) {
+    const el = this.shadowRoot.querySelector('#form-error');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('visible');
   }
 
   /* ── Submit backdate ───────────────────────────────────────────────── */
@@ -864,16 +1060,15 @@ class PawsistantCard extends HTMLElement {
     this._hass.callService('doglog', 'log_event', payload)
       .then(() => {
         this._showSuccessFlash(btn);
-        setTimeout(() => {
+        this._setTimeout(() => {
           this._closeForm();
-          // Force re-render after state propagates
-          setTimeout(() => {
-            this._lastHash = null;
-          }, 1500);
+          this._setTimeout(() => { this._lastHash = null; }, 1500);
         }, 600);
       })
       .catch(err => {
+        /* U11 — show error in form instead of just console.error */
         console.error('[pawsistant-card] log_event (backdate) failed:', err);
+        this._showFormError('Failed to log event. Please try again.');
       });
   }
 
@@ -886,25 +1081,24 @@ class PawsistantCard extends HTMLElement {
     })
       .then(() => {
         this._showSuccessFlash(btn);
-        setTimeout(() => {
+        this._setTimeout(() => {
           this._closeForm();
-          setTimeout(() => {
-            this._lastHash = null;
-          }, 1500);
+          this._setTimeout(() => { this._lastHash = null; }, 1500);
         }, 600);
       })
       .catch(err => {
+        /* U11 — show error in form */
         console.error('[pawsistant-card] log_event (weight) failed:', err);
+        this._showFormError('Failed to log weight. Please try again.');
       });
   }
 
   /* ── Success flash ─────────────────────────────────────────────────── */
   _showSuccessFlash(btn) {
-    // Show ✓ temporarily
     const originalHTML = btn.innerHTML;
-    btn.innerHTML = `<span class="btn-emoji">✓</span>`;
+    btn.innerHTML = `<span class="btn-emoji" aria-hidden="true">✓</span>`;
     btn.classList.add('success-flash');
-    setTimeout(() => {
+    this._setTimeout(() => {
       btn.innerHTML = originalHTML;
       btn.classList.remove('success-flash');
     }, 600);
@@ -912,26 +1106,33 @@ class PawsistantCard extends HTMLElement {
 
   /* ── Service calls ─────────────────────────────────────────────────── */
   _logEvent(eventType, extra = {}) {
-    this._hass.callService('doglog', 'log_event', {
+    return this._hass.callService('doglog', 'log_event', {
       dog: this._config.dog,
       event_type: eventType,
       ...extra,
-    }).catch(err => {
-      console.error('[pawsistant-card] log_event failed:', err);
     });
   }
 
-  _deleteEvent(eventId) {
+  _deleteEvent(eventId, btn) {
+    /* U7 — debounce via pending attr */
+    if (btn) btn.dataset.pending = '1';
     this._hass.callService('doglog', 'delete_event', {
       event_id: eventId,
+    }).then(() => {
+      if (btn) delete btn.dataset.pending;
     }).catch(err => {
       console.error('[pawsistant-card] delete_event failed:', err);
+      if (btn) {
+        delete btn.dataset.pending;
+        /* U11 — flash error on delete failure */
+        const row = btn.closest('.event-row');
+        if (row) {
+          row.style.background = 'color-mix(in srgb, var(--error-color, #ef5350) 15%, transparent)';
+          this._setTimeout(() => { row.style.background = ''; }, 2000);
+        }
+      }
     });
   }
-
-  /* ── Helpers ───────────────────────────────────────────────────────── */
-  // C7 — Delegate to the shared module-level escape function
-  _escape(str) { return _escapeHTML(str); }
 
   getCardSize() { return 6; }
 }

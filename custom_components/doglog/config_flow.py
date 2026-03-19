@@ -26,7 +26,8 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 
-DOMAIN = "doglog"
+from .const import DOMAIN
+
 _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
@@ -87,26 +88,41 @@ class DogLogConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class DogLogOptionsFlow(OptionsFlow):
-    """Options flow for adding/removing dogs.
+    """Options flow for DogLog.
 
-    Actual dog CRUD is performed via service calls (add_dog / remove_dog)
-    which are more flexible.  The options flow here provides a UI hint.
+    Shows currently registered dogs and instructions for managing them.
+    Actual dog CRUD is performed via service calls (add_dog / remove_dog).
     """
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Show the options form (informational only)."""
+        """Show the options form with current dogs list."""
         if user_input is not None:
             return self.async_create_entry(title="", data={})
+
+        # Get current dogs from the coordinator if available
+        dogs_info = ""
+        try:
+            coord = getattr(self.config_entry, "runtime_data", None)
+            if coord is not None and hasattr(coord, "store"):
+                dogs = coord.store.get_dogs()
+                if dogs:
+                    dog_names = [d["name"] for d in dogs.values()]
+                    dogs_info = ", ".join(dog_names)
+                else:
+                    dogs_info = "No dogs registered yet"
+        except Exception:  # noqa: BLE001
+            dogs_info = "Unable to load dogs"
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({}),
             description_placeholders={
+                "current_dogs": dogs_info,
                 "manage_dogs_tip": (
                     "Use the doglog.add_dog and doglog.remove_dog services "
                     "to manage your dogs."
-                )
+                ),
             },
         )

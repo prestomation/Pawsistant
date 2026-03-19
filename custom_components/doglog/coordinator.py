@@ -34,12 +34,14 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
+try:
+    from homeassistant.helpers.device_registry import DeviceInfo
+except ImportError:
+    from homeassistant.helpers.entity import DeviceInfo  # type: ignore[no-redef]
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .const import DOMAIN
 from .store import DogLogStore
-
-DOMAIN = "doglog"
 _LOGGER = logging.getLogger(__name__)
 
 # Periodic refresh interval — needed so time-based sensors (days_since_medicine,

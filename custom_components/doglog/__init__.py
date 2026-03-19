@@ -25,18 +25,14 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
 
+from .const import DOMAIN, PLATFORMS, URL_BASE, CARD_VERSION
 from .coordinator import DogLogCoordinator
 from .store import DogLogStore, VALID_EVENT_TYPES
 
 _LOGGER = logging.getLogger(__name__)
-
-DOMAIN = "doglog"
-PLATFORMS = ["sensor"]
-URL_BASE = "/doglog"
-CARD_VERSION = "2.1.1"
 
 # ---------------------------------------------------------------------------
 # Service schemas
@@ -359,12 +355,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DOMAIN, "remove_dog", handle_remove_dog, schema=REMOVE_DOG_SCHEMA
     )
 
-    async def handle_list_events(call: ServiceCall) -> None:
+    async def handle_list_events(call: ServiceCall) -> dict:
         """Handle doglog.list_events.
 
-        Fires a ``doglog_events`` HA event containing the matching events so
-        that automations can react to the results.  Older year files are
-        lazy-loaded by the store as needed.
+        Returns matching events directly as a service response so that
+        automations can use the data via response_variable.
         """
         from datetime import timedelta
         from homeassistant.util import dt as dt_util
@@ -379,24 +374,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error(
                 "doglog.list_events: dog '%s' not found", dog_name
             )
-            return
+            return {"dog": dog_name, "event_type": event_type, "days": days, "events": []}
         dog_id, _ = result
         since = dt_util.now() - timedelta(days=days)
         # get_events is async — may lazy-load historical year files
         events = await store.get_events(dog_id, event_type=event_type, since=since)
 
-        hass.bus.async_fire(
-            "doglog_events",
-            {
-                "dog": dog_name,
-                "event_type": event_type,
-                "days": days,
-                "events": events,
-            },
-        )
+        return {
+            "dog": dog_name,
+            "event_type": event_type,
+            "days": days,
+            "events": events,
+        }
 
     hass.services.async_register(
-        DOMAIN, "list_events", handle_list_events, schema=LIST_EVENTS_SCHEMA
+        DOMAIN,
+        "list_events",
+        handle_list_events,
+        schema=LIST_EVENTS_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
     )
 
     async def handle_import_events(call: ServiceCall) -> None:
@@ -420,6 +416,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate config entry to a newer schema version.
+
+    VERSION 1 is the current version — no migration needed.
+    Add handling here for future schema bumps.
+    """
+    _LOGGER.debug(
+        "Migrating DogLog config entry from version %s", entry.version
+    )
+    if entry.version == 1:
+        # Current version — nothing to migrate
+        return True
+    # Unknown future version
+    _LOGGER.error(
+        "Cannot migrate DogLog config entry: unknown version %s", entry.version
+    )
+    return False
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -2,20 +2,28 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Pawsistant",
-        "description": "Paste your Pawsistant refresh token below. You can get this from the DogLog CLI (`doglog auth token`) or the token-dumper app.",
+        "title": "Add your first dog",
+        "description": "Pawsistant stores all data locally in Home Assistant — no cloud account required.",
         "data": {
-          "refresh_token": "Refresh Token"
+          "dog_name": "Dog name",
+          "breed": "Breed (optional)",
+          "birth_date": "Birth date (optional, YYYY-MM-DD)"
         }
       }
     },
     "error": {
-      "invalid_auth": "Invalid refresh token.",
-      "cannot_connect": "Unable to connect to DogLog API.",
-      "no_packs": "No packs found for this account."
+      "name_required": "Dog name is required."
     },
     "abort": {
-      "already_configured": "This account is already configured."
+      "already_configured": "Pawsistant is already configured. Use the doglog.add_dog service to add more dogs."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage dogs",
+        "description": "Current dogs: {current_dogs}\n\n{manage_dogs_tip}"
+      }
     }
   }
 }

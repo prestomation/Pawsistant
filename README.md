@@ -1,20 +1,22 @@
-# Pawsistant
+# Pawsistant 🐾
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-blue.svg)](https://www.home-assistant.io/)
 
-Home Assistant custom component for [DogLog](https://doglog.app/) — your pup's personal assistant. Exposes your dog's activity as sensors in HA so you can build automations around feeding, walks, bathroom habits, and medication.
+A local-only dog activity tracker for Home Assistant. Log walks, bathroom breaks, meals, medications, weight, and more — all stored privately in your HA instance with no cloud dependency.
 
 ---
 
 ## Features
 
-- **Per-event sensors** — timestamp of the most recent event for each type (pee, poop, medicine, walk, food, treat, water, grooming, training, sleep, weight, vaccine)
-- **Daily count sensors** — how many times today for walks, food, treats, water, poop, and more
-- **Timezone-aware** — daily counts reset at your HA instance's local midnight, not UTC
-- **Fi collar integration** — Pawsistant device links to your dog's Fi collar device in the HA device registry
-- **Service** — `doglog.log_event` to record events directly from HA automations
-- **HACS compatible** — install and update via HACS
+- **Local storage only** — all data stored in HA's `.storage` directory, no cloud accounts or tokens required
+- **Per-event sensors** — most-recent timestamp for each event type (pee, poop, medicine, walk, food, treat, water, grooming, training, sleep, weight, vaccine, sick)
+- **Daily count sensors** — today's counts for common event types (resets at local midnight)
+- **Days-since-medicine sensor** — track medication intervals for automation reminders
+- **Weight sensor** — track your dog's weight over time
+- **Pawsistant Card** — built-in Lovelace card auto-registers on install; log events, view the 24-hour timeline, and track stats without leaving the dashboard
+- **Multi-dog support** — add and remove dogs via services at any time
+- **Timezone-aware** — daily counts use your HA instance's local timezone
 
 ---
 
@@ -22,7 +24,7 @@ Home Assistant custom component for [DogLog](https://doglog.app/) — your pup's
 
 ### Via HACS (recommended)
 
-1. Open HACS -> **Integrations** -> three-dot menu -> **Custom repositories**
+1. Open **HACS → Integrations → ⋮ → Custom repositories**
 2. Add `https://github.com/prestomation/ha-doglog` with category **Integration**
 3. Search for **Pawsistant** and install
 4. Restart Home Assistant
@@ -36,242 +38,139 @@ Home Assistant custom component for [DogLog](https://doglog.app/) — your pup's
 
 ## Configuration
 
-1. Go to **Settings -> Devices & Services -> Add Integration**
+1. Go to **Settings → Devices & Services → Add Integration**
 2. Search for **Pawsistant**
-3. Paste your DogLog **refresh token** (find this in the DogLog app under Account -> Developer)
-4. HA will connect, load your pack, and create sensors for each dog
+3. Enter your first dog's name (required), breed, and birth date (both optional)
+4. HA creates sensors for your dog and auto-registers the Pawsistant card as a Lovelace resource
 
-Credentials are stored in the HA config entry — nothing is written to disk.
+---
+
+## Lovelace Card
+
+The Pawsistant card is automatically registered when the integration loads. Add it to any dashboard:
+
+```yaml
+type: custom:pawsistant-card
+dog: Sharky
+```
+
+**Card features:**
+- Quick-log buttons (tap to log now, hold to backdate)
+- Weight logging form with configurable unit (lbs/kg)
+- 24-hour event timeline with inline delete
+- Stats row: pee count, poop count, days since medicine
+
+**Card config options:**
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `dog` | *(required)* | Dog's display name (must match the name used in services) |
+| `shown_types` | `['poop','pee','medicine','sick','weight']` | Which event-type buttons to show |
+| `weight_unit` | `lbs` | Weight unit: `lbs` or `kg` |
+| `timeline_entity` | auto-detected | Override timeline sensor entity ID |
+| `pee_count_entity` | auto-detected | Override pee count sensor entity ID |
+| `poop_count_entity` | auto-detected | Override poop count sensor entity ID |
+| `medicine_days_entity` | auto-detected | Override days-since-medicine sensor entity ID |
+| `weight_entity` | auto-detected | Override weight sensor entity ID |
+
+---
+
+## Services
+
+### `doglog.log_event`
+Log an activity for a dog.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `dog` | ✅ | Dog name (case-insensitive) |
+| `event_type` | ✅ | One of: `poop`, `pee`, `medicine`, `sick`, `food`, `treat`, `walk`, `water`, `sleep`, `vaccine`, `training`, `weight`, `grooming`, `teeth_brushing` |
+| `note` | — | Optional note |
+| `value` | — | Numeric value (required for `weight` events; lbs) |
+| `timestamp` | — | ISO 8601 timestamp for backdating; defaults to now |
+
+### `doglog.delete_event`
+Delete an event by ID.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `event_id` | ✅ | Event ID (available in sensor `extra_state_attributes`) |
+
+### `doglog.add_dog`
+Register a new dog (triggers integration reload to create sensors).
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | ✅ | Dog's name |
+| `breed` | — | Breed |
+| `birth_date` | — | Birth date (YYYY-MM-DD) |
+
+### `doglog.remove_dog`
+Remove a dog and all associated events.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `dog` | ✅ | Dog name (case-insensitive) |
+
+### `doglog.list_events`
+Query events for a dog. Returns data via service response (`response_variable`).
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `dog` | ✅ | | Dog name |
+| `event_type` | — | all types | Filter by event type |
+| `days` | — | `7` | Number of past days to include |
+
+**Example automation:**
+```yaml
+action:
+  - service: doglog.list_events
+    data:
+      dog: Sharky
+      event_type: medicine
+      days: 30
+    response_variable: medicine_events
+```
+
+### `doglog.import_events`
+Bulk-import events from a JSON array (for migrating from other systems).
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `events` | ✅ | List of event dicts with keys: `event_type`, `timestamp`, `dog_id`, `note`, `value` |
 
 ---
 
 ## Sensors
 
-Sensors are created per dog. For a dog named `Sharky`:
+For a dog named `Sharky`, the following entities are created:
 
 | Entity | Description |
-|---|---|
-| `sensor.sharky_most_recent_pee` | Timestamp of last pee |
-| `sensor.sharky_most_recent_poop` | Timestamp of last poop |
-| `sensor.sharky_most_recent_medicine` | Timestamp of last medicine |
+|--------|-------------|
+| `sensor.sharky_most_recent_pee` | Timestamp of last pee event |
+| `sensor.sharky_most_recent_poop` | Timestamp of last poop event |
+| `sensor.sharky_most_recent_medicine` | Timestamp of last medicine event |
 | `sensor.sharky_most_recent_walk` | Timestamp of last walk |
 | `sensor.sharky_most_recent_food` | Timestamp of last meal |
-| `sensor.sharky_poop_count_today` | Poops logged today (local time) |
-| `sensor.sharky_daily_walks_count` | Walks logged today |
-| `sensor.sharky_daily_food_count` | Meals logged today |
-| `sensor.sharky_weight` | Most recent weight |
-
-Timestamp sensors use `device_class: timestamp` so HA displays them in your local timezone.
-
----
-
-## Dashboard Cards
-
-Copy-paste any of these into a dashboard. Replace `sharky` with your dog's name (lowercased, spaces replaced with underscores).
-
-### Dog Status Card
-
-Shows today's activity counts at a glance:
-
-```yaml
-type: vertical-stack
-cards:
-  - type: entity
-    entity: sensor.sharky_weight
-    name: Sharky
-    icon: mdi:dog
-  - type: glance
-    title: Today's Activity
-    entities:
-      - entity: sensor.sharky_daily_food_count
-        name: Food
-      - entity: sensor.sharky_daily_walks_count
-        name: Walks
-      - entity: sensor.sharky_daily_pee_count
-        name: Pee
-      - entity: sensor.sharky_poop_count_today
-        name: Poop
-      - entity: sensor.sharky_daily_water_count
-        name: Water
-```
-
-### Last Events Card
-
-When did they last eat, walk, poop, take medicine?
-
-```yaml
-type: entities
-title: Sharky - Last Events
-entities:
-  - entity: sensor.sharky_most_recent_food
-    name: Last Fed
-  - entity: sensor.sharky_most_recent_walk
-    name: Last Walk
-  - entity: sensor.sharky_most_recent_poop
-    name: Last Poop
-  - entity: sensor.sharky_most_recent_pee
-    name: Last Pee
-  - entity: sensor.sharky_most_recent_medicine
-    name: Last Medicine
-  - entity: sensor.sharky_most_recent_vaccine
-    name: Last Vaccine
-```
-
-### Quick-Log Buttons
-
-Tap to log an event without opening the DogLog app:
-
-```yaml
-type: horizontal-stack
-cards:
-  - type: button
-    name: Poop
-    icon: mdi:emoticon-poop
-    tap_action:
-      action: perform-action
-      perform_action: doglog.log_event
-      data:
-        dog: Sharky
-        event_type: poop
-  - type: button
-    name: Pee
-    icon: mdi:water
-    tap_action:
-      action: perform-action
-      perform_action: doglog.log_event
-      data:
-        dog: Sharky
-        event_type: pee
-  - type: button
-    name: Walk
-    icon: mdi:walk
-    tap_action:
-      action: perform-action
-      perform_action: doglog.log_event
-      data:
-        dog: Sharky
-        event_type: walk
-  - type: button
-    name: Food
-    icon: mdi:food-drumstick
-    tap_action:
-      action: perform-action
-      perform_action: doglog.log_event
-      data:
-        dog: Sharky
-        event_type: food
-```
-
-### Full Dog Card
-
-Combine everything into one vertical stack:
-
-```yaml
-type: vertical-stack
-cards:
-  - type: entity
-    entity: sensor.sharky_weight
-    name: Sharky
-    icon: mdi:dog
-  - type: glance
-    title: Today
-    entities:
-      - entity: sensor.sharky_daily_food_count
-        name: Food
-      - entity: sensor.sharky_daily_walks_count
-        name: Walks
-      - entity: sensor.sharky_poop_count_today
-        name: Poop
-      - entity: sensor.sharky_daily_water_count
-        name: Water
-  - type: entities
-    title: Last Events
-    entities:
-      - entity: sensor.sharky_most_recent_food
-        name: Fed
-      - entity: sensor.sharky_most_recent_walk
-        name: Walk
-      - entity: sensor.sharky_most_recent_poop
-        name: Poop
-      - entity: sensor.sharky_most_recent_medicine
-        name: Medicine
-  - type: horizontal-stack
-    cards:
-      - type: button
-        name: Poop
-        icon: mdi:emoticon-poop
-        tap_action:
-          action: perform-action
-          perform_action: doglog.log_event
-          data:
-            dog: Sharky
-            event_type: poop
-      - type: button
-        name: Pee
-        icon: mdi:water
-        tap_action:
-          action: perform-action
-          perform_action: doglog.log_event
-          data:
-            dog: Sharky
-            event_type: pee
-      - type: button
-        name: Walk
-        icon: mdi:walk
-        tap_action:
-          action: perform-action
-          perform_action: doglog.log_event
-          data:
-            dog: Sharky
-            event_type: walk
-      - type: button
-        name: Food
-        icon: mdi:food-drumstick
-        tap_action:
-          action: perform-action
-          perform_action: doglog.log_event
-          data:
-            dog: Sharky
-            event_type: food
-```
+| `sensor.sharky_daily_pee_count` | Pee events today |
+| `sensor.sharky_poop_count_today` | Poop events today |
+| `sensor.sharky_daily_walk_count` | Walks today |
+| `sensor.sharky_weight` | Most recent weight (lbs) |
+| `sensor.sharky_days_since_medicine` | Days since last medicine event |
+| `sensor.sharky_recent_timeline` | Count + list of events in last 24h |
 
 ---
 
-## Automations
+## Storage
 
-See [`docs/AUTOMATIONS.md`](docs/AUTOMATIONS.md) for ready-to-use YAML examples including:
+Events are stored in HA's `.storage` directory:
 
-- **Medicine reminder** — persistent notification at 6pm if medicine is overdue, auto-clears when logged
-- **Pee alert** — persistent notification if no pee in 4+ hours, checks every 30 minutes, auto-clears when logged
-- **Poop alert** — persistent notification after 2pm if fewer than 2 poops today, auto-clears when count reaches 2
+- `.storage/doglog` — dog registry (names, breeds, IDs)
+- `.storage/doglog_events_YYYY` — events partitioned by year
 
-All automations follow the single-automation two-trigger pattern — alert and dismiss logic live in one place.
-
----
-
-## Service: `doglog.log_event`
-
-Log an event directly from an HA automation or script:
-
-```yaml
-action: doglog.log_event
-data:
-  dog: Sharky
-  event_type: medicine
-  note: "Heartworm pill"
-  value: 1
-```
+No external database, no cloud sync, no tokens.
 
 ---
 
-## Requirements
+## License
 
-- Home Assistant 2024.1+
-- [pydoglog](https://github.com/prestomation/pydoglog) (installed automatically)
-- A DogLog account with at least one pack and dog
-
----
-
-## Contributing
-
-Issues and PRs welcome at [github.com/prestomation/ha-doglog](https://github.com/prestomation/ha-doglog).
+MIT
