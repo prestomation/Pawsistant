@@ -25,7 +25,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import CoreState, EVENT_HOMEASSISTANT_STARTED, HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
 from .coordinator import DogLogCoordinator
@@ -181,6 +181,7 @@ class PawsistantCardRegistration:
 
 async def _ensure_frontend_registered(hass: HomeAssistant) -> None:
     """Register frontend resources, deferring if HA hasn't fully started yet."""
+    from homeassistant.core import CoreState, EVENT_HOMEASSISTANT_STARTED
     reg = PawsistantCardRegistration(hass)
 
     async def _do_register(_event=None) -> None:
