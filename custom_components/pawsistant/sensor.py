@@ -201,8 +201,8 @@ async def async_setup_entry(
         for event_type in MOST_RECENT_EVENT_TYPES:
             display_name = event_type.replace("_", " ").title()
             description = PawsistantMostRecentSensorDescription(
-                key=f"{slug}_most_recent_{event_type}",
-                name=f"{dog_name} Most Recent {display_name}",
+                key=f"most_recent_{event_type}",
+                name=f"Most Recent {display_name}",
                 icon=EVENT_TYPE_ICONS.get(event_type, "mdi:paw"),
                 device_class=SensorDeviceClass.TIMESTAMP,
                 event_type=event_type,
@@ -218,8 +218,8 @@ async def async_setup_entry(
             # Backward-compatible: "walk" → "walks" in the key
             display_key = event_type + "s" if event_type == "walk" else event_type
             description = PawsistantDailyCountSensorDescription(
-                key=f"{slug}_daily_{display_key}_count",
-                name=f"{dog_name} Daily {event_type.replace('_', ' ').title()} Count",
+                key=f"daily_{display_key}_count",
+                name=f"Daily {event_type.replace('_', ' ').title()} Count",
                 icon=EVENT_TYPE_ICONS.get(event_type, "mdi:paw"),
                 state_class=SensorStateClass.TOTAL,
                 event_type=event_type,
@@ -368,8 +368,8 @@ class PawsistantWeightSensor(_PawsistantSensorBase):
         """Initialise the sensor."""
         super().__init__(coordinator, dog_id, dog_name)
         slug = _slug(dog_name)
-        self._attr_unique_id = f"pawsistant_{dog_id}_{slug}_weight"
-        self._attr_name = f"{dog_name} Weight"
+        self._attr_unique_id = f"pawsistant_{dog_id}_weight"
+        self._attr_name = "Weight"
 
     @property
     def native_value(self) -> float | None:
@@ -402,8 +402,8 @@ class PawsistantDaysSinceMedicineSensor(_PawsistantSensorBase):
         """Initialise the sensor."""
         super().__init__(coordinator, dog_id, dog_name)
         slug = _slug(dog_name)
-        self._attr_unique_id = f"pawsistant_{dog_id}_{slug}_days_since_medicine"
-        self._attr_name = f"{dog_name} Days Since Medicine"
+        self._attr_unique_id = f"pawsistant_{dog_id}_days_since_medicine"
+        self._attr_name = "Days Since Medicine"
 
     @property
     def native_value(self) -> float | None:
@@ -443,8 +443,8 @@ class PawsistantRecentTimelineSensor(_PawsistantSensorBase):
     ) -> None:
         super().__init__(coordinator, dog_id, dog_name)
         slug = _slug(dog_name)
-        self._attr_unique_id = f"pawsistant_{dog_id}_{slug}_recent_timeline"
-        self._attr_name = f"{dog_name} Recent Timeline"
+        self._attr_unique_id = f"pawsistant_{dog_id}_recent_timeline"
+        self._attr_name = "Recent Timeline"
 
     def _recent_events(self) -> list[dict[str, Any]]:
         """Return events from the last 24 hours, sorted newest-first."""

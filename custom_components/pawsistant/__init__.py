@@ -194,13 +194,13 @@ async def _ensure_frontend_registered(hass: HomeAssistant) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Frontend registration (also called from async_setup for clean startup)
+# async_setup — intentionally minimal. Static path + Lovelace resource
+# registration is handled in async_setup_entry to avoid double-registration.
 # ---------------------------------------------------------------------------
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Register the Pawsistant Lovelace card at integration load time."""
-    await _ensure_frontend_registered(hass)
+    """Global integration setup hook (config-flow only integration)."""
     return True
 
 

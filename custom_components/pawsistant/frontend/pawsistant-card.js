@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one dog activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
- * Version: 2.1.1
+ * Version: 2.2.0
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -320,8 +320,8 @@ class PawsistantCard extends HTMLElement {
     /* U18 — add text status alongside color */
     const medDaysText = medDays === null ? '—' : Math.floor(medDays) + 'd';
     const medStatusText = medDays === null ? '' :
-                          medDays > 30 ? ' (overdue)' :
-                          medDays > 14 ? ' (due soon)' : '';
+                          medDays > 30 ? 'overdue' :
+                          medDays > 14 ? 'due soon' : '';
 
     /* Build timeline HTML */
     let timelineHTML = '';
@@ -414,8 +414,8 @@ class PawsistantCard extends HTMLElement {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 4px;
-          padding: 5px 8px;
+          gap: 3px;
+          padding: 5px 6px;
           border-radius: 20px;
           font-size: 12px;
           font-weight: 600;
@@ -423,15 +423,31 @@ class PawsistantCard extends HTMLElement {
           white-space: nowrap;
           flex: 1;
           min-width: 0;
+          overflow: hidden;
         }
         .stat-pill .pill-val {
           font-size: 15px;
           font-weight: 700;
+          flex-shrink: 0;
+        }
+        .pill-label {
+          flex-shrink: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-width: 0;
+        }
+        .stat-pill.med-pill {
+          flex-shrink: 1;
+          min-width: 0;
         }
         .med-status-text {
           font-size: 10px;
           font-weight: 500;
           opacity: 0.9;
+          flex-shrink: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-width: 0;
         }
 
         /* ── Quick-log grid ── */
@@ -648,31 +664,32 @@ class PawsistantCard extends HTMLElement {
         }
         /* U12 — overscroll-behavior: contain */
         .timeline-body {
-          padding: 0 8px 12px;
+          padding: 0 4px 8px;
           max-height: 380px;
           overflow-y: auto;
           overscroll-behavior: contain;
         }
         .day-header {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 700;
           color: var(--secondary-text-color);
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          padding: 8px 8px 4px;
+          padding: 4px 8px 2px;
+          margin-top: 2px;
         }
         .event-row {
           display: flex;
           align-items: center;
-          gap: 8px;
-          padding: 7px 8px;
-          border-radius: 8px;
+          gap: 6px;
+          padding: 4px 6px;
+          border-radius: 6px;
           transition: background 0.15s;
         }
         .event-row:hover { background: var(--secondary-background-color, #f5f5f5); }
-        .event-emoji { font-size: 18px; flex-shrink: 0; width: 24px; text-align: center; }
-        .event-time { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; flex-shrink: 0; min-width: 65px; }
-        .event-type { font-size: 13px; font-weight: 500; color: var(--primary-text-color); flex-shrink: 0; }
+        .event-emoji { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
+        .event-time { font-size: 11px; color: var(--secondary-text-color); white-space: nowrap; flex-shrink: 0; min-width: 58px; }
+        .event-type { font-size: 12px; font-weight: 500; color: var(--primary-text-color); flex-shrink: 0; }
         /* U14 — truncated notes with title attr for tooltip */
         .event-note { font-size: 12px; color: var(--secondary-text-color); flex: 1; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         /* U6 — 44px touch target for delete button */
@@ -723,18 +740,17 @@ class PawsistantCard extends HTMLElement {
           <div class="stat-pill" style="background:var(--info-color, #4FC3F7);">
             <span aria-hidden="true">💧</span>
             <span class="pill-val">${peeCount !== null ? peeCount : '—'}</span>
-            <span>pee</span>
+            <span class="pill-label">pee</span>
           </div>
           <div class="stat-pill" style="background:var(--warning-color, #FF8A65);">
             <span aria-hidden="true">💩</span>
             <span class="pill-val">${poopCount !== null ? poopCount : '—'}</span>
-            <span>poop</span>
+            <span class="pill-label">poop</span>
           </div>
-          <div class="stat-pill" style="background:${medColor};">
+          <div class="stat-pill med-pill" style="background:${medColor};" title="Days since last medicine${medStatusText}">
             <span aria-hidden="true">💊</span>
             <span class="pill-val">${medDaysText}</span>
-            <span>meds</span>
-            ${medStatusText ? `<span class="med-status-text">${_escapeHTML(medStatusText)}</span>` : ''}
+            ${medStatusText ? `<span class="med-status-text">${_escapeHTML(medStatusText.trim())}</span>` : ''}
           </div>
         </div>
 
