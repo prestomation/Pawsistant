@@ -24,7 +24,6 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CoreState, EVENT_HOMEASSISTANT_STARTED, HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
@@ -130,6 +129,7 @@ class PawsistantCardRegistration:
             await self._register_lovelace_resource()
 
     async def _register_static_path(self) -> None:
+        from homeassistant.components.http import StaticPathConfig
         frontend_dir = Path(__file__).parent / "frontend"
         try:
             await self.hass.http.async_register_static_paths(
