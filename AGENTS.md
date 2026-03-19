@@ -1,7 +1,11 @@
-# AGENTS.md — ha-doglog (Pawsistant)
+# AGENTS.md — Pawsistant
 
-## Testing
+## Workflow
 
+- **Never push directly to main.** Always use a feature branch and open a PR.
+- Wait for CI (tests, HACS validation, Amazon Q code review) and Preston's approval before merging.
+- **Always squash merge PRs.**
+- **CHANGELOG.md** — update for every user-facing change before tagging a release. Developer-only changes (CI config, AGENTS.md, IDEAS.md) don't need changelog entries.
 - **Always run tests locally before pushing.** Never use CI as the test runner.
 - Install test deps: `pip install pytest pytest-homeassistant-custom-component`
 - Run: `pytest tests/ -v`
@@ -25,6 +29,8 @@
 
 ## CI
 
-- GitHub Actions workflow at `.github/workflows/lint.yml`
-- Runs: compile check, pytest, hassfest (optional)
+- `.github/workflows/lint.yml` — compile check, pytest, hassfest
+- `.github/workflows/hacs.yml` — HACS validation
+- `.github/workflows/integration.yml` — Docker-based integration tests (CI only, not local)
+- `.github/workflows/release.yml` — auto-creates GitHub release from CHANGELOG.md on tag push
 - Uses `pytest-homeassistant-custom-component` (not raw `homeassistant` package)
