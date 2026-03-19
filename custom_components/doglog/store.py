@@ -258,7 +258,17 @@ class DogLogStore:
         breed: str = "",
         birth_date: str = "",
     ) -> str:
-        """Register a new dog. Returns the generated dog_id (UUID)."""
+        """Register a new dog. Returns the generated dog_id (UUID).
+
+        Raises ValueError if a dog with the same name (case-insensitive) already exists.
+        """
+        # I8 — enforce name uniqueness (case-insensitive)
+        existing = self.get_dog_by_name(name)
+        if existing is not None:
+            raise ValueError(
+                f"DogLog: a dog named '{existing[1]['name']}' already exists"
+            )
+
         dog_id = str(uuid.uuid4())
         self._meta["dogs"][dog_id] = {
             "name": name,
@@ -354,8 +364,12 @@ class DogLogStore:
         if value is not None:
             event["value"] = value
 
-        # Insert newest-first
-        self._year_events.setdefault(year, []).insert(0, event)
+        # Insert and re-sort newest-first so backdated events land in the correct position
+        # C1 — Backdated events break sort order: always re-sort after insert
+        self._year_events.setdefault(year, []).append(event)
+        self._year_events[year].sort(
+            key=lambda e: e.get("timestamp", ""), reverse=True
+        )
         await self._save_year(year)
 
         # Persist updated known_years index if this year was new
@@ -367,9 +381,13 @@ class DogLogStore:
     async def delete_event(self, event_id: str) -> bool:
         """Delete an event by ID.
 
-        Searches all currently loaded year files.  Returns True if found and
-        deleted, False if the event ID does not exist in any loaded year.
+        Searches all known year files (loading them if necessary).
+        Returns True if found and deleted, False if the event ID does not exist.
+        C2 — Load all known years before searching so old-year events can be deleted.
         """
+        for year in self._meta.get("known_years", []):
+            await self._ensure_year_loaded(year)
+
         for year in sorted(self._loaded_years, reverse=True):
             events = self._year_events.get(year, [])
             new_events = [e for e in events if e.get("id") != event_id]
@@ -431,7 +449,8 @@ class DogLogStore:
 
         Designed for one-time migration from Firebase/pydoglog.  Events whose
         ``id`` already exists in any loaded year are skipped; unrecognised years
-        are lazy-loaded from disk before merging.
+        are lazy-loaded from disk before merging.  Entries missing required
+        fields (event_type) are skipped with a warning.
 
         Returns the count of events actually imported.
         """
@@ -441,6 +460,17 @@ class DogLogStore:
         # Group incoming events by year
         by_year: dict[int, list[dict[str, Any]]] = {}
         for raw in events:
+            # I4 — Validate required fields; skip invalid entries
+            if not isinstance(raw, dict):
+                _LOGGER.warning(
+                    "import_events: skipping non-dict entry: %r", raw
+                )
+                continue
+            if not raw.get("event_type"):
+                _LOGGER.warning(
+                    "import_events: skipping entry missing 'event_type': %r", raw
+                )
+                continue
             raw = dict(raw)  # don't mutate caller's dicts
             if not raw.get("id"):
                 raw["id"] = str(uuid.uuid4())

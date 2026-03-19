@@ -86,6 +86,16 @@ function buildHash(hass, cfg) {
   return parts.join('|');
 }
 
+/* ── Shared escape helper (XSS prevention) ──────────────────────────────── */
+// C7 — Extracted from PawsistantCard so PawsistantCardEditor can use it too
+function _escapeHTML(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /* ── Editor element ─────────────────────────────────────────────────────── */
 class PawsistantCardEditor extends HTMLElement {
   constructor() {
@@ -104,6 +114,8 @@ class PawsistantCardEditor extends HTMLElement {
   _render() {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     const cfg = this._config;
+    // C7 — Escape all config values before injecting into innerHTML
+    const esc = _escapeHTML;
     this.shadowRoot.innerHTML = `
       <style>
         .form { display: flex; flex-direction: column; gap: 12px; padding: 8px 0; }
@@ -124,31 +136,31 @@ class PawsistantCardEditor extends HTMLElement {
       <div class="form">
         <div>
           <label>Dog name *</label>
-          <input name="dog" value="${cfg.dog || ''}" placeholder="Sharky" />
+          <input name="dog" value="${esc(cfg.dog || '')}" placeholder="Sharky" />
         </div>
         <div>
           <label>Timeline entity (auto-detected from dog name)</label>
-          <input name="timeline_entity" value="${cfg.timeline_entity || ''}" placeholder="sensor.sharky_recent_timeline" />
+          <input name="timeline_entity" value="${esc(cfg.timeline_entity || '')}" placeholder="sensor.sharky_recent_timeline" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
           <label>Pee count entity</label>
-          <input name="pee_count_entity" value="${cfg.pee_count_entity || ''}" placeholder="sensor.sharky_daily_pee_count" />
+          <input name="pee_count_entity" value="${esc(cfg.pee_count_entity || '')}" placeholder="sensor.sharky_daily_pee_count" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
           <label>Poop count entity</label>
-          <input name="poop_count_entity" value="${cfg.poop_count_entity || ''}" placeholder="sensor.sharky_poop_count_today" />
+          <input name="poop_count_entity" value="${esc(cfg.poop_count_entity || '')}" placeholder="sensor.sharky_poop_count_today" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
           <label>Days since medicine entity</label>
-          <input name="medicine_days_entity" value="${cfg.medicine_days_entity || ''}" placeholder="sensor.sharky_days_since_medicine" />
+          <input name="medicine_days_entity" value="${esc(cfg.medicine_days_entity || '')}" placeholder="sensor.sharky_days_since_medicine" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
           <label>Weight entity (optional)</label>
-          <input name="weight_entity" value="${cfg.weight_entity || ''}" placeholder="sensor.sharky_weight" />
+          <input name="weight_entity" value="${esc(cfg.weight_entity || '')}" placeholder="sensor.sharky_weight" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
       </div>
@@ -773,7 +785,7 @@ class PawsistantCard extends HTMLElement {
       <div class="form-field">
         <span class="form-label">Weight</span>
         <div class="weight-input-row">
-          <input type="number" id="weight-input" min="20" max="150" step="0.1"
+          <input type="number" id="weight-input" min="1" max="300" step="0.1"
             value="${currentWeight !== null ? currentWeight : ''}"
             placeholder="0.0" />
           <span class="weight-unit">lbs</span>
@@ -789,7 +801,8 @@ class PawsistantCard extends HTMLElement {
     formEl.querySelector('#form-submit').addEventListener('click', () => {
       const weightInput = formEl.querySelector('#weight-input');
       const value = parseFloat(weightInput.value);
-      if (isNaN(value) || value < 20 || value > 150) {
+      // I6 — Updated validation range from [20, 150] to [1, 300]
+      if (isNaN(value) || value < 1 || value > 300) {
         weightInput.style.outline = '2px solid #ef5350';
         weightInput.focus();
         return;
@@ -917,13 +930,8 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Helpers ───────────────────────────────────────────────────────── */
-  _escape(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
+  // C7 — Delegate to the shared module-level escape function
+  _escape(str) { return _escapeHTML(str); }
 
   getCardSize() { return 6; }
 }

@@ -29,7 +29,7 @@ sensor.py requires minimal changes):
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -43,7 +43,7 @@ DOMAIN = "doglog"
 _LOGGER = logging.getLogger(__name__)
 
 # Periodic refresh interval — needed so time-based sensors (days_since_medicine,
-# daily counts, poop_count_today) update even when no service calls fire.
+# daily counts) update even when no service calls fire.
 SCAN_INTERVAL = timedelta(minutes=5)
 
 
@@ -65,20 +65,27 @@ class DogLogCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
         )
         self.store = store
         self._entry = entry
+        # I3 — Track last prune time so pruning only happens once per day
+        self._last_prune: datetime | None = None
 
     async def _async_update_data(self) -> dict[str, list[dict[str, Any]]]:
         """Build coordinator data from the local store."""
-        try:
-            await self.store.prune_old_events()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.warning("DogLog: failed to prune old events: %s", err)
+        # I3 — Only prune once per day, not on every 5-min refresh
+        now = datetime.now(tz=timezone.utc)
+        if self._last_prune is None or (now - self._last_prune).total_seconds() >= 86400:
+            try:
+                await self.store.prune_old_events()
+                self._last_prune = now
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("DogLog: failed to prune old events: %s", err)
 
         dogs = self.store.get_dogs()
         result: dict[str, list[dict[str, Any]]] = {}
         for dog_id, dog_info in dogs.items():
             dog_name = dog_info["name"]
             try:
-                result[dog_name] = await self.store.get_events(dog_id)
+                # I2 — Key coordinator data by dog_id (not dog_name)
+                result[dog_id] = await self.store.get_events(dog_id)
             except Exception as err:
                 raise UpdateFailed(
                     f"DogLog: failed to load events for '{dog_name}': {err}"

@@ -25,6 +25,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfMass
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -79,6 +80,7 @@ DAILY_COUNT_EVENT_TYPES: list[str] = [
     "treat",
     "walk",
     "pee",
+    "poop",
     "water",
 ]
 
@@ -228,11 +230,6 @@ async def async_setup_entry(
             )
 
         # ------------------------------------------------------------------
-        # Poop count today (backward-compatible standalone sensor)
-        # ------------------------------------------------------------------
-        entities.append(DogLogPoopCountTodaySensor(coordinator, dog_id, dog_name))
-
-        # ------------------------------------------------------------------
         # Weight sensor
         # ------------------------------------------------------------------
         entities.append(DogLogWeightSensor(coordinator, dog_id, dog_name))
@@ -276,7 +273,8 @@ class _DogLogSensorBase(CoordinatorEntity[DogLogCoordinator], SensorEntity):
         """Shortcut to this dog's event list from coordinator data."""
         if self.coordinator.data is None:
             return []
-        return self.coordinator.data.get(self._dog_name, [])
+        # I2 — Coordinator data keyed by dog_id, not dog_name
+        return self.coordinator.data.get(self._dog_id, [])
 
 
 # ---------------------------------------------------------------------------
@@ -355,35 +353,11 @@ class DogLogDailyCountSensor(_DogLogSensorBase):
         return _count_today(self._dog_events(), self.entity_description.event_type)
 
 
-class DogLogPoopCountTodaySensor(_DogLogSensorBase):
-    """Sensor: poop count today (backward-compatible standalone entity)."""
-
-    _attr_state_class = SensorStateClass.TOTAL
-    _attr_icon = "mdi:emoticon-poop"
-
-    def __init__(
-        self,
-        coordinator: DogLogCoordinator,
-        dog_id: str,
-        dog_name: str,
-    ) -> None:
-        """Initialise the sensor."""
-        super().__init__(coordinator, dog_id, dog_name)
-        slug = _slug(dog_name)
-        # Unique ID must match the old format for backward compatibility
-        self._attr_unique_id = f"doglog_{dog_id}_{slug}_poop_count_today"
-        self._attr_name = f"{dog_name} Poop Count Today"
-
-    @property
-    def native_value(self) -> int:
-        """Return the count of poop events today."""
-        return _count_today(self._dog_events(), "poop")
-
-
 class DogLogWeightSensor(_DogLogSensorBase):
     """Sensor: most recent weight value (lbs)."""
 
-    _attr_native_unit_of_measurement = "lbs"
+    # I1 — Use HA constant for weight unit
+    _attr_native_unit_of_measurement = UnitOfMass.POUNDS
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:scale-bathroom"
 
@@ -475,7 +449,9 @@ class DogLogRecentTimelineSensor(_DogLogSensorBase):
 
     def _recent_events(self) -> list[dict[str, Any]]:
         """Return events from the last 24 hours, sorted newest-first."""
-        cutoff = dt_util.now() - __import__("datetime").timedelta(hours=24)
+        # C4 — Use already-imported timedelta directly
+        from datetime import timedelta
+        cutoff = dt_util.now() - timedelta(hours=24)
         result = []
         for event in self._dog_events():
             ts = _to_datetime(event.get("timestamp"))
