@@ -29,12 +29,12 @@ jobs:
         run: |
           echo "Waiting for Home Assistant..."
           for i in $(seq 1 60); do
-            if curl -sf -o /dev/null http://localhost:8123/api/ 2>/dev/null || \
-               curl -sf -o /dev/null -w "%{http_code}" http://localhost:8123/api/ 2>/dev/null | grep -q "401"; then
-              echo "Home Assistant is responding (attempt $i)"
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8123/api/ 2>/dev/null || true)
+            if [ "$code" = "200" ] || [ "$code" = "401" ]; then
+              echo "Home Assistant is responding (HTTP $code, attempt $i)"
               exit 0
             fi
-            echo "Attempt $i/60 - waiting..."
+            echo "Attempt $i/60 - HTTP $code - waiting..."
             sleep 2
           done
           echo "Home Assistant failed to start within 120s"
@@ -42,7 +42,8 @@ jobs:
           exit 1
 
       - name: Run integration tests
-        run: python -m pytest tests/integration/ -v --tb=short
+        working-directory: tests/integration
+        run: python -m pytest . -v --tb=short --override-ini="asyncio_mode=auto"
 
       - name: Dump Home Assistant logs on failure
         if: failure()
