@@ -321,7 +321,7 @@ class PawsistantCard extends HTMLElement {
     const medDaysText = medDays === null ? '—' : Math.floor(medDays) + 'd';
     const medStatusText = medDays === null ? '' :
                           medDays > 30 ? 'overdue' :
-                          medDays > 14 ? 'due soon' : '';
+                          '' ;
 
     /* Build timeline HTML */
     let timelineHTML = '';
