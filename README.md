@@ -171,22 +171,6 @@ No external database, no cloud sync, no tokens.
 
 ---
 
-## Migrating from doglog → Pawsistant
-
-If you previously had the `doglog` integration installed (domain `doglog`), you must:
-
-1. Remove the old integration: **Settings → Devices & Services → Pawsistant → Delete**
-2. Restart Home Assistant
-3. Re-add the integration: **Settings → Devices & Services → Add Integration → Pawsistant**
-
-Storage data (dogs and events) is **automatically migrated** from `.storage/doglog*` to
-`.storage/pawsistant*` on first load — no events are lost.
-
-Entity IDs will change from `sensor.doglog_*` to `sensor.pawsistant_*` after re-adding,
-so update any automations or dashboards that reference the old entity IDs.
-
----
-
 ## License
 
 MIT
