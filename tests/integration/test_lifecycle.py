@@ -123,12 +123,13 @@ class TestDeleteEvent:
             "event_id": event_id,
         })
 
-        # After deletion, the sensor should revert (no more food events)
-        # or the event_id should change
-        poll_state_attrs(
+        # After deletion with no remaining food events, the sensor state
+        # should revert to "unknown". (HA preserves last-known attributes,
+        # so we check the state value rather than the attributes.)
+        poll_state(
             ha,
             "sensor.testdog_most_recent_food",
-            lambda a: a.get("event_id", "") != event_id,
+            lambda s: s in ("unknown", "unavailable"),
             timeout=10,
         )
 
