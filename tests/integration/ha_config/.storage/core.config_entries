@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "core.config_entries",
+  "data": {
+    "entries": [
+      {
+        "entry_id": "pawsistant_test_entry",
+        "version": 1,
+        "minor_version": 1,
+        "domain": "pawsistant",
+        "title": "Pawsistant",
+        "data": {
+          "initial_dog": {
+            "name": "Testdog",
+            "breed": "Labrador",
+            "birth_date": "2020-01-01"
+          }
+        },
+        "options": {},
+        "pref_disable_new_entities": false,
+        "pref_disable_polling": false,
+        "source": "user",
+        "unique_id": "pawsistant_local",
+        "disabled_by": null
+      }
+    ]
+  }
+}
