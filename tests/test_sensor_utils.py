@@ -50,7 +50,8 @@ class TestCountToday:
             make_event("poop", today_noon.astimezone(timezone.utc) - timedelta(hours=2)),
             make_event("pee", today_noon.astimezone(timezone.utc)),
         ]
-        with patch("custom_components.doglog.sensor.dt_util.now", return_value=now_pacific):
+        with patch("custom_components.doglog.sensor.dt_util.now", return_value=now_pacific), \
+             patch("custom_components.doglog.sensor.dt_util.DEFAULT_TIME_ZONE", PACIFIC):
             assert _count_today(events, "poop") == 2
             assert _count_today(events, "pee") == 1
 
@@ -58,14 +59,16 @@ class TestCountToday:
         now_pacific = datetime.now(PACIFIC)
         yesterday = now_pacific - timedelta(days=1)
         events = [make_event("poop", yesterday.astimezone(timezone.utc))]
-        with patch("custom_components.doglog.sensor.dt_util.now", return_value=now_pacific):
+        with patch("custom_components.doglog.sensor.dt_util.now", return_value=now_pacific), \
+             patch("custom_components.doglog.sensor.dt_util.DEFAULT_TIME_ZONE", PACIFIC):
             assert _count_today(events, "poop") == 0
 
     def test_timezone_boundary(self):
         # 11pm Pacific = next day UTC — should count as today in Pacific
         pacific_11pm = datetime(2026, 3, 15, 23, 0, tzinfo=PACIFIC)
         events = [make_event("poop", pacific_11pm.astimezone(timezone.utc))]
-        with patch("custom_components.doglog.sensor.dt_util.now", return_value=pacific_11pm):
+        with patch("custom_components.doglog.sensor.dt_util.now", return_value=pacific_11pm), \
+             patch("custom_components.doglog.sensor.dt_util.DEFAULT_TIME_ZONE", PACIFIC):
             assert _count_today(events, "poop") == 1
 
 
