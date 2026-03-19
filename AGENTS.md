@@ -1,38 +1,36 @@
-# ha-doglog
+# AGENTS.md — ha-doglog (Pawsistant)
 
-Home Assistant custom component for the [DogLog](https://doglogapp.com) pet tracking app. Exposes pet activity data as HA sensors and provides a service to log events from automations.
+## Testing
 
-## Design
+- **Always run tests locally before pushing.** Never use CI as the test runner.
+- Install test deps: `pip install pytest pytest-homeassistant-custom-component`
+- Run: `pytest tests/ -v`
+- Only push when all tests pass.
 
-See [docs/DESIGN.md](docs/DESIGN.md) for architecture, sensor naming, config flow, and service details.
+## Project Structure
 
-## Build / Dev
+- **Domain:** `pawsistant` (renamed from `doglog` in March 2026)
+- **Display name:** Pawsistant
+- **Storage:** Local only, year-partitioned in `.storage/pawsistant_events_YYYY`
+- **Frontend:** Bundled card at `custom_components/pawsistant/frontend/pawsistant-card.js` — vanilla JS, no build step
+- **Tests:** Use `pytest-homeassistant-custom-component` for proper HA test fixtures. No hand-rolled HA mocks.
 
-### Local HA development
+## Conventions
 
-Copy the integration into your HA config directory:
+- Sensor utility functions operate on `list[dict]` (not model objects)
+- Events are stored as plain dicts with keys: `id`, `event_type`, `timestamp`, `note`, `value`, `dog_id`
+- Entity unique IDs are anchored to `dog_id` (survives renames)
+- Use HA CSS variables in card styling (dark mode compat)
+- Escape all user content before innerHTML injection (`_escape()` helper)
 
-```bash
-cp -r custom_components/doglog /path/to/ha-config/custom_components/
-```
+## Migration Note
 
-Then restart Home Assistant.
+The domain was renamed from `doglog` to `pawsistant` in March 2026. Existing users
+must remove and re-add the integration (config entry). Storage data is automatically
+migrated from `.storage/doglog*` keys to `.storage/pawsistant*` on first load.
 
-### Linting / Compilation check
+## CI
 
-```bash
-python -m py_compile custom_components/doglog/__init__.py
-python -m py_compile custom_components/doglog/config_flow.py
-python -m py_compile custom_components/doglog/coordinator.py
-python -m py_compile custom_components/doglog/sensor.py
-```
-
-### CI
-
-GitHub Actions runs on push and PR. See `.github/workflows/lint.yml`.
-
-## Notes for coding agents
-
-- **pydoglog source**: `/root/doglog/pydoglog/src/pydoglog/` — the Python library wrapping DogLog's Firebase API
-- **Do not commit real tokens** — refresh tokens and ID tokens are secrets
-- The integration uses `hass.async_add_executor_job()` to call synchronous pydoglog methods from async HA context
+- GitHub Actions workflow at `.github/workflows/lint.yml`
+- Runs: compile check, pytest, hassfest (optional)
+- Uses `pytest-homeassistant-custom-component` (not raw `homeassistant` package)

@@ -18,7 +18,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install pydoglog homeassistant pytest
+        run: pip install pytest pytest-homeassistant-custom-component
 
       - name: Compile check
         run: |
@@ -28,5 +28,4 @@ jobs:
         run: python -m pytest tests/ -v
 
       - name: Run hassfest
-        run: |
-          python -m homeassistant.scripts.check_config || true
+        uses: "home-assistant/actions/hassfest@master"
