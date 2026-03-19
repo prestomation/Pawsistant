@@ -71,6 +71,17 @@ ha_exceptions.ConfigEntryAuthFailed = type('ConfigEntryAuthFailed', (Exception,)
 ha_device_registry = types.ModuleType('homeassistant.helpers.device_registry')
 ha_device_registry.DeviceInfo = dict
 
+ha_cv = types.ModuleType('homeassistant.helpers.config_validation')
+ha_cv.string = str
+ha_cv.boolean = bool
+ha_event = types.ModuleType('homeassistant.helpers.event')
+ha_event.async_call_later = lambda *a, **k: None
+ha_http = types.ModuleType('homeassistant.components.http')
+
+sys.modules['homeassistant.helpers.config_validation'] = ha_cv
+sys.modules['homeassistant.helpers.event'] = ha_event
+sys.modules['homeassistant.components.http'] = ha_http
+
 sys.modules['homeassistant'] = ha_mock
 sys.modules['homeassistant.util'] = ha_util
 sys.modules['homeassistant.util.dt'] = ha_dt
