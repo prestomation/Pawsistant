@@ -245,23 +245,19 @@ class TestMultiDog:
 
     def test_buddy_pee_count_is_isolated(self, ha):
         """Buddy's pee count starts at 0 and increments independently."""
-        # Wait for Buddy's sensor to be available after add_dog reload
-        poll_state(
-            ha,
-            "sensor.buddy_daily_pee_count",
-            lambda s: s not in ("unavailable", None),
-            timeout=30,
-        )
-        # Log a pee for Buddy
+        # Log a pee for Buddy — the service works even if sensors are still loading
         call_service(ha, "pawsistant", "log_event", {
             "dog": "Buddy",
             "event_type": "pee",
         })
+        # Wait for the coordinator to refresh and the count to appear.
+        # After add_dog reload, daily count sensors may briefly show "unavailable"
+        # until the coordinator runs. Use a generous timeout.
         state = poll_state(
             ha,
             "sensor.buddy_daily_pee_count",
-            lambda s: s not in ("unavailable", "unknown") and int(s) >= 1,
-            timeout=30,
+            lambda s: s not in ("unavailable", "unknown", None) and int(s) >= 1,
+            timeout=45,
         )
         assert int(state) == 1, f"Buddy's pee count should be 1, got: {state}"
 
