@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one dog activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
- * Version: 2.2.0
+ * Version: 2.3.0
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -312,16 +312,7 @@ class PawsistantCard extends HTMLElement {
     const events = stateAttr(hass, ent.timeline, 'events') || [];
     const weightUnit = this._weightUnit();
 
-    /* U4 — use HA CSS vars for medicine status color */
-    const medColor = medDays === null ? 'var(--secondary-text-color, #888)' :
-                     medDays > 30 ? 'var(--error-color, #EF5350)' :
-                     medDays > 14 ? 'var(--warning-color, #FFA726)' : 'var(--success-color, #66BB6A)';
-
-    /* U18 — add text status alongside color */
     const medDaysText = medDays === null ? '—' : Math.floor(medDays) + 'd';
-    const medStatusText = medDays === null ? '' :
-                          medDays > 30 ? 'overdue' :
-                          '' ;
 
     /* Build timeline HTML */
     let timelineHTML = '';
@@ -362,6 +353,13 @@ class PawsistantCard extends HTMLElement {
     for (const type of shownTypes) {
       const meta = getMeta(type);
       const isWeight = type === 'weight';
+
+      /* Inline count/stat for supported types */
+      let countSuffix = '';
+      if (type === 'pee' && peeCount !== null) countSuffix = ` (${peeCount})`;
+      else if (type === 'poop' && poopCount !== null) countSuffix = ` (${poopCount})`;
+      else if (type === 'medicine' && medDays !== null) countSuffix = ` (${medDaysText})`;
+
       const ariaLabel = isWeight
         ? `Log weight`
         : `Log ${meta.label} now. Hold to backdate.`;
@@ -371,7 +369,7 @@ class PawsistantCard extends HTMLElement {
       buttonsHTML += `
         <button class="log-btn" ${dataAttrs} aria-label="${_escapeHTML(ariaLabel)}">
           <span class="btn-emoji" aria-hidden="true">${meta.emoji}</span>
-          <span class="btn-label">${_escapeHTML(meta.label)}</span>
+          <span class="btn-label">${_escapeHTML(meta.label)}${countSuffix}</span>
         </button>
       `;
     }
@@ -402,59 +400,13 @@ class PawsistantCard extends HTMLElement {
           color: var(--primary-text-color);
           flex: 1;
         }
-        .stats-row {
-          display: flex;
-          gap: 6px;
-          padding: 12px 16px;
-          border-bottom: 1px solid var(--divider-color, #e0e0e0);
-          justify-content: space-between;
-        }
-        /* U4 — use HA CSS vars; colors applied via inline style */
-        .stat-pill {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 3px;
-          padding: 5px 6px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--text-primary-color, #fff);
-          white-space: nowrap;
-          flex: 1;
-          min-width: 0;
-          overflow: hidden;
-        }
-        .stat-pill .pill-val {
-          font-size: 15px;
-          font-weight: 700;
-          flex-shrink: 0;
-        }
-        .pill-label {
-          flex-shrink: 1;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          min-width: 0;
-        }
-        .stat-pill.med-pill {
-          flex-shrink: 1;
-          min-width: 0;
-        }
-        .med-status-text {
-          font-size: 10px;
-          font-weight: 500;
-          opacity: 0.9;
-          flex-shrink: 1;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          min-width: 0;
-        }
-
-        /* ── Quick-log grid ── */
+        /* ── Quick-log buttons ── */
         .quick-log {
-          display: grid;
+          display: flex;
+          flex-wrap: wrap;
           gap: 8px;
           padding: 12px 16px 0;
+          justify-content: center;
         }
         .log-btn {
           display: flex;
@@ -474,6 +426,9 @@ class PawsistantCard extends HTMLElement {
           user-select: none;
           touch-action: none;
           min-height: 64px;
+          min-width: 60px;
+          flex: 1 1 60px;
+          max-width: 120px;
           position: relative;
         }
         .log-btn:hover { background: var(--divider-color, #e0e0e0); }
@@ -726,7 +681,7 @@ class PawsistantCard extends HTMLElement {
         }
         @media (max-width: 420px) {
           .quick-log { gap: 5px; padding: 10px 10px 0; }
-          .log-btn { padding: 8px 2px; min-height: 54px; }
+          .log-btn { padding: 8px 2px; min-height: 54px; min-width: 50px; }
           .log-btn .btn-emoji { font-size: 20px; }
           .log-btn .btn-label { font-size: 10px; }
         }
@@ -736,26 +691,8 @@ class PawsistantCard extends HTMLElement {
           <span class="card-title">🐾 ${_escapeHTML(dogName)}</span>
         </div>
 
-        <div class="stats-row">
-          <div class="stat-pill" style="background:var(--info-color, #4FC3F7);">
-            <span aria-hidden="true">💧</span>
-            <span class="pill-val">${peeCount !== null ? peeCount : '—'}</span>
-            <span class="pill-label">pee</span>
-          </div>
-          <div class="stat-pill" style="background:var(--warning-color, #FF8A65);">
-            <span aria-hidden="true">💩</span>
-            <span class="pill-val">${poopCount !== null ? poopCount : '—'}</span>
-            <span class="pill-label">poop</span>
-          </div>
-          <div class="stat-pill med-pill" style="background:${medColor};" title="Days since last medicine${medStatusText}">
-            <span aria-hidden="true">💊</span>
-            <span class="pill-val">${medDaysText}</span>
-            ${medStatusText ? `<span class="med-status-text">${_escapeHTML(medStatusText.trim())}</span>` : ''}
-          </div>
-        </div>
-
         <div class="quick-log-section">
-          <div class="quick-log" id="quick-log-grid" style="grid-template-columns: repeat(${Math.min(shownTypes.length, 5)}, 1fr);">
+          <div class="quick-log" id="quick-log-grid">
             ${buttonsHTML}
           </div>
           <!-- U1 — long-press hint -->
