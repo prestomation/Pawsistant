@@ -9,6 +9,7 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 # homeassistant is installed in the test environment
+from pydoglog.models import DogEvent, EventType
 from custom_components.doglog.sensor import _to_datetime, _count_today, _get_most_recent_event
 
 
