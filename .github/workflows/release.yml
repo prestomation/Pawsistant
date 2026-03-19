@@ -6,7 +6,40 @@ on:
       - "v*"
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: pip install pytest requests
+      - name: Start Home Assistant
+        working-directory: tests/integration
+        run: docker compose up -d
+      - name: Run integration tests
+        working-directory: tests/integration
+        run: pytest test_lifecycle.py -v --timeout=300
+      - name: HA logs on failure
+        if: failure()
+        working-directory: tests/integration
+        run: docker compose logs homeassistant
+      - name: Cleanup
+        if: always()
+        working-directory: tests/integration
+        run: docker compose down -v
+
   release:
+    needs: [validate, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -56,9 +89,7 @@ jobs:
         id: changelog
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          # Extract the section for this version from CHANGELOG.md
           awk "/^## \\[$VERSION\\]/,/^## \\[/{if(/^## \\[$VERSION\\]/)found=1; else if(/^## \\[/ && found)exit; if(found)print}" CHANGELOG.md > release_notes.txt
-          # If no changelog entry found, use a default message
           if [ ! -s release_notes.txt ]; then
             echo "Release v${VERSION}" > release_notes.txt
           fi

@@ -226,15 +226,15 @@ class TestLogEventWithNote:
 
 
 class TestMultiDog:
-    """Test that multiple dogs don't contaminate each other's event counts."""
+    """Test that multiple dogs have isolated sensor data."""
 
     def test_add_buddy(self, ha):
-        """Add a second dog and verify sensors are created."""
+        """Add a second dog."""
         call_service(ha, "pawsistant", "add_dog", {
             "name": "Buddy",
             "breed": "Labrador",
         })
-        # add_dog triggers a config entry reload — wait for Buddy's sensors
+        # Wait for sensors to appear after reload
         state = poll_state(
             ha,
             "sensor.buddy_most_recent_pee",
@@ -243,27 +243,36 @@ class TestMultiDog:
         )
         assert state is not None
 
+    def test_buddy_pee_count_is_isolated(self, ha):
+        """Buddy's pee count starts at 0 and increments independently."""
+        call_service(ha, "pawsistant", "log_event", {
+            "dog": "Buddy",
+            "event_type": "pee",
+        })
+        state = poll_state(
+            ha,
+            "sensor.buddy_daily_pee_count",
+            lambda s: s not in ("unavailable", "unknown", None) and int(s) >= 1,
+            timeout=45,
+        )
+        assert int(state) == 1, f"Buddy's pee count should be 1, got: {state}"
+
     def test_testdog_poop_does_not_affect_buddy_poop(self, ha):
         """Log a poop for Testdog and verify Buddy's poop count stays at 0."""
         call_service(ha, "pawsistant", "log_event", {
             "dog": "Testdog",
             "event_type": "poop",
         })
-        # Give coordinator time to refresh
         time.sleep(3)
-        buddy_poop = get_state(ha, "sensor.buddy_daily_poop_count")
-        # Buddy should have no poop events — state is 0 or unknown
-        if buddy_poop is not None and buddy_poop["state"] not in ("unknown", "unavailable"):
-            assert int(buddy_poop["state"]) == 0, (
-                f"Buddy's poop count should be 0 after Testdog poop, got: {buddy_poop['state']}"
-            )
+        state = get_state(ha, "sensor.buddy_daily_poop_count")
+        assert state is not None
+        assert int(state["state"]) == 0, f"Buddy's poop count should be 0, got: {state['state']}"
 
     def test_remove_buddy(self, ha):
         """Clean up: remove Buddy."""
         call_service(ha, "pawsistant", "remove_dog", {
             "dog": "Buddy",
         })
-        # Allow HA to process the removal
         time.sleep(5)
 
 
