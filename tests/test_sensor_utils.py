@@ -40,7 +40,7 @@ sys.meta_path.insert(0, _HAModuleFinder)
 
 # Pre-populate critical HA mock attributes
 import homeassistant.util.dt as ha_dt
-ha_dt.now = lambda: __import__('datetime').datetime.now(__import__('datetime').timezone.utc)
+ha_dt.now = lambda tz=None: __import__('datetime').datetime.now(__import__('datetime').timezone.utc)
 ha_dt.DEFAULT_TIME_ZONE = zoneinfo.ZoneInfo('America/Los_Angeles')
 
 import homeassistant.components.sensor as ha_sensor
