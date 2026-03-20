@@ -1,6 +1,6 @@
 [project]
-name = "ha-doglog"
-version = "0.1.0"
+name = "pawsistant"
+version = "2.4.0"
 requires-python = ">=3.12"
 
 [project.optional-dependencies]

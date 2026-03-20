@@ -17,7 +17,7 @@ def make_event(event_type: str, timestamp: datetime) -> dict:
         "id": "test-id",
         "event_type": event_type,
         "timestamp": timestamp.isoformat(),
-        "pet_id": "dog-1",
+        "dog_id": "dog-1",
     }
 
 

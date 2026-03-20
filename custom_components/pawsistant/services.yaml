@@ -108,8 +108,8 @@ remove_dog:
 list_events:
   name: List Events
   description: >
-    Query events for a dog and fire a `pawsistant_events` HA event containing
-    the results. Use this in automations to inspect recent activity.
+    Query events for a dog and return the results via service response
+    (`response_variable`). Use this in automations to inspect recent activity.
   fields:
     dog:
       name: Dog
