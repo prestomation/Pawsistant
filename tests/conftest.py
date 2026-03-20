@@ -1,1 +1,1 @@
-"""Fixtures for DogLog tests."""
+"""Fixtures for Pawsistant tests."""

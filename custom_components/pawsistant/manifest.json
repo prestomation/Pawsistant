@@ -2,7 +2,7 @@
   "domain": "pawsistant",
   "name": "Pawsistant",
   "codeowners": [
-    "@ptamkin"
+    "@prestomation"
   ],
   "config_flow": true,
   "dependencies": [

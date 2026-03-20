@@ -19,7 +19,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install test dependencies
-        run: pip install pytest requests
+        run: pip install pytest pytest-timeout requests
 
       - name: Start Home Assistant
         working-directory: tests/integration

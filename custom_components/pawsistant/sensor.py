@@ -15,7 +15,7 @@ automations continue to work:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -367,7 +367,6 @@ class PawsistantWeightSensor(_PawsistantSensorBase):
     ) -> None:
         """Initialise the sensor."""
         super().__init__(coordinator, dog_id, dog_name)
-        slug = _slug(dog_name)
         self._attr_unique_id = f"pawsistant_{dog_id}_weight"
         self._attr_name = "Weight"
 
@@ -401,7 +400,6 @@ class PawsistantDaysSinceMedicineSensor(_PawsistantSensorBase):
     ) -> None:
         """Initialise the sensor."""
         super().__init__(coordinator, dog_id, dog_name)
-        slug = _slug(dog_name)
         self._attr_unique_id = f"pawsistant_{dog_id}_days_since_medicine"
         self._attr_name = "Days Since Medicine"
 
@@ -442,13 +440,11 @@ class PawsistantRecentTimelineSensor(_PawsistantSensorBase):
         dog_name: str,
     ) -> None:
         super().__init__(coordinator, dog_id, dog_name)
-        slug = _slug(dog_name)
         self._attr_unique_id = f"pawsistant_{dog_id}_recent_timeline"
         self._attr_name = "Recent Timeline"
 
     def _recent_events(self) -> list[dict[str, Any]]:
         """Return events from the last 24 hours, sorted newest-first."""
-        from datetime import timedelta
         cutoff = dt_util.now() - timedelta(hours=24)
         result = []
         for event in self._dog_events():

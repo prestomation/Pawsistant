@@ -25,7 +25,7 @@
 - Events are stored as plain dicts with keys: `id`, `event_type`, `timestamp`, `note`, `value`, `dog_id`
 - Entity unique IDs are anchored to `dog_id` (survives renames)
 - Use HA CSS variables in card styling (dark mode compat)
-- Escape all user content before innerHTML injection (`_escape()` helper)
+- Escape all user content before innerHTML injection (`_escapeHTML()` helper)
 
 ## CI
 

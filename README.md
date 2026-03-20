@@ -5,7 +5,7 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![HACS Validation](https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml/badge.svg)](https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml)
 [![License](https://img.shields.io/github/license/prestomation/Pawsistant)](LICENSE)
-[![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-blue.svg)](https://www.home-assistant.io/)
+[![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.4%2B-blue.svg)](https://www.home-assistant.io/)
 
 A local-only dog activity tracker for Home Assistant. Log walks, bathroom breaks, meals, medications, weight, and more — all stored privately in your HA instance with no cloud dependency.
 
