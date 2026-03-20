@@ -11,6 +11,16 @@ A local-only dog activity tracker for Home Assistant. Log walks, bathroom breaks
 
 ---
 
+## Screenshots
+
+<p align="center">
+  <img src="https://community-assets.home-assistant.io/original/4X/c/2/d/c2da3490e52f485712c07f1ecc7aa4d49cb9647e.jpeg" width="300" alt="Pawsistant Card — Quick-log buttons and timeline" />
+  &nbsp;&nbsp;
+  <img src="https://community-assets.home-assistant.io/original/4X/a/c/5/ac5da266ad6e6b56d3ba93aa4a55648bc5772deb.jpeg" width="300" alt="Pawsistant Card — Backdate and weight logging" />
+</p>
+
+---
+
 ## Features
 
 - **Local storage only** — all data stored in HA's `.storage` directory, no cloud accounts or tokens required
