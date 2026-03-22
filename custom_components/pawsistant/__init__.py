@@ -314,7 +314,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.debug(
             "Logged %s event for '%s' (id=%s)", event_type, dog_name, event["id"]
         )
-        await coord.async_request_refresh()
+        await coord.async_refresh()
 
     hass.services.async_register(
         DOMAIN, "log_event", handle_log_event, schema=LOG_EVENT_SCHEMA
@@ -327,7 +327,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         deleted = await store.delete_event(event_id)
         if deleted:
             _LOGGER.debug("Deleted event %s", event_id)
-            await coord.async_request_refresh()
+            await coord.async_refresh()
         else:
             _LOGGER.warning(
                 "pawsistant.delete_event: event id '%s' not found", event_id
@@ -359,7 +359,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if entries:
             await hass.config_entries.async_reload(entries[0].entry_id)
         else:
-            await coord.async_request_refresh()
+            await coord.async_refresh()
 
     hass.services.async_register(
         DOMAIN, "add_dog", handle_add_dog, schema=ADD_DOG_SCHEMA
@@ -403,7 +403,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         await store.remove_dog(dog_id)
         _LOGGER.info("Removed dog '%s' via service", dog_name)
-        await coord.async_request_refresh()
+        await coord.async_refresh()
 
     hass.services.async_register(
         DOMAIN, "remove_dog", handle_remove_dog, schema=REMOVE_DOG_SCHEMA
@@ -463,7 +463,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         count = await store.import_events(raw_events)
         _LOGGER.info("import_events: imported %d new events", count)
         if count > 0:
-            await coord.async_request_refresh()
+            await coord.async_refresh()
 
     hass.services.async_register(
         DOMAIN, "import_events", handle_import_events, schema=IMPORT_EVENTS_SCHEMA
