@@ -9,6 +9,9 @@ homeassistant:
 # Enable the REST API
 api:
 
+# Enable frontend (required for Lovelace resources API)
+frontend:
+
 # Minimal logging
 logger:
   default: info
