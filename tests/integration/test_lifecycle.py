@@ -348,6 +348,62 @@ class TestBackdateEvent:
         )
 
 
+def _get_lovelace_resources(token: str) -> list[dict]:
+    """Fetch Lovelace resources via the WebSocket API.
+
+    The Lovelace resources endpoint is a WebSocket command (``lovelace/resources``),
+    not a REST endpoint, so we open a short-lived WebSocket connection to query it.
+    """
+    import asyncio
+    import json
+    import websockets  # type: ignore[import]
+
+    ws_url = HA_URL.replace("http://", "ws://") + "/api/websocket"
+
+    async def _fetch() -> list[dict]:
+        async with websockets.connect(ws_url) as ws:
+            # Receive the auth_required greeting
+            msg = json.loads(await ws.recv())
+            assert msg["type"] == "auth_required", f"Unexpected greeting: {msg}"
+
+            # Authenticate
+            await ws.send(json.dumps({"type": "auth", "access_token": token}))
+            msg = json.loads(await ws.recv())
+            assert msg["type"] == "auth_ok", f"Auth failed: {msg}"
+
+            # Request lovelace resources
+            await ws.send(json.dumps({"id": 1, "type": "lovelace/resources"}))
+            msg = json.loads(await ws.recv())
+            assert msg["type"] == "result", f"Expected result, got: {msg}"
+            assert msg["success"], f"lovelace/resources command failed: {msg}"
+            return msg["result"]
+
+    return asyncio.run(_fetch())
+
+
+class TestCardRegistration:
+    """Verify the Pawsistant card is auto-registered as a Lovelace resource after install."""
+
+    def test_card_resource_registered(self, ha, ha_token):
+        """Card JS must appear in Lovelace resources after install — red before fix, green after."""
+        resources = _get_lovelace_resources(ha_token)
+        urls = [res.get("url", "") for res in resources]
+        matching = [u for u in urls if "/pawsistant/pawsistant-card.js" in u]
+        assert matching, (
+            f"Pawsistant card not found in Lovelace resources. "
+            f"Registered resources: {urls}"
+        )
+
+    def test_card_js_is_served(self, ha):
+        """The card JS file must be fetchable at the registered URL."""
+        r = ha.get(f"{HA_URL}/pawsistant/pawsistant-card.js")
+        assert r.status_code == 200, (
+            f"Card JS not served at /pawsistant/pawsistant-card.js "
+            f"(status: {r.status_code})"
+        )
+        assert len(r.text) > 100, "Card JS appears to be empty"
+
+
 class TestFreshInstallNoMigration:
     """Verify no doglog-related migration errors appear in HA logs."""
 

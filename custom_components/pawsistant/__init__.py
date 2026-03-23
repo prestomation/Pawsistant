@@ -25,7 +25,8 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import CoreState, HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.helpers import config_validation as cv
 
@@ -119,11 +120,22 @@ class PawsistantCardRegistration:
         return None
 
     async def async_register(self) -> None:
-        """Register static path and add to Lovelace resources."""
+        """Register static path and add to Lovelace resources.
+
+        When HA is already running (e.g. on reload) this registers everything
+        immediately.  During initial startup use the split-registration pattern
+        in async_setup_entry instead.
+        """
         await self._register_static_path()
         if self._resource_mode == "storage":
             await self._ensure_resources_loaded()
             await self._register_lovelace_resource()
+        else:
+            _LOGGER.info(
+                "Pawsistant card served at %s/pawsistant-card.js — add it to"
+                " Lovelace resources manually (YAML mode detected).",
+                URL_BASE,
+            )
 
     async def _register_static_path(self) -> None:
         frontend_dir = Path(__file__).parent / "frontend"
@@ -180,9 +192,36 @@ class PawsistantCardRegistration:
 
 
 async def _ensure_frontend_registered(hass: HomeAssistant) -> None:
-    """Register frontend resources directly (no deferral)."""
+    """Register static path immediately; defer Lovelace resource if needed.
+
+    The static path must be registered early (HTTP layer).  Lovelace resource
+    registration requires the lovelace component to be loaded, which may not
+    have happened yet during initial HA startup.  When HA is already running
+    (e.g. config-entry reload) we register everything at once via async_register.
+    """
     reg = PawsistantCardRegistration(hass)
-    await reg.async_register()
+
+    if hass.state == CoreState.running:
+        # HA already up — register everything immediately (covers reloads)
+        await reg.async_register()
+        return
+
+    # Step 1: register static path right away (HTTP needs it)
+    await reg._register_static_path()
+
+    # Step 2: defer Lovelace resource registration until HA has fully started
+    async def _register_lovelace(event=None) -> None:
+        if reg._resource_mode == "storage":
+            await reg._ensure_resources_loaded()
+            await reg._register_lovelace_resource()
+        else:
+            _LOGGER.info(
+                "Pawsistant card served at %s/pawsistant-card.js — add it to"
+                " Lovelace resources manually (YAML mode detected).",
+                URL_BASE,
+            )
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _register_lovelace)
 
 
 # ---------------------------------------------------------------------------
