@@ -2,6 +2,16 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.5.0] - 2026-03-23
+
+### Fixed
+- Pawsistant card now auto-registers correctly on fresh install. Previously, a startup race condition caused the Lovelace resource registration to be silently skipped (the Lovelace component hadn't loaded yet when the integration set up). Registration is now deferred until `EVENT_HOMEASSISTANT_STARTED`, so the card appears in the dashboard editor automatically after restart.
+- YAML-mode Lovelace users now receive a clear log message with the URL to add manually.
+
+### Added
+- Integration test: verifies the card resource is registered in Lovelace after install
+- Unit tests: 7 tests covering deferred/immediate registration paths and YAML-mode logging
+
 ## [2.4.0] - 2026-03-19
 
 ### Fixed
