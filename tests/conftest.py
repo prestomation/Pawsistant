@@ -15,7 +15,17 @@ def mock_network() -> Generator[None, None, None]:
     ``homeassistant.components.network.util.ifaddr``.  We patch the canonical
     ``ifaddr.get_adapters`` directly so the tests work across all supported HA
     versions.
+
+    When ``ifaddr`` is not installed (e.g. plain integration tests that use
+    requests against a real Docker HA instance), we yield without mocking.
     """
+    try:
+        import ifaddr  # noqa: F401 — presence check only
+    except ImportError:
+        # Not installed in this environment; skip the mock entirely.
+        yield
+        return
+
     adapters = [
         Mock(
             nice_name="eth0",
