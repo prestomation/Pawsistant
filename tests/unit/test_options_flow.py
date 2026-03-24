@@ -118,8 +118,8 @@ def _inject_stubs() -> None:
     sys.modules["homeassistant.config_entries"] = ce_mod
 
     # homeassistant.helpers / homeassistant.helpers.config_validation
-    # Guard: skip if real HA loaded these (they're not traversed via root module
-    # attributes, but replacing helpers could confuse other modules).
+    # Guard: skip if real HA loaded these (they may be traversed by autouse
+    # fixtures via attribute paths on the real homeassistant module).
     if "homeassistant.helpers" not in sys.modules:
         helpers_mod = types.ModuleType("homeassistant.helpers")
         sys.modules["homeassistant.helpers"] = helpers_mod
@@ -128,34 +128,40 @@ def _inject_stubs() -> None:
         cv_mod.string = str
         sys.modules["homeassistant.helpers.config_validation"] = cv_mod
 
-    # voluptuous — minimal stubs that preserve keyword args
-    if "voluptuous" not in sys.modules:
-        vol_mod = types.ModuleType("voluptuous")
-        vol_mod.Schema = lambda s, **kw: s
-        vol_mod.Required = lambda k, **kw: k
-        vol_mod.Optional = lambda k, **kw: k
-        vol_mod.In = lambda v: v
-        vol_mod.All = lambda *a: a[0]
-        vol_mod.Range = lambda **kw: None
-        vol_mod.Coerce = lambda t: t
-        sys.modules["voluptuous"] = vol_mod
+    # voluptuous — always stub.  config_flow.py uses vol.Required/Optional with
+    # default= kwargs and vol.Schema/In.  The stub provides minimal behaviour
+    # the option-flow tests rely on.  No other test in the suite imports
+    # voluptuous directly, so always replacing it here is safe.
+    vol_mod = types.ModuleType("voluptuous")
+    vol_mod.Schema = lambda s, **kw: s
+    vol_mod.Required = lambda k, **kw: k
+    vol_mod.Optional = lambda k, **kw: k
+    vol_mod.In = lambda v: v
+    vol_mod.All = lambda *a: a[0]
+    vol_mod.Range = lambda **kw: None
+    vol_mod.Coerce = lambda t: t
+    sys.modules["voluptuous"] = vol_mod
 
-    # Stub for custom_components.pawsistant.const (imported by config_flow)
-    if "custom_components.pawsistant.const" not in sys.modules:
-        _const = types.ModuleType("custom_components.pawsistant.const")
-        _const.DOMAIN = "pawsistant"
-        sys.modules["custom_components.pawsistant.const"] = _const
+    # custom_components.pawsistant.const — always stub (only config_flow uses it)
+    _const = types.ModuleType("custom_components.pawsistant.const")
+    _const.DOMAIN = "pawsistant"
+    sys.modules["custom_components.pawsistant.const"] = _const
 
-    # Stub for the package itself — prevents __init__.py from being executed
-    if "custom_components.pawsistant" not in sys.modules:
-        _pkg = types.ModuleType("custom_components.pawsistant")
-        _pkg.__path__ = []
-        _pkg.__package__ = "custom_components.pawsistant"
-        sys.modules["custom_components.pawsistant"] = _pkg
+    # custom_components.pawsistant — always stub to prevent __init__.py from
+    # being executed when config_flow.py is loaded via importlib.
+    # Replacing an already-loaded real package is safe here because other tests
+    # that imported from the real package hold direct object references (not
+    # sys.modules lookups) to their imported names.  The monkeypatch targets in
+    # test_sensor_utils.py traverse sensor.dt_util (a direct reference to the
+    # real homeassistant.util.dt module), so those patches still work correctly.
+    _pkg = types.ModuleType("custom_components.pawsistant")
+    _pkg.__path__ = []
+    _pkg.__package__ = "custom_components.pawsistant"
+    sys.modules["custom_components.pawsistant"] = _pkg
 
-    if "custom_components" not in sys.modules:
-        _cc = types.ModuleType("custom_components")
-        sys.modules["custom_components"] = _cc
+    _cc = types.ModuleType("custom_components")
+    _cc.pawsistant = _pkg
+    sys.modules["custom_components"] = _cc
 
 
 _inject_stubs()
