@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one dog activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
- * Version: 2.6.0
+ * Version: 2.7.0
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -39,20 +39,56 @@ function getMeta(type) {
 
 /* ── Utilities ──────────────────────────────────────────────────────────── */
 
-/** U13 — slugify handles non-ASCII names */
+/** U13 — slugify handles non-ASCII names (kept for fallback / YAML power users) */
 function slugify(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
-function deriveEntities(dog) {
-  const s = slugify(dog);
-  return {
-    timeline:         `sensor.${s}_recent_timeline`,
-    pee_count:        `sensor.${s}_daily_pee_count`,
-    poop_count:       `sensor.${s}_poop_count_today`,
-    medicine_days:    `sensor.${s}_days_since_medicine`,
-    weight:           `sensor.${s}_weight`,
+/**
+ * Resolve entity IDs for a dog by scanning hass.states for sensors with
+ * `attributes.dog === dogName` (case-insensitive) and matching by friendly_name
+ * suffix. This is rename-safe: works even if the user renamed entity IDs in HA.
+ *
+ * Falls back to slug-derived IDs for any role not found via attribute scan.
+ */
+function findEntitiesByDog(hass, dogName) {
+  const slug = slugify(dogName);
+  const fallback = {
+    timeline:      `sensor.${slug}_recent_timeline`,
+    pee_count:     `sensor.${slug}_daily_pee_count`,
+    poop_count:    `sensor.${slug}_poop_count_today`,
+    medicine_days: `sensor.${slug}_days_since_medicine`,
+    weight:        `sensor.${slug}_weight`,
   };
+
+  if (!hass || !dogName) return fallback;
+
+  const nameLower = dogName.toLowerCase();
+  const result = { ...fallback };
+
+  // Role → friendly_name suffix (matches HA's _attr_name / entity_description.name)
+  const ROLE_SUFFIXES = {
+    timeline:      'recent timeline',
+    pee_count:     'daily pee count',
+    poop_count:    'poop count today',
+    medicine_days: 'days since medicine',
+    weight:        'weight',
+  };
+
+  for (const [entityId, state] of Object.entries(hass.states)) {
+    const attrDog = state.attributes && state.attributes.dog;
+    if (!attrDog || attrDog.toLowerCase() !== nameLower) continue;
+
+    const friendlyName = (state.attributes.friendly_name || '').toLowerCase();
+    for (const [role, suffix] of Object.entries(ROLE_SUFFIXES)) {
+      if (friendlyName.endsWith(suffix)) {
+        result[role] = entityId;
+        break;
+      }
+    }
+  }
+
+  return result;
 }
 
 function stateNum(hass, entity) {
@@ -75,7 +111,7 @@ function stateAttr(hass, entity, attr) {
 
 /** Simple hash of the relevant state for render diffing */
 function buildHash(hass, cfg) {
-  const entities = deriveEntities(cfg.dog || '');
+  const entities = findEntitiesByDog(hass, cfg.dog || '');
   const tEnt = cfg.timeline_entity || entities.timeline;
   const peeEnt = cfg.pee_count_entity || entities.pee_count;
   const poopEnt = cfg.poop_count_entity || entities.poop_count;
@@ -114,8 +150,24 @@ class PawsistantCardEditor extends HTMLElement {
   get _hass() { return this.__hass; }
   set hass(h) {
     this.__hass = h;
-    // Re-render so the dog dropdown is populated once hass is available.
-    this._render();
+    // Re-render only if the available dog list changed (avoids thrashing).
+    const names = this._dogNamesFromHass(h);
+    const key = names.join(',');
+    if (key !== this._lastDogNamesKey) {
+      this._lastDogNamesKey = key;
+      this._render();
+    }
+  }
+
+  /** Extract unique sorted dog names from hass.states via the `dog` attribute. */
+  _dogNamesFromHass(h) {
+    if (!h) return [];
+    const seen = new Set();
+    for (const state of Object.values(h.states || {})) {
+      const dog = state.attributes && state.attributes.dog;
+      if (dog) seen.add(dog);
+    }
+    return [...seen].sort();
   }
 
   _render() {
@@ -126,16 +178,9 @@ class PawsistantCardEditor extends HTMLElement {
     const weightUnit = cfg.weight_unit || 'lbs';
     const buttonsPerRow = cfg.buttons_per_row != null ? String(cfg.buttons_per_row) : '';
 
-    // Discover registered dog names from hass state entities.
-    // Each registered dog has a sensor.<slug>_recent_timeline entity with a
-    // `dog` attribute containing the canonical display name.
-    const hass = this.__hass;
-    const dogNames = hass
-      ? Object.entries(hass.states || {})
-          .filter(([id]) => /^sensor\.[a-z0-9_]+_recent_timeline$/.test(id))
-          .map(([, s]) => s.attributes && s.attributes.dog)
-          .filter(Boolean)
-      : [];
+    // Discover registered dog names from any sensor's `dog` attribute.
+    // This is rename-safe: doesn't depend on entity ID patterns.
+    const dogNames = this._dogNamesFromHass(this.__hass);
 
     // Build checkbox rows for every known event type
     const allTypes = Object.keys(EVENT_META);
@@ -373,7 +418,9 @@ class PawsistantCard extends HTMLElement {
 
   /* ── Entity resolution ─────────────────────────────────────────────── */
   _entities() {
-    const auto = deriveEntities(this._config.dog);
+    // findEntitiesByDog scans hass.states by attributes.dog — rename-safe.
+    // Manual overrides in config (set via YAML) still win.
+    const auto = findEntitiesByDog(this._hass, this._config.dog);
     return {
       timeline:      this._config.timeline_entity      || auto.timeline,
       pee_count:     this._config.pee_count_entity     || auto.pee_count,

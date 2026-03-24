@@ -274,6 +274,12 @@ class _PawsistantSensorBase(CoordinatorEntity[PawsistantCoordinator], SensorEnti
             return []
         return self.coordinator.data.get(self._dog_id, [])
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the dog name on every sensor so the card can resolve entities
+        by dog name regardless of entity ID slug (rename-safe)."""
+        return {"dog": self._dog_name}
+
 
 # ---------------------------------------------------------------------------
 # Concrete sensor classes
@@ -315,12 +321,13 @@ class PawsistantMostRecentSensor(_PawsistantSensorBase):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return event_id and optional note/value as extra attributes."""
+        attrs: dict[str, Any] = {**super().extra_state_attributes}
         event = _get_most_recent_event(
             self._dog_events(), self.entity_description.event_type
         )
         if event is None:
-            return {}
-        attrs: dict[str, Any] = {"event_id": event.get("id", "")}
+            return attrs
+        attrs["event_id"] = event.get("id", "")
         if event.get("note"):
             attrs["note"] = event["note"]
         if event.get("value") is not None:
@@ -411,10 +418,10 @@ class PawsistantDaysSinceMedicineSensor(_PawsistantSensorBase):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the last medicine event note as an attribute."""
+        attrs: dict[str, Any] = {**super().extra_state_attributes}
         event = _get_most_recent_event(self._dog_events(), "medicine")
         if event is None:
-            return {}
-        attrs: dict[str, Any] = {}
+            return attrs
         if event.get("note"):
             attrs["medicine_name"] = event["note"]
         if event.get("id"):
@@ -477,4 +484,8 @@ class PawsistantRecentTimelineSensor(_PawsistantSensorBase):
             })
         # Also expose the very last event ID for undo
         last_event_id = events[0].get("id", "") if events else ""
-        return {"events": timeline, "last_event_id": last_event_id}
+        return {
+            **super().extra_state_attributes,
+            "events": timeline,
+            "last_event_id": last_event_id,
+        }

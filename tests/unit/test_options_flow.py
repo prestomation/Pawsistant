@@ -38,9 +38,12 @@ def _inject_stubs() -> None:
     don't clobber the real modules and break other test files that rely on
     monkeypatching real HA internals (e.g. test_sensor_utils.py).
     """
-    if "homeassistant" in sys.modules and hasattr(sys.modules["homeassistant"], "util"):
-        # Real HA is loaded — stubs not needed; config_flow will be imported
-        # normally via the real HA stack.
+    if "homeassistant" in sys.modules and getattr(sys.modules["homeassistant"], "__file__", None):
+        # Real HA package is already loaded (has a real __file__).
+        # Stubs not needed; config_flow will import from the real HA stack.
+        # Importantly, we must NOT clobber sys.modules["homeassistant"] or
+        # other modules that other test files monkeypatch (e.g. test_sensor_utils
+        # patches homeassistant.util.dt which breaks if we replace the module).
         return
 
     # homeassistant root
