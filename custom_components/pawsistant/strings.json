@@ -22,8 +22,33 @@
     "step": {
       "init": {
         "title": "Manage dogs",
-        "description": "Current dogs: {current_dogs}\n\n{manage_dogs_tip}"
+        "description": "Current dogs:\n{current_dogs}",
+        "data": {
+          "action": "What would you like to do?"
+        }
+      },
+      "add_dog": {
+        "title": "Add a dog",
+        "description": "Enter the details for your new dog.",
+        "data": {
+          "dog_name": "Dog name",
+          "breed": "Breed (optional)",
+          "birth_date": "Birth date (optional, YYYY-MM-DD)"
+        }
+      },
+      "remove_dog": {
+        "title": "Remove a dog",
+        "description": "⚠️ This will permanently delete all events for this dog.",
+        "data": {
+          "dog_name": "Select a dog to remove"
+        }
       }
+    },
+    "error": {
+      "name_required": "Dog name is required.",
+      "name_already_exists": "A dog with this name is already registered.",
+      "dog_not_found": "Dog not found. Please refresh and try again.",
+      "store_unavailable": "Integration storage is unavailable. Please reload the integration and try again."
     }
   }
 }

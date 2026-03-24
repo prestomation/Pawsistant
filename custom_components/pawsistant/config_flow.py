@@ -7,7 +7,7 @@ Flow:
   1. async_step_user  — Enter the first dog's name (required) plus optional
                         breed and birth_date.  Creates the config entry titled
                         "Pawsistant".
-  2. Options flow     — Add or remove dogs after initial setup.
+  2. Options flow     — Add or remove dogs after initial setup (multi-step).
 """
 
 from __future__ import annotations
@@ -36,6 +36,11 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Optional("birth_date", default=""): str,
     }
 )
+
+# Action constants for the init step selector
+ACTION_ADD_DOG = "add_dog"
+ACTION_REMOVE_DOG = "remove_dog"
+ACTION_DONE = "done"
 
 
 class PawsistantConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -89,39 +94,205 @@ class PawsistantConfigFlow(ConfigFlow, domain=DOMAIN):
 class PawsistantOptionsFlow(OptionsFlow):
     """Options flow for Pawsistant.
 
-    Shows currently registered dogs and instructions for managing them.
-    Actual dog CRUD is performed via service calls (add_dog / remove_dog).
+    Multi-step flow:
+      init       — Overview of current dogs + action selector
+      add_dog    — Form to add a new dog
+      remove_dog — Selector to remove an existing dog
     """
+
+    def _get_store_and_coord(self):
+        """Return (store, coordinator) from the config entry's runtime_data."""
+        coord = getattr(self.config_entry, "runtime_data", None)
+        if coord is None or not hasattr(coord, "store"):
+            return None, None
+        return coord.store, coord
+
+    def _get_dogs(self) -> dict:
+        """Return dogs dict from store, or empty dict on error."""
+        store, _ = self._get_store_and_coord()
+        if store is None:
+            return {}
+        try:
+            return store.get_dogs() or {}
+        except Exception:  # noqa: BLE001
+            return {}
+
+    # ------------------------------------------------------------------
+    # Step 1: init — overview + action selector
+    # ------------------------------------------------------------------
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Show the options form with current dogs list."""
+        """Hub step: show dog list and route to add/remove/done."""
+        dogs = self._get_dogs()
+
+        # If no dogs exist, go straight to add_dog
+        if not dogs:
+            return await self.async_step_add_dog()
+
         if user_input is not None:
+            action = user_input.get("action")
+            if action == ACTION_ADD_DOG:
+                return await self.async_step_add_dog()
+            if action == ACTION_REMOVE_DOG:
+                return await self.async_step_remove_dog()
+            # ACTION_DONE or anything else — close the dialog
             return self.async_create_entry(title="", data={})
 
-        # Get current dogs from the coordinator if available
-        dogs_info = ""
-        try:
-            coord = getattr(self.config_entry, "runtime_data", None)
-            if coord is not None and hasattr(coord, "store"):
-                dogs = coord.store.get_dogs()
-                if dogs:
-                    dog_names = [d["name"] for d in dogs.values()]
-                    dogs_info = ", ".join(dog_names)
-                else:
-                    dogs_info = "No dogs registered yet"
-        except Exception:  # noqa: BLE001
-            dogs_info = "Unable to load dogs"
+        # Build a human-readable summary of current dogs
+        dog_lines = []
+        for dog in dogs.values():
+            line = dog.get("name", "?")
+            parts = []
+            if dog.get("breed"):
+                parts.append(dog["breed"])
+            if dog.get("birth_date"):
+                parts.append(dog["birth_date"])
+            if parts:
+                line += f" ({', '.join(parts)})"
+            dog_lines.append(line)
+        dogs_summary = "\n".join(f"• {l}" for l in dog_lines)
+
+        action_options = {
+            ACTION_ADD_DOG: "Add a dog",
+            ACTION_REMOVE_DOG: "Remove a dog",
+            ACTION_DONE: "Done",
+        }
 
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema({}),
-            description_placeholders={
-                "current_dogs": dogs_info,
-                "manage_dogs_tip": (
-                    "Use the pawsistant.add_dog and pawsistant.remove_dog services "
-                    "to manage your dogs."
-                ),
-            },
+            data_schema=vol.Schema(
+                {
+                    vol.Required("action", default=ACTION_DONE): vol.In(action_options),
+                }
+            ),
+            description_placeholders={"current_dogs": dogs_summary},
+        )
+
+    # ------------------------------------------------------------------
+    # Step 2: add_dog — form with name / breed / birth_date
+    # ------------------------------------------------------------------
+
+    async def async_step_add_dog(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle adding a new dog."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            dog_name = user_input.get("dog_name", "").strip()
+
+            if not dog_name:
+                errors["dog_name"] = "name_required"
+            else:
+                # Case-insensitive duplicate check
+                dogs = self._get_dogs()
+                existing_names = [d.get("name", "").lower() for d in dogs.values()]
+                if dog_name.lower() in existing_names:
+                    errors["dog_name"] = "name_already_exists"
+
+            if not errors:
+                store, _ = self._get_store_and_coord()
+                if store is None:
+                    # Store unavailable — surface as a generic error rather than
+                    # silently succeeding without persisting data.
+                    _LOGGER.error(
+                        "Options flow: store unavailable when adding dog '%s'",
+                        dog_name,
+                    )
+                    errors["dog_name"] = "store_unavailable"
+                else:
+                    try:
+                        await store.add_dog(
+                            name=dog_name,
+                            breed=user_input.get("breed", ""),
+                            birth_date=user_input.get("birth_date", ""),
+                        )
+                        _LOGGER.info(
+                            "Options flow: added dog '%s'", dog_name
+                        )
+                    except ValueError as err:
+                        _LOGGER.error(
+                            "Options flow add_dog error: %s", err
+                        )
+                        errors["dog_name"] = "name_already_exists"
+
+                if not errors:
+                    # Reload integration so new sensor entities are created
+                    self.hass.async_create_task(
+                        self.hass.config_entries.async_reload(
+                            self.config_entry.entry_id
+                        )
+                    )
+                    return self.async_create_entry(title="", data={})
+
+        return self.async_show_form(
+            step_id="add_dog",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("dog_name"): str,
+                    vol.Optional("breed", default=""): str,
+                    vol.Optional("birth_date", default=""): str,
+                }
+            ),
+            errors=errors,
+        )
+
+    # ------------------------------------------------------------------
+    # Step 3: remove_dog — dropdown of current dogs with warning
+    # ------------------------------------------------------------------
+
+    async def async_step_remove_dog(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle removing an existing dog."""
+        dogs = self._get_dogs()
+
+        # If somehow no dogs exist, bail back to init
+        if not dogs:
+            return await self.async_step_init()
+
+        dog_name_options = {
+            dog.get("name", dog_id): dog.get("name", dog_id)
+            for dog_id, dog in dogs.items()
+        }
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            selected_name = user_input.get("dog_name")
+            store, coord = self._get_store_and_coord()
+
+            if store is not None and selected_name:
+                result = store.get_dog_by_name(selected_name)
+                if result is None:
+                    errors["dog_name"] = "dog_not_found"
+                else:
+                    dog_id, _ = result
+                    await store.remove_dog(dog_id)
+                    _LOGGER.info(
+                        "Options flow: removed dog '%s'", selected_name
+                    )
+                    if coord is not None:
+                        await coord.async_refresh()
+                    return self.async_create_entry(title="", data={})
+            else:
+                errors["dog_name"] = "dog_not_found"
+
+        if not dog_name_options:
+            return await self.async_step_init()
+
+        first_dog_name = next(iter(dog_name_options))
+
+        return self.async_show_form(
+            step_id="remove_dog",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("dog_name", default=first_dog_name): vol.In(
+                        dog_name_options
+                    ),
+                }
+            ),
+            errors=errors,
         )

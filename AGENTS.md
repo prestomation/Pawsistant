@@ -27,6 +27,19 @@
 - Use HA CSS variables in card styling (dark mode compat)
 - Escape all user content before innerHTML injection (`_escapeHTML()` helper)
 
+## Card JS — Entity Resolution Rule
+
+**Never build entity IDs by slugifying the dog name.** Users can rename entities in HA and slugified lookups will silently break.
+
+All Pawsistant sensors expose `attributes.dog` (the canonical dog name string). The card must resolve entities by:
+1. Scanning `hass.states` for entities where `state.attributes.dog === dogName` (case-insensitive)
+2. Identifying sensor role by `friendly_name` suffix (e.g. "Recent Timeline", "Daily Pee Count")
+3. Allowing explicit `*_entity` config overrides to win (for YAML power users)
+
+The helper for this is `findEntitiesByDog(hass, dogName)` in `pawsistant-card.js`.
+
+When adding new sensors: always include `"dog": self._dog_name` in `extra_state_attributes`. This is the stable anchor the card relies on.
+
 ## CI
 
 - `.github/workflows/lint.yml` — compile check, pytest, hassfest
