@@ -480,9 +480,10 @@ class TestMissingRuntimeData:
     async def test_add_dog_handles_missing_store(self):
         flow, store, coord, hass = _make_flow(SAMPLE_DOGS)
         flow.config_entry.runtime_data = None
-        # With no store, get_dogs returns {} so name is unique, store.add_dog won't run
+        # With no store available, the flow should show an error rather than
+        # silently succeeding without persisting the new dog.
         result = await flow.async_step_add_dog(
             user_input={"dog_name": "NewDog", "breed": "", "birth_date": ""}
         )
-        # No store to add_dog, but no errors either → creates entry
-        assert result["type"] == "create_entry"
+        assert result["type"] == "form"
+        assert result["errors"].get("dog_name") == "store_unavailable"

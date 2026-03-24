@@ -47,7 +47,8 @@
     "error": {
       "name_required": "Dog name is required.",
       "name_already_exists": "A dog with this name is already registered.",
-      "dog_not_found": "Dog not found. Please refresh and try again."
+      "dog_not_found": "Dog not found. Please refresh and try again.",
+      "store_unavailable": "Integration storage is unavailable. Please reload the integration and try again."
     }
   }
 }

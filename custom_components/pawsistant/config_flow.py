@@ -194,7 +194,15 @@ class PawsistantOptionsFlow(OptionsFlow):
 
             if not errors:
                 store, _ = self._get_store_and_coord()
-                if store is not None:
+                if store is None:
+                    # Store unavailable — surface as a generic error rather than
+                    # silently succeeding without persisting data.
+                    _LOGGER.error(
+                        "Options flow: store unavailable when adding dog '%s'",
+                        dog_name,
+                    )
+                    errors["dog_name"] = "store_unavailable"
+                else:
                     try:
                         await store.add_dog(
                             name=dog_name,
