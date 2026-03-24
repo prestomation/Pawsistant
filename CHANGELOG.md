@@ -2,6 +2,18 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.6.0] - 2026-03-24
+
+### Added
+- **Dog management in UI**: Settings → Integrations → Pawsistant → Configure now lets you add and remove dogs directly, with a proper multi-step form. No more service calls required.
+- **Configurable button layout**: Choose which event type buttons appear on the card using checkboxes in the visual editor (all 15 types available). Set `buttons_per_row` (2–6) for a fixed grid layout instead of flex-wrap. Maximum 12 buttons.
+- **Rename-safe entity resolution**: The card now finds its sensors via `attributes.dog` and friendly name matching instead of slugifying the dog name. Renaming a sensor entity in HA no longer breaks the card.
+- Dog name is now a dropdown in the card editor, populated automatically from registered dogs.
+- Entity override fields removed from the card editor (still configurable via YAML for power users).
+
+### Fixed
+- Sensor `extra_state_attributes` now includes `dog` on all sensor types — used by the card for stable entity lookup.
+
 ## [2.5.0] - 2026-03-23
 
 ### Fixed
