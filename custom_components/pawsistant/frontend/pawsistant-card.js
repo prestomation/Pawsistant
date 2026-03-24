@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one dog activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
- * Version: 2.4.0
+ * Version: 2.5.0
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -118,13 +118,27 @@ class PawsistantCardEditor extends HTMLElement {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     const cfg = this._config;
     const esc = _escapeHTML;
-    const shownTypes = Array.isArray(cfg.shown_types) ? cfg.shown_types.join(', ') : '';
+    const currentShown = Array.isArray(cfg.shown_types) ? cfg.shown_types : DEFAULT_SHOWN_TYPES;
     const weightUnit = cfg.weight_unit || 'lbs';
+    const buttonsPerRow = cfg.buttons_per_row != null ? String(cfg.buttons_per_row) : '';
+
+    // Build checkbox rows for every known event type
+    const allTypes = Object.keys(EVENT_META);
+    const checkboxesHTML = allTypes.map(type => {
+      const meta = EVENT_META[type];
+      const checked = currentShown.includes(type) ? 'checked' : '';
+      return `
+        <label class="type-checkbox">
+          <input type="checkbox" name="shown_type_cb" value="${esc(type)}" ${checked} />
+          <span class="type-chip">${meta.emoji} ${esc(meta.label)}</span>
+        </label>`;
+    }).join('');
+
     this.shadowRoot.innerHTML = `
       <style>
-        .form { display: flex; flex-direction: column; gap: 12px; padding: 8px 0; }
-        label { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 2px; display: block; }
-        input, select {
+        .form { display: flex; flex-direction: column; gap: 14px; padding: 8px 0; }
+        .field-label { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 4px; display: block; font-weight: 500; }
+        input[type="text"], input[type="number"], select {
           width: 100%;
           box-sizing: border-box;
           padding: 8px 10px;
@@ -135,68 +149,143 @@ class PawsistantCardEditor extends HTMLElement {
           font-size: 14px;
         }
         input:focus, select:focus { outline: 2px solid var(--primary-color); border-color: transparent; }
-        .hint { font-size: 11px; color: var(--secondary-text-color); margin-top: 2px; }
+        .hint { font-size: 11px; color: var(--secondary-text-color); margin-top: 3px; }
+        /* Checkbox grid for event types */
+        .type-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .type-checkbox {
+          display: flex;
+          align-items: center;
+          gap: 0;
+          cursor: pointer;
+        }
+        .type-checkbox input[type="checkbox"] {
+          position: absolute;
+          opacity: 0;
+          width: 0;
+          height: 0;
+          pointer-events: none;
+        }
+        .type-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 5px 10px;
+          border-radius: 20px;
+          font-size: 13px;
+          border: 1px solid var(--divider-color);
+          background: var(--secondary-background-color, #f5f5f5);
+          color: var(--primary-text-color);
+          cursor: pointer;
+          transition: background 0.15s, border-color 0.15s, color 0.15s;
+          user-select: none;
+        }
+        .type-checkbox input:checked + .type-chip {
+          background: var(--primary-color, #2196f3);
+          border-color: var(--primary-color, #2196f3);
+          color: var(--text-primary-color, #fff);
+        }
+        .type-checkbox:focus-within .type-chip {
+          outline: 2px solid var(--primary-color, #2196f3);
+          outline-offset: 2px;
+        }
+        .max-hint {
+          font-size: 11px;
+          color: var(--secondary-text-color);
+          margin-top: 4px;
+        }
+        .max-hint.over { color: var(--error-color, #EF5350); }
       </style>
       <div class="form">
         <div>
-          <label for="ed-dog">Dog name *</label>
+          <label class="field-label" for="ed-dog">Dog name *</label>
           <input id="ed-dog" name="dog" value="${esc(cfg.dog || '')}" placeholder="Sharky" />
         </div>
         <div>
-          <label for="ed-weight-unit">Weight unit</label>
+          <label class="field-label" for="ed-weight-unit">Weight unit</label>
           <select id="ed-weight-unit" name="weight_unit">
             <option value="lbs" ${weightUnit === 'lbs' ? 'selected' : ''}>lbs</option>
             <option value="kg" ${weightUnit === 'kg' ? 'selected' : ''}>kg</option>
           </select>
         </div>
         <div>
-          <label for="ed-shown-types">Shown button types (comma-separated)</label>
-          <input id="ed-shown-types" name="shown_types_str" value="${esc(shownTypes)}" placeholder="poop, pee, medicine, sick, weight" />
-          <div class="hint">Available: poop, pee, medicine, sick, food, treat, walk, water, sleep, vaccine, training, weight, grooming, teeth_brushing</div>
+          <span class="field-label">Shown buttons (tap to toggle, max 12)</span>
+          <div class="type-grid" id="type-grid">
+            ${checkboxesHTML}
+          </div>
+          <div class="max-hint" id="max-hint">${currentShown.length}/12 selected</div>
         </div>
         <div>
-          <label for="ed-timeline">Timeline entity (auto-detected from dog name)</label>
+          <label class="field-label" for="ed-buttons-per-row">Buttons per row (2–6, leave blank for auto)</label>
+          <input id="ed-buttons-per-row" name="buttons_per_row" type="number" min="2" max="6" value="${esc(buttonsPerRow)}" placeholder="auto" />
+          <div class="hint">When set, buttons render in a CSS grid of N equal columns. When blank, flex-wrap is used.</div>
+        </div>
+        <div>
+          <label class="field-label" for="ed-timeline">Timeline entity (auto-detected from dog name)</label>
           <input id="ed-timeline" name="timeline_entity" value="${esc(cfg.timeline_entity || '')}" placeholder="sensor.sharky_recent_timeline" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
-          <label for="ed-pee">Pee count entity</label>
+          <label class="field-label" for="ed-pee">Pee count entity</label>
           <input id="ed-pee" name="pee_count_entity" value="${esc(cfg.pee_count_entity || '')}" placeholder="sensor.sharky_daily_pee_count" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
-          <label for="ed-poop">Poop count entity</label>
+          <label class="field-label" for="ed-poop">Poop count entity</label>
           <input id="ed-poop" name="poop_count_entity" value="${esc(cfg.poop_count_entity || '')}" placeholder="sensor.sharky_poop_count_today" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
-          <label for="ed-med">Days since medicine entity</label>
+          <label class="field-label" for="ed-med">Days since medicine entity</label>
           <input id="ed-med" name="medicine_days_entity" value="${esc(cfg.medicine_days_entity || '')}" placeholder="sensor.sharky_days_since_medicine" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
         <div>
-          <label for="ed-weight">Weight entity (optional)</label>
+          <label class="field-label" for="ed-weight">Weight entity (optional)</label>
           <input id="ed-weight" name="weight_entity" value="${esc(cfg.weight_entity || '')}" placeholder="sensor.sharky_weight" />
           <div class="hint">Leave blank to auto-detect</div>
         </div>
       </div>
     `;
 
-    this.shadowRoot.querySelectorAll('input, select').forEach(el => {
+    // Attach listeners on text/select inputs
+    this.shadowRoot.querySelectorAll('input[type="text"], input[type="number"], select').forEach(el => {
       el.addEventListener('change', () => this._valueChanged());
+    });
+
+    // Checkbox listeners — enforce max 12, update counter
+    const hint = this.shadowRoot.getElementById('max-hint');
+    this.shadowRoot.querySelectorAll('input[name="shown_type_cb"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const checked = [...this.shadowRoot.querySelectorAll('input[name="shown_type_cb"]:checked')];
+        if (checked.length > 12) {
+          // Uncheck the one just checked
+          cb.checked = false;
+        }
+        const count = Math.min(checked.length, 12);
+        hint.textContent = `${count}/12 selected`;
+        hint.className = count >= 12 ? 'max-hint over' : 'max-hint';
+        this._valueChanged();
+      });
     });
   }
 
   _valueChanged() {
     const newConfig = { ...this._config };
-    this.shadowRoot.querySelectorAll('input, select').forEach(el => {
+
+    // Scalar inputs
+    this.shadowRoot.querySelectorAll('input[type="text"], input[type="number"], select').forEach(el => {
       const key = el.name;
       const val = el.value.trim();
-      if (key === 'shown_types_str') {
-        if (val) {
-          newConfig['shown_types'] = val.split(',').map(s => s.trim()).filter(Boolean);
+      if (key === 'buttons_per_row') {
+        const n = parseInt(val, 10);
+        if (!isNaN(n) && n >= 2 && n <= 6) {
+          newConfig['buttons_per_row'] = n;
         } else {
-          delete newConfig['shown_types'];
+          delete newConfig['buttons_per_row'];
         }
       } else if (val) {
         newConfig[key] = val;
@@ -204,6 +293,16 @@ class PawsistantCardEditor extends HTMLElement {
         delete newConfig[key];
       }
     });
+
+    // shown_types from checkboxes
+    const checked = [...this.shadowRoot.querySelectorAll('input[name="shown_type_cb"]:checked')];
+    const shownTypes = checked.map(cb => cb.value);
+    if (shownTypes.length > 0) {
+      newConfig['shown_types'] = shownTypes;
+    } else {
+      delete newConfig['shown_types'];
+    }
+
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: newConfig }, bubbles: true, composed: true }));
   }
 }
@@ -293,8 +392,13 @@ class PawsistantCard extends HTMLElement {
 
   _shownTypes() {
     const t = this._config.shown_types;
-    if (Array.isArray(t) && t.length > 0) return t;
-    return DEFAULT_SHOWN_TYPES;
+    let types = (Array.isArray(t) && t.length > 0) ? t : DEFAULT_SHOWN_TYPES;
+    // Maximum of 12 buttons total
+    if (types.length > 12) {
+      console.warn('[pawsistant-card] shown_types has more than 12 entries; trimming to 12. Maximum is 12 buttons.');
+      types = types.slice(0, 12);
+    }
+    return types;
   }
 
   /* ── Render ────────────────────────────────────────────────────────── */
@@ -349,6 +453,9 @@ class PawsistantCard extends HTMLElement {
 
     /* Build quick-log buttons */
     const shownTypes = this._shownTypes();
+    const buttonsPerRow = cfg.buttons_per_row && Number.isInteger(cfg.buttons_per_row)
+      ? Math.min(6, Math.max(2, cfg.buttons_per_row))
+      : null;
     let buttonsHTML = '';
     for (const type of shownTypes) {
       const meta = getMeta(type);
@@ -408,6 +515,10 @@ class PawsistantCard extends HTMLElement {
           padding: 12px 16px 0;
           justify-content: center;
         }
+        .quick-log.grid-layout {
+          display: grid;
+          justify-content: unset;
+        }
         .log-btn {
           display: flex;
           flex-direction: column;
@@ -430,6 +541,11 @@ class PawsistantCard extends HTMLElement {
           flex: 1 1 60px;
           max-width: 120px;
           position: relative;
+        }
+        .quick-log.grid-layout .log-btn {
+          max-width: unset;
+          flex: unset;
+          width: 100%;
         }
         .log-btn:hover { background: var(--divider-color, #e0e0e0); }
         .log-btn:active { transform: scale(0.94); }
@@ -692,7 +808,7 @@ class PawsistantCard extends HTMLElement {
         </div>
 
         <div class="quick-log-section">
-          <div class="quick-log" id="quick-log-grid">
+          <div class="quick-log${buttonsPerRow ? ' grid-layout' : ''}" id="quick-log-grid"${buttonsPerRow ? ` style="grid-template-columns: repeat(${buttonsPerRow}, 1fr);"` : ''}>
             ${buttonsHTML}
           </div>
           <!-- U1 — long-press hint -->
