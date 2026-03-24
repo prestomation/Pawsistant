@@ -33,115 +33,121 @@ def _inject_stubs() -> None:
     executed — that file has heavy HA deps (StaticPathConfig etc.) that we
     don't need here.
 
-    If the real homeassistant package is already loaded (e.g. by
-    pytest-homeassistant-custom-component), we skip injection entirely so we
-    don't clobber the real modules and break other test files that rely on
-    monkeypatching real HA internals (e.g. test_sensor_utils.py).
+    IMPORTANT: we deliberately do NOT replace sys.modules["homeassistant"].
+    Python's import system resolves sub-module imports (e.g.
+    ``from homeassistant.config_entries import ...``) by looking up the
+    dotted key directly in sys.modules — it does NOT traverse the parent
+    module's attributes.  This means we can safely stub out only the
+    sub-modules that config_flow.py actually imports from, leaving the real
+    homeassistant root module (and homeassistant.util etc.) untouched.
+
+    Preserving the real root module is critical: other test files
+    (e.g. test_sensor_utils.py) monkeypatch ``homeassistant.util.dt.*``
+    which relies on the real module object being in sys.modules.
     """
-    if "homeassistant" in sys.modules and getattr(sys.modules["homeassistant"], "__file__", None):
-        # Real HA package is already loaded (has a real __file__).
-        # Stubs not needed; config_flow will import from the real HA stack.
-        # Importantly, we must NOT clobber sys.modules["homeassistant"] or
-        # other modules that other test files monkeypatch (e.g. test_sensor_utils
-        # patches homeassistant.util.dt which breaks if we replace the module).
-        return
 
-    # homeassistant root
-    ha_mod = types.ModuleType("homeassistant")
-    sys.modules["homeassistant"] = ha_mod
+    # homeassistant root — inject a minimal placeholder only if real HA isn't
+    # installed.  We intentionally do NOT replace an existing real module.
+    if "homeassistant" not in sys.modules:
+        ha_mod = types.ModuleType("homeassistant")
+        sys.modules["homeassistant"] = ha_mod
 
-    # homeassistant.core
-    core_mod = types.ModuleType("homeassistant.core")
-    core_mod.CoreState = CoreState
-    core_mod.HomeAssistant = object
-    core_mod.ServiceCall = object
-    core_mod.SupportsResponse = MagicMock()
-    core_mod.callback = lambda f: f
-    sys.modules["homeassistant.core"] = core_mod
-    ha_mod.core = core_mod
+    # homeassistant.core — only inject if not already provided by real HA
+    if "homeassistant.core" not in sys.modules:
+        core_mod = types.ModuleType("homeassistant.core")
+        core_mod.CoreState = CoreState
+        core_mod.HomeAssistant = object
+        core_mod.ServiceCall = object
+        core_mod.SupportsResponse = MagicMock()
+        core_mod.callback = lambda f: f
+        sys.modules["homeassistant.core"] = core_mod
 
     # homeassistant.const
-    const_mod = types.ModuleType("homeassistant.const")
-    const_mod.EVENT_HOMEASSISTANT_STARTED = "homeassistant_started"
-    sys.modules["homeassistant.const"] = const_mod
-    ha_mod.const = const_mod
+    if "homeassistant.const" not in sys.modules:
+        const_mod = types.ModuleType("homeassistant.const")
+        const_mod.EVENT_HOMEASSISTANT_STARTED = "homeassistant_started"
+        sys.modules["homeassistant.const"] = const_mod
 
-    # homeassistant.config_entries
-    ce_mod = types.ModuleType("homeassistant.config_entries")
+    # homeassistant.config_entries — stub only if real HA doesn't provide it
+    if "homeassistant.config_entries" not in sys.modules:
+        ce_mod = types.ModuleType("homeassistant.config_entries")
 
-    class ConfigFlowResult(dict):
-        pass
+        class ConfigFlowResult(dict):
+            pass
 
-    class ConfigFlowMeta(type):
-        def __new__(mcs, name, bases, namespace, domain=None, **kw):
-            return super().__new__(mcs, name, bases, namespace)
+        class ConfigFlowMeta(type):
+            def __new__(mcs, name, bases, namespace, domain=None, **kw):
+                return super().__new__(mcs, name, bases, namespace)
 
-        def __init__(cls, name, bases, namespace, domain=None, **kw):
-            super().__init__(name, bases, namespace)
+            def __init__(cls, name, bases, namespace, domain=None, **kw):
+                super().__init__(name, bases, namespace)
 
-    class ConfigFlow(metaclass=ConfigFlowMeta):
-        pass
+        class ConfigFlow(metaclass=ConfigFlowMeta):
+            pass
 
-    class OptionsFlow:
-        """Minimal OptionsFlow stub with config_entry + hass attributes."""
+        class OptionsFlow:
+            """Minimal OptionsFlow stub with config_entry + hass attributes."""
 
-        def __init__(self):
-            self.config_entry = None
-            self.hass = None
+            def __init__(self):
+                self.config_entry = None
+                self.hass = None
 
-        def async_show_form(self, *, step_id, data_schema=None, errors=None,
-                            description_placeholders=None):
-            return {
-                "type": "form",
-                "step_id": step_id,
-                "data_schema": data_schema,
-                "errors": errors or {},
-                "description_placeholders": description_placeholders or {},
-            }
+            def async_show_form(self, *, step_id, data_schema=None, errors=None,
+                                description_placeholders=None):
+                return {
+                    "type": "form",
+                    "step_id": step_id,
+                    "data_schema": data_schema,
+                    "errors": errors or {},
+                    "description_placeholders": description_placeholders or {},
+                }
 
-        def async_create_entry(self, *, title, data):
-            return {"type": "create_entry", "title": title, "data": data}
+            def async_create_entry(self, *, title, data):
+                return {"type": "create_entry", "title": title, "data": data}
 
-    ce_mod.ConfigFlow = ConfigFlow
-    ce_mod.OptionsFlow = OptionsFlow
-    ce_mod.ConfigEntry = object
-    ce_mod.ConfigFlowResult = ConfigFlowResult
-    sys.modules["homeassistant.config_entries"] = ce_mod
-    ha_mod.config_entries = ce_mod
+        ce_mod.ConfigFlow = ConfigFlow
+        ce_mod.OptionsFlow = OptionsFlow
+        ce_mod.ConfigEntry = object
+        ce_mod.ConfigFlowResult = ConfigFlowResult
+        sys.modules["homeassistant.config_entries"] = ce_mod
 
-    # homeassistant.helpers.config_validation
-    helpers_mod = types.ModuleType("homeassistant.helpers")
-    cv_mod = types.ModuleType("homeassistant.helpers.config_validation")
-    cv_mod.string = str
-    sys.modules["homeassistant.helpers"] = helpers_mod
-    sys.modules["homeassistant.helpers.config_validation"] = cv_mod
-    ha_mod.helpers = helpers_mod
+    # homeassistant.helpers / homeassistant.helpers.config_validation
+    if "homeassistant.helpers" not in sys.modules:
+        helpers_mod = types.ModuleType("homeassistant.helpers")
+        sys.modules["homeassistant.helpers"] = helpers_mod
+    if "homeassistant.helpers.config_validation" not in sys.modules:
+        cv_mod = types.ModuleType("homeassistant.helpers.config_validation")
+        cv_mod.string = str
+        sys.modules["homeassistant.helpers.config_validation"] = cv_mod
 
     # voluptuous — minimal stubs that preserve keyword args
-    vol_mod = types.ModuleType("voluptuous")
-    vol_mod.Schema = lambda s, **kw: s
-    vol_mod.Required = lambda k, **kw: k
-    vol_mod.Optional = lambda k, **kw: k
-    vol_mod.In = lambda v: v
-    vol_mod.All = lambda *a: a[0]
-    vol_mod.Range = lambda **kw: None
-    vol_mod.Coerce = lambda t: t
-    sys.modules["voluptuous"] = vol_mod
+    if "voluptuous" not in sys.modules:
+        vol_mod = types.ModuleType("voluptuous")
+        vol_mod.Schema = lambda s, **kw: s
+        vol_mod.Required = lambda k, **kw: k
+        vol_mod.Optional = lambda k, **kw: k
+        vol_mod.In = lambda v: v
+        vol_mod.All = lambda *a: a[0]
+        vol_mod.Range = lambda **kw: None
+        vol_mod.Coerce = lambda t: t
+        sys.modules["voluptuous"] = vol_mod
 
     # Stub for custom_components.pawsistant.const (imported by config_flow)
-    _const = types.ModuleType("custom_components.pawsistant.const")
-    _const.DOMAIN = "pawsistant"
-    sys.modules["custom_components.pawsistant.const"] = _const
+    if "custom_components.pawsistant.const" not in sys.modules:
+        _const = types.ModuleType("custom_components.pawsistant.const")
+        _const.DOMAIN = "pawsistant"
+        sys.modules["custom_components.pawsistant.const"] = _const
 
     # Stub for the package itself — prevents __init__.py from being executed
-    _pkg = types.ModuleType("custom_components.pawsistant")
-    _pkg.__path__ = []
-    _pkg.__package__ = "custom_components.pawsistant"
-    sys.modules["custom_components.pawsistant"] = _pkg
+    if "custom_components.pawsistant" not in sys.modules:
+        _pkg = types.ModuleType("custom_components.pawsistant")
+        _pkg.__path__ = []
+        _pkg.__package__ = "custom_components.pawsistant"
+        sys.modules["custom_components.pawsistant"] = _pkg
 
-    _cc = types.ModuleType("custom_components")
-    _cc.pawsistant = _pkg
-    sys.modules["custom_components"] = _cc
+    if "custom_components" not in sys.modules:
+        _cc = types.ModuleType("custom_components")
+        sys.modules["custom_components"] = _cc
 
 
 _inject_stubs()
