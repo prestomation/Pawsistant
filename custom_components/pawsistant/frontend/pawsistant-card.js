@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one dog activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
- * Version: 2.5.0
+ * Version: 2.6.0
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -112,7 +112,11 @@ class PawsistantCardEditor extends HTMLElement {
   }
 
   get _hass() { return this.__hass; }
-  set hass(h) { this.__hass = h; }
+  set hass(h) {
+    this.__hass = h;
+    // Re-render so the dog dropdown is populated once hass is available.
+    this._render();
+  }
 
   _render() {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
@@ -121,6 +125,17 @@ class PawsistantCardEditor extends HTMLElement {
     const currentShown = Array.isArray(cfg.shown_types) ? cfg.shown_types : DEFAULT_SHOWN_TYPES;
     const weightUnit = cfg.weight_unit || 'lbs';
     const buttonsPerRow = cfg.buttons_per_row != null ? String(cfg.buttons_per_row) : '';
+
+    // Discover registered dog names from hass state entities.
+    // Each registered dog has a sensor.<slug>_recent_timeline entity with a
+    // `dog` attribute containing the canonical display name.
+    const hass = this.__hass;
+    const dogNames = hass
+      ? Object.entries(hass.states || {})
+          .filter(([id]) => /^sensor\.[a-z0-9_]+_recent_timeline$/.test(id))
+          .map(([, s]) => s.attributes && s.attributes.dog)
+          .filter(Boolean)
+      : [];
 
     // Build checkbox rows for every known event type
     const allTypes = Object.keys(EVENT_META);
@@ -201,8 +216,15 @@ class PawsistantCardEditor extends HTMLElement {
       </style>
       <div class="form">
         <div>
-          <label class="field-label" for="ed-dog">Dog name *</label>
-          <input id="ed-dog" name="dog" value="${esc(cfg.dog || '')}" placeholder="Sharky" />
+          <label class="field-label" for="ed-dog">Dog *</label>
+          ${dogNames.length > 0
+            ? `<select id="ed-dog" name="dog">
+                <option value="">— select a dog —</option>
+                ${dogNames.map(n => `<option value="${esc(n)}"${cfg.dog === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}
+              </select>`
+            : `<input id="ed-dog" name="dog" value="${esc(cfg.dog || '')}" placeholder="Sharky" />
+               <div class="hint">No dogs found — enter a name manually or set up dogs via the integration options.</div>`
+          }
         </div>
         <div>
           <label class="field-label" for="ed-weight-unit">Weight unit</label>
@@ -222,31 +244,6 @@ class PawsistantCardEditor extends HTMLElement {
           <label class="field-label" for="ed-buttons-per-row">Buttons per row (2–6, leave blank for auto)</label>
           <input id="ed-buttons-per-row" name="buttons_per_row" type="number" min="2" max="6" value="${esc(buttonsPerRow)}" placeholder="auto" />
           <div class="hint">When set, buttons render in a CSS grid of N equal columns. When blank, flex-wrap is used.</div>
-        </div>
-        <div>
-          <label class="field-label" for="ed-timeline">Timeline entity (auto-detected from dog name)</label>
-          <input id="ed-timeline" name="timeline_entity" value="${esc(cfg.timeline_entity || '')}" placeholder="sensor.sharky_recent_timeline" />
-          <div class="hint">Leave blank to auto-detect</div>
-        </div>
-        <div>
-          <label class="field-label" for="ed-pee">Pee count entity</label>
-          <input id="ed-pee" name="pee_count_entity" value="${esc(cfg.pee_count_entity || '')}" placeholder="sensor.sharky_daily_pee_count" />
-          <div class="hint">Leave blank to auto-detect</div>
-        </div>
-        <div>
-          <label class="field-label" for="ed-poop">Poop count entity</label>
-          <input id="ed-poop" name="poop_count_entity" value="${esc(cfg.poop_count_entity || '')}" placeholder="sensor.sharky_poop_count_today" />
-          <div class="hint">Leave blank to auto-detect</div>
-        </div>
-        <div>
-          <label class="field-label" for="ed-med">Days since medicine entity</label>
-          <input id="ed-med" name="medicine_days_entity" value="${esc(cfg.medicine_days_entity || '')}" placeholder="sensor.sharky_days_since_medicine" />
-          <div class="hint">Leave blank to auto-detect</div>
-        </div>
-        <div>
-          <label class="field-label" for="ed-weight">Weight entity (optional)</label>
-          <input id="ed-weight" name="weight_entity" value="${esc(cfg.weight_entity || '')}" placeholder="sensor.sharky_weight" />
-          <div class="hint">Leave blank to auto-detect</div>
         </div>
       </div>
     `;

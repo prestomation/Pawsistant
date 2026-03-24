@@ -32,7 +32,16 @@ def _inject_stubs() -> None:
     We load config_flow.py directly via importlib so __init__.py is never
     executed — that file has heavy HA deps (StaticPathConfig etc.) that we
     don't need here.
+
+    If the real homeassistant package is already loaded (e.g. by
+    pytest-homeassistant-custom-component), we skip injection entirely so we
+    don't clobber the real modules and break other test files that rely on
+    monkeypatching real HA internals (e.g. test_sensor_utils.py).
     """
+    if "homeassistant" in sys.modules and hasattr(sys.modules["homeassistant"], "util"):
+        # Real HA is loaded — stubs not needed; config_flow will be imported
+        # normally via the real HA stack.
+        return
 
     # homeassistant root
     ha_mod = types.ModuleType("homeassistant")
@@ -136,7 +145,15 @@ _inject_stubs()
 
 
 def _load_config_flow():
-    """Load config_flow.py directly from disk, bypassing __init__.py."""
+    """Load config_flow.py directly from disk, bypassing __init__.py.
+
+    If it's already in sys.modules (e.g. loaded by the real HA test harness),
+    return the cached module rather than re-loading it.
+    """
+    cached = sys.modules.get("custom_components.pawsistant.config_flow")
+    if cached is not None:
+        return cached
+
     _repo_root = pathlib.Path(__file__).parent.parent.parent
     cf_path = _repo_root / "custom_components" / "pawsistant" / "config_flow.py"
     spec = importlib.util.spec_from_file_location(

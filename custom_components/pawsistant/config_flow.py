@@ -272,6 +272,9 @@ class PawsistantOptionsFlow(OptionsFlow):
             else:
                 errors["dog_name"] = "dog_not_found"
 
+        if not dog_name_options:
+            return await self.async_step_init()
+
         first_dog_name = next(iter(dog_name_options))
 
         return self.async_show_form(
