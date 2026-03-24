@@ -52,7 +52,8 @@ def _inject_stubs() -> None:
         ha_mod = types.ModuleType("homeassistant")
         sys.modules["homeassistant"] = ha_mod
 
-    # homeassistant.core — only inject if not already provided by real HA
+    # homeassistant.core — stub only if real HA hasn't already loaded it.
+    # Replacing it could break autouse fixtures that monkeypatch HA internals.
     if "homeassistant.core" not in sys.modules:
         core_mod = types.ModuleType("homeassistant.core")
         core_mod.CoreState = CoreState
@@ -62,56 +63,63 @@ def _inject_stubs() -> None:
         core_mod.callback = lambda f: f
         sys.modules["homeassistant.core"] = core_mod
 
-    # homeassistant.const
+    # homeassistant.const — same guard
     if "homeassistant.const" not in sys.modules:
         const_mod = types.ModuleType("homeassistant.const")
         const_mod.EVENT_HOMEASSISTANT_STARTED = "homeassistant_started"
         sys.modules["homeassistant.const"] = const_mod
 
-    # homeassistant.config_entries — stub only if real HA doesn't provide it
-    if "homeassistant.config_entries" not in sys.modules:
-        ce_mod = types.ModuleType("homeassistant.config_entries")
+    # homeassistant.config_entries — always stub.
+    # The option-flow tests rely on the stub's OptionsFlow.async_show_form
+    # returning a plain dict.  The real OptionsFlow requires a fully
+    # initialised hass context that we don't set up here.
+    # config_entries is only reached via sys.modules direct lookup — never
+    # traversed through the homeassistant root attribute — so replacing it
+    # is safe for all other autouse fixtures.
+    ce_mod = types.ModuleType("homeassistant.config_entries")
 
-        class ConfigFlowResult(dict):
-            pass
+    class ConfigFlowResult(dict):
+        pass
 
-        class ConfigFlowMeta(type):
-            def __new__(mcs, name, bases, namespace, domain=None, **kw):
-                return super().__new__(mcs, name, bases, namespace)
+    class ConfigFlowMeta(type):
+        def __new__(mcs, name, bases, namespace, domain=None, **kw):
+            return super().__new__(mcs, name, bases, namespace)
 
-            def __init__(cls, name, bases, namespace, domain=None, **kw):
-                super().__init__(name, bases, namespace)
+        def __init__(cls, name, bases, namespace, domain=None, **kw):
+            super().__init__(name, bases, namespace)
 
-        class ConfigFlow(metaclass=ConfigFlowMeta):
-            pass
+    class ConfigFlow(metaclass=ConfigFlowMeta):
+        pass
 
-        class OptionsFlow:
-            """Minimal OptionsFlow stub with config_entry + hass attributes."""
+    class OptionsFlow:
+        """Minimal OptionsFlow stub with config_entry + hass attributes."""
 
-            def __init__(self):
-                self.config_entry = None
-                self.hass = None
+        def __init__(self):
+            self.config_entry = None
+            self.hass = None
 
-            def async_show_form(self, *, step_id, data_schema=None, errors=None,
-                                description_placeholders=None):
-                return {
-                    "type": "form",
-                    "step_id": step_id,
-                    "data_schema": data_schema,
-                    "errors": errors or {},
-                    "description_placeholders": description_placeholders or {},
-                }
+        def async_show_form(self, *, step_id, data_schema=None, errors=None,
+                            description_placeholders=None):
+            return {
+                "type": "form",
+                "step_id": step_id,
+                "data_schema": data_schema,
+                "errors": errors or {},
+                "description_placeholders": description_placeholders or {},
+            }
 
-            def async_create_entry(self, *, title, data):
-                return {"type": "create_entry", "title": title, "data": data}
+        def async_create_entry(self, *, title, data):
+            return {"type": "create_entry", "title": title, "data": data}
 
-        ce_mod.ConfigFlow = ConfigFlow
-        ce_mod.OptionsFlow = OptionsFlow
-        ce_mod.ConfigEntry = object
-        ce_mod.ConfigFlowResult = ConfigFlowResult
-        sys.modules["homeassistant.config_entries"] = ce_mod
+    ce_mod.ConfigFlow = ConfigFlow
+    ce_mod.OptionsFlow = OptionsFlow
+    ce_mod.ConfigEntry = object
+    ce_mod.ConfigFlowResult = ConfigFlowResult
+    sys.modules["homeassistant.config_entries"] = ce_mod
 
     # homeassistant.helpers / homeassistant.helpers.config_validation
+    # Guard: skip if real HA loaded these (they're not traversed via root module
+    # attributes, but replacing helpers could confuse other modules).
     if "homeassistant.helpers" not in sys.modules:
         helpers_mod = types.ModuleType("homeassistant.helpers")
         sys.modules["homeassistant.helpers"] = helpers_mod
