@@ -96,6 +96,11 @@ jobs:
           cat release_notes.txt >> $GITHUB_OUTPUT
           echo 'EOF' >> $GITHUB_OUTPUT
 
+      - name: Build release zip
+        run: |
+          cd custom_components/pawsistant
+          zip -r ../../pawsistant.zip . -x "__pycache__/*" "*.pyc"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -103,3 +108,4 @@ jobs:
           body: ${{ steps.changelog.outputs.notes }}
           draft: false
           prerelease: false
+          files: pawsistant.zip
