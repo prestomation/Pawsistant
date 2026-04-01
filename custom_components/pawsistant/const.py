@@ -3,4 +3,4 @@
 DOMAIN = "pawsistant"
 PLATFORMS = ["sensor"]
 URL_BASE = "/pawsistant"
-CARD_VERSION = "2.7.1"
+CARD_VERSION = "2.8.0"

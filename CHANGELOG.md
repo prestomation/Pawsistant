@@ -2,6 +2,11 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.8.0] - 2026-04-01
+
+### Added
+- Backdate slider now shows the resolved wall-clock time in the user's local timezone alongside the relative offset (e.g. "15 min ago · 2:01 PM"). Time updates live as the slider moves.
+
 ## [2.7.1] - 2026-04-01
 
 ### Changed
