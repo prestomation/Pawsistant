@@ -99,7 +99,7 @@ jobs:
       - name: Build release zip
         run: |
           cd custom_components/pawsistant
-          zip -r ../../pawsistant.zip . -x "__pycache__/*" "*.pyc"
+          zip -r ../../pawsistant.zip . -x "*/__pycache__/*" "*/__pycache__" "__pycache__/*" "__pycache__" "*.pyc"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
