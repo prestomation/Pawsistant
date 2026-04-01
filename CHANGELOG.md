@@ -2,6 +2,11 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.7.1] - 2026-04-01
+
+### Changed
+- HACS now installs from a release zip asset (`pawsistant.zip`), enabling the GitHub Downloads badge to accurately reflect install counts.
+
 ## [2.7.0] - 2026-04-01
 
 ### Fixed
