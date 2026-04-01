@@ -1,7 +1,8 @@
 # Pawsistant 🐾
 
-[![GitHub Release](https://img.shields.io/github/v/release/prestomation/Pawsistant)](https://github.com/prestomation/Pawsistant/releases)
-[![GitHub Downloads](https://img.shields.io/github/downloads/prestomation/Pawsistant/total)](https://github.com/prestomation/Pawsistant/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/prestomation/Pawsistant?style=for-the-badge)](https://github.com/prestomation/Pawsistant/releases)
+[![GitHub Downloads](https://img.shields.io/github/downloads/prestomation/Pawsistant/total.svg?style=for-the-badge)](https://github.com/prestomation/Pawsistant/releases)
+[![GitHub Latest Downloads](https://img.shields.io/github/downloads-pre/prestomation/Pawsistant/latest/total?style=for-the-badge)](https://github.com/prestomation/Pawsistant/releases)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![HACS Validation](https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml/badge.svg)](https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml)
 [![License](https://img.shields.io/github/license/prestomation/Pawsistant)](LICENSE)
