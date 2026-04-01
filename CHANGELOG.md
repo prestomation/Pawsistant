@@ -2,6 +2,11 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.7.0] - 2026-04-01
+
+### Fixed
+- Pawsistant card now loads reliably after every HA restart. The Lovelace resource registration was previously deferred and could be silently skipped under certain startup conditions, causing "Custom element doesn't exist: pawsistant-card" errors. Registration now happens immediately and unconditionally.
+
 ## [2.6.0] - 2026-03-24
 
 ### Added
