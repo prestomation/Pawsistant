@@ -1,13 +1,12 @@
-"""Unit tests for PawsistantCardRegistration deferred/immediate registration logic.
+"""Unit tests for PawsistantCardRegistration immediate registration logic.
 
 These tests mock out HA internals so they run without a live HA instance.
-The key behaviour under test is the race-condition fix introduced for issue #15:
-  - During initial startup (CoreState.not_running) the Lovelace resource
-    registration must be deferred via async_listen_once(EVENT_HOMEASSISTANT_STARTED).
-  - When HA is already running (CoreState.running, e.g. on reload) both steps
-    happen immediately without any listener registration.
-  - YAML-mode Lovelace must log an INFO message instead of trying to register
-    resources.
+The key behaviour under test is the fix introduced for issue #15:
+  - Registration always happens immediately regardless of HA state.
+  - Static path is registered via async_register_static_paths (with RuntimeError
+    guard against double-registration).
+  - In storage mode the Lovelace resource is registered immediately.
+  - In YAML mode an INFO message is logged instead of trying to register resources.
 """
 
 from __future__ import annotations
@@ -188,12 +187,12 @@ def _make_hass(state: CoreState, resource_mode: str = "storage") -> MagicMock:
 # Tests
 # ---------------------------------------------------------------------------
 
-class TestDeferredRegistration:
-    """When HA is not yet running, Lovelace resource registration must be deferred."""
+class TestImmediateRegistration:
+    """Registration always happens immediately regardless of HA state."""
 
     @pytest.mark.asyncio
-    async def test_listen_once_called_when_not_running(self):
-        """async_listen_once must be registered when CoreState is not_running."""
+    async def test_resource_registered_immediately_when_not_running(self):
+        """Lovelace resource is created immediately even when HA is not yet running."""
         hass = _make_hass(CoreState.not_running, resource_mode="storage")
 
         await _ensure_frontend_registered(hass)
@@ -201,45 +200,23 @@ class TestDeferredRegistration:
         # Static path registered immediately
         hass.http.async_register_static_paths.assert_called_once()
 
-        # Lovelace resource NOT yet registered — deferred
-        lovelace_resources = hass.data["lovelace"].resources
-        lovelace_resources.async_create_item.assert_not_called()
-
-        # Listener registered for EVENT_HOMEASSISTANT_STARTED
-        hass.bus.async_listen_once.assert_called_once()
-        event_name = hass.bus.async_listen_once.call_args[0][0]
-        assert event_name == "homeassistant_started", (
-            f"Expected listener on homeassistant_started, got: {event_name}"
-        )
-
-    @pytest.mark.asyncio
-    async def test_deferred_callback_registers_resource(self):
-        """The deferred callback must call async_create_item when invoked."""
-        hass = _make_hass(CoreState.not_running, resource_mode="storage")
-
-        await _ensure_frontend_registered(hass)
-
-        # Grab the callback that was registered
-        callback_fn = hass.bus.async_listen_once.call_args[0][1]
-
-        # Simulate HA_STARTED firing
-        await callback_fn(event=None)
-
+        # Lovelace resource registered immediately — no listener needed
         lovelace_resources = hass.data["lovelace"].resources
         lovelace_resources.async_create_item.assert_called_once()
 
+        # No deferred listener registered
+        hass.bus.async_listen_once.assert_not_called()
+
     @pytest.mark.asyncio
-    async def test_starting_state_also_defers(self):
-        """CoreState.starting (not yet running) must also defer."""
+    async def test_resource_registered_immediately_when_starting(self):
+        """Lovelace resource is created immediately even during CoreState.starting."""
         hass = _make_hass(CoreState.starting, resource_mode="storage")
 
         await _ensure_frontend_registered(hass)
 
-        hass.bus.async_listen_once.assert_called_once()
-
-
-class TestImmediateRegistration:
-    """When HA is already running, everything must happen synchronously."""
+        hass.http.async_register_static_paths.assert_called_once()
+        hass.data["lovelace"].resources.async_create_item.assert_called_once()
+        hass.bus.async_listen_once.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_no_listener_when_running(self):
@@ -267,20 +244,20 @@ class TestYamlModeLogging:
 
     @pytest.mark.asyncio
     async def test_yaml_mode_logs_info_on_startup(self, caplog):
-        """Deferred callback in YAML mode should log INFO, not raise."""
+        """YAML mode during startup should log INFO immediately, not raise."""
         import logging
         hass = _make_hass(CoreState.not_running, resource_mode="yaml")
 
         with caplog.at_level(logging.INFO, logger="custom_components.pawsistant"):
             await _ensure_frontend_registered(hass)
-            # Fire the deferred callback
-            callback_fn = hass.bus.async_listen_once.call_args[0][1]
-            await callback_fn(event=None)
 
         assert any(
             "YAML mode detected" in record.message
             for record in caplog.records
         ), f"Expected YAML mode INFO log. Got: {[r.message for r in caplog.records]}"
+
+        # No listener registered — everything is immediate
+        hass.bus.async_listen_once.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_yaml_mode_logs_info_when_running(self, caplog):

@@ -26,7 +26,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 
-from homeassistant.core import CoreState, HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.helpers import config_validation as cv
 
