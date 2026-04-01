@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one dog activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
- * Version: 2.7.0
+ * Version: 2.7.1
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -1046,10 +1046,14 @@ class PawsistantCard extends HTMLElement {
 
     const slider = formEl.querySelector('#minutes-slider');
     const display = formEl.querySelector('#slider-display');
-    slider.addEventListener('input', () => {
+    const _updateSliderDisplay = () => {
       const v = parseInt(slider.value, 10);
-      display.textContent = v === 1 ? '1 min ago' : `${v} min ago`;
-    });
+      const t = new Date(Date.now() - v * 60000);
+      const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      display.textContent = (v === 1 ? '1 min ago' : `${v} min ago`) + ` · ${timeStr}`;
+    };
+    slider.addEventListener('input', _updateSliderDisplay);
+    _updateSliderDisplay();
 
     formEl.querySelector('#form-cancel').addEventListener('click', () => this._closeForm());
     formEl.querySelector('#form-submit').addEventListener('click', () => {
