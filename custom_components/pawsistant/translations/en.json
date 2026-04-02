@@ -7,7 +7,11 @@
         "data": {
           "dog_name": "Dog name",
           "breed": "Breed (optional)",
-          "birth_date": "Birth date (optional, YYYY-MM-DD)"
+          "birth_date": "Birth date (optional, YYYY-MM-DD)",
+          "species": "Animal type"
+        },
+        "data_description": {
+          "species": "Type of animal (e.g. Dog, Cat, Rabbit). Used in sensor names and card labels."
         }
       }
     },
@@ -33,7 +37,11 @@
         "data": {
           "dog_name": "Dog name",
           "breed": "Breed (optional)",
-          "birth_date": "Birth date (optional, YYYY-MM-DD)"
+          "birth_date": "Birth date (optional, YYYY-MM-DD)",
+          "species": "Animal type"
+        },
+        "data_description": {
+          "species": "Type of animal (e.g. Dog, Cat, Rabbit). Used in sensor names and card labels."
         }
       },
       "remove_dog": {
@@ -47,7 +55,8 @@
     "error": {
       "name_required": "Dog name is required.",
       "name_already_exists": "A dog with this name is already registered.",
-      "dog_not_found": "Dog not found. Please refresh and try again."
+      "dog_not_found": "Dog not found. Please refresh and try again.",
+      "store_unavailable": "Integration storage is unavailable. Please reload the integration and try again."
     }
   }
 }

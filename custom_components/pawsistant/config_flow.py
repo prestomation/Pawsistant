@@ -25,7 +25,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 
-from .const import DOMAIN
+from .const import CONF_SPECIES, DEFAULT_SPECIES, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required("dog_name"): str,
         vol.Optional("breed", default=""): str,
         vol.Optional("birth_date", default=""): str,
+        vol.Optional(CONF_SPECIES, default=DEFAULT_SPECIES): str,
     }
 )
 
@@ -74,6 +75,7 @@ class PawsistantConfigFlow(ConfigFlow, domain=DOMAIN):
                             "name": dog_name,
                             "breed": user_input.get("breed", ""),
                             "birth_date": user_input.get("birth_date", ""),
+                            CONF_SPECIES: user_input.get(CONF_SPECIES, DEFAULT_SPECIES) or DEFAULT_SPECIES,
                         }
                     },
                 )
@@ -208,6 +210,7 @@ class PawsistantOptionsFlow(OptionsFlow):
                             name=dog_name,
                             breed=user_input.get("breed", ""),
                             birth_date=user_input.get("birth_date", ""),
+                            species=user_input.get(CONF_SPECIES, DEFAULT_SPECIES) or DEFAULT_SPECIES,
                         )
                         _LOGGER.info(
                             "Options flow: added dog '%s'", dog_name
@@ -234,6 +237,7 @@ class PawsistantOptionsFlow(OptionsFlow):
                     vol.Required("dog_name"): str,
                     vol.Optional("breed", default=""): str,
                     vol.Optional("birth_date", default=""): str,
+                    vol.Optional(CONF_SPECIES, default=DEFAULT_SPECIES): str,
                 }
             ),
             errors=errors,

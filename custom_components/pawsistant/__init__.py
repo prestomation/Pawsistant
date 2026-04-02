@@ -245,6 +245,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 name=dog_name,
                 breed=initial_dog.get("breed", ""),
                 birth_date=initial_dog.get("birth_date", ""),
+                species=initial_dog.get("species", "Dog") or "Dog",
             )
             _LOGGER.info("Created initial dog '%s' from config entry", dog_name)
 

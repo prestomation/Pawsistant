@@ -31,7 +31,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .const import DEFAULT_SPECIES, DOMAIN
 from .coordinator import PawsistantCoordinator
 
 # ---------------------------------------------------------------------------
@@ -193,6 +193,7 @@ async def async_setup_entry(
 
     for dog_id, dog_info in dogs.items():
         dog_name = dog_info["name"]
+        species = dog_info.get("species", DEFAULT_SPECIES) or DEFAULT_SPECIES
         slug = _slug(dog_name)
 
         # ------------------------------------------------------------------
@@ -208,7 +209,7 @@ async def async_setup_entry(
                 event_type=event_type,
             )
             entities.append(
-                PawsistantMostRecentSensor(coordinator, description, dog_id, dog_name)
+                PawsistantMostRecentSensor(coordinator, description, dog_id, dog_name, species)
             )
 
         # ------------------------------------------------------------------
@@ -225,23 +226,23 @@ async def async_setup_entry(
                 event_type=event_type,
             )
             entities.append(
-                PawsistantDailyCountSensor(coordinator, description, dog_id, dog_name)
+                PawsistantDailyCountSensor(coordinator, description, dog_id, dog_name, species)
             )
 
         # ------------------------------------------------------------------
         # Weight sensor
         # ------------------------------------------------------------------
-        entities.append(PawsistantWeightSensor(coordinator, dog_id, dog_name))
+        entities.append(PawsistantWeightSensor(coordinator, dog_id, dog_name, species))
 
         # ------------------------------------------------------------------
         # Days since last medicine sensor
         # ------------------------------------------------------------------
-        entities.append(PawsistantDaysSinceMedicineSensor(coordinator, dog_id, dog_name))
+        entities.append(PawsistantDaysSinceMedicineSensor(coordinator, dog_id, dog_name, species))
 
         # ------------------------------------------------------------------
         # Recent timeline sensor (last 24h events for dashboard)
         # ------------------------------------------------------------------
-        entities.append(PawsistantRecentTimelineSensor(coordinator, dog_id, dog_name))
+        entities.append(PawsistantRecentTimelineSensor(coordinator, dog_id, dog_name, species))
 
     async_add_entities(entities)
 
@@ -261,12 +262,14 @@ class _PawsistantSensorBase(CoordinatorEntity[PawsistantCoordinator], SensorEnti
         coordinator: PawsistantCoordinator,
         dog_id: str,
         dog_name: str,
+        species: str = DEFAULT_SPECIES,
     ) -> None:
         """Initialise with coordinator and dog identity."""
         super().__init__(coordinator)
         self._dog_id = dog_id
         self._dog_name = dog_name
-        self._attr_device_info = coordinator.get_device_info(dog_id, dog_name)
+        self._species = species or DEFAULT_SPECIES
+        self._attr_device_info = coordinator.get_device_info(dog_id, dog_name, self._species)
 
     def _dog_events(self) -> list[dict[str, Any]]:
         """Shortcut to this dog's event list from coordinator data."""
@@ -276,9 +279,9 @@ class _PawsistantSensorBase(CoordinatorEntity[PawsistantCoordinator], SensorEnti
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose the dog name on every sensor so the card can resolve entities
-        by dog name regardless of entity ID slug (rename-safe)."""
-        return {"dog": self._dog_name}
+        """Expose the dog name and species on every sensor so the card can
+        resolve entities by dog name regardless of entity ID slug (rename-safe)."""
+        return {"dog": self._dog_name, "species": self._species}
 
 
 # ---------------------------------------------------------------------------
@@ -297,9 +300,10 @@ class PawsistantMostRecentSensor(_PawsistantSensorBase):
         description: PawsistantMostRecentSensorDescription,
         dog_id: str,
         dog_name: str,
+        species: str = DEFAULT_SPECIES,
     ) -> None:
         """Initialise the sensor."""
-        super().__init__(coordinator, dog_id, dog_name)
+        super().__init__(coordinator, dog_id, dog_name, species)
         self.entity_description = description
         # Unique ID anchored to dog_id so it survives dog renames
         self._attr_unique_id = f"pawsistant_{dog_id}_{description.key}"
@@ -346,9 +350,10 @@ class PawsistantDailyCountSensor(_PawsistantSensorBase):
         description: PawsistantDailyCountSensorDescription,
         dog_id: str,
         dog_name: str,
+        species: str = DEFAULT_SPECIES,
     ) -> None:
         """Initialise the sensor."""
-        super().__init__(coordinator, dog_id, dog_name)
+        super().__init__(coordinator, dog_id, dog_name, species)
         self.entity_description = description
         self._attr_unique_id = f"pawsistant_{dog_id}_{description.key}"
 
@@ -371,9 +376,10 @@ class PawsistantWeightSensor(_PawsistantSensorBase):
         coordinator: PawsistantCoordinator,
         dog_id: str,
         dog_name: str,
+        species: str = DEFAULT_SPECIES,
     ) -> None:
         """Initialise the sensor."""
-        super().__init__(coordinator, dog_id, dog_name)
+        super().__init__(coordinator, dog_id, dog_name, species)
         self._attr_unique_id = f"pawsistant_{dog_id}_weight"
         self._attr_name = "Weight"
 
@@ -404,9 +410,10 @@ class PawsistantDaysSinceMedicineSensor(_PawsistantSensorBase):
         coordinator: PawsistantCoordinator,
         dog_id: str,
         dog_name: str,
+        species: str = DEFAULT_SPECIES,
     ) -> None:
         """Initialise the sensor."""
-        super().__init__(coordinator, dog_id, dog_name)
+        super().__init__(coordinator, dog_id, dog_name, species)
         self._attr_unique_id = f"pawsistant_{dog_id}_days_since_medicine"
         self._attr_name = "Days Since Medicine"
 
@@ -445,8 +452,9 @@ class PawsistantRecentTimelineSensor(_PawsistantSensorBase):
         coordinator: PawsistantCoordinator,
         dog_id: str,
         dog_name: str,
+        species: str = DEFAULT_SPECIES,
     ) -> None:
-        super().__init__(coordinator, dog_id, dog_name)
+        super().__init__(coordinator, dog_id, dog_name, species)
         self._attr_unique_id = f"pawsistant_{dog_id}_recent_timeline"
         self._attr_name = "Recent Timeline"
 

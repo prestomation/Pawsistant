@@ -145,6 +145,8 @@ def _inject_stubs() -> None:
     # custom_components.pawsistant.const — always stub (only config_flow uses it)
     _const = types.ModuleType("custom_components.pawsistant.const")
     _const.DOMAIN = "pawsistant"
+    _const.CONF_SPECIES = "species"
+    _const.DEFAULT_SPECIES = "Dog"
     sys.modules["custom_components.pawsistant.const"] = _const
 
     # custom_components.pawsistant — always stub to prevent __init__.py from
@@ -363,7 +365,7 @@ class TestAddDogStep:
         )
         assert result["type"] == "create_entry"
         store.add_dog.assert_awaited_once_with(
-            name="Bella", breed="Poodle", birth_date="2022-06-01"
+            name="Bella", breed="Poodle", birth_date="2022-06-01", species="Dog"
         )
 
     @pytest.mark.asyncio
@@ -393,7 +395,7 @@ class TestAddDogStep:
         )
         assert result["type"] == "create_entry"
         store.add_dog.assert_awaited_once_with(
-            name="Charlie", breed="", birth_date=""
+            name="Charlie", breed="", birth_date="", species="Dog"
         )
 
 

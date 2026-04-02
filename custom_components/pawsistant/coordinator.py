@@ -93,11 +93,11 @@ class PawsistantCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]
                 ) from err
         return result
 
-    def get_device_info(self, dog_id: str, dog_name: str) -> DeviceInfo:
+    def get_device_info(self, dog_id: str, dog_name: str, species: str = "Dog") -> DeviceInfo:
         """Return DeviceInfo for a dog (used by sensor entities)."""
         return DeviceInfo(
             identifiers={(DOMAIN, dog_id)},
             name=dog_name,
             manufacturer="Pawsistant",
-            model="Dog",
+            model=species or "Dog",
         )

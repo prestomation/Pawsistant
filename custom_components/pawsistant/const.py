@@ -4,3 +4,6 @@ DOMAIN = "pawsistant"
 PLATFORMS = ["sensor"]
 URL_BASE = "/pawsistant"
 CARD_VERSION = "2.8.0"
+
+CONF_SPECIES = "species"
+DEFAULT_SPECIES = "Dog"
