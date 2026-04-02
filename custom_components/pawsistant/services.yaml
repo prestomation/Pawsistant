@@ -1,12 +1,12 @@
 log_event:
   name: Log Event
   description: >
-    Log a pet activity event for a named dog. The event is stored locally
+    Log a pet activity event. The event is stored locally
     and triggers an immediate sensor update.
   fields:
     dog:
-      name: Dog
-      description: The name of the dog (case-insensitive).
+      name: Pet
+      description: The name of the pet (case-insensitive).
       required: true
       selector:
         text:
@@ -68,14 +68,14 @@ delete_event:
         text:
 
 add_dog:
-  name: Add Dog
+  name: Add Pet
   description: >
-    Register a new dog. A new set of sensors will appear after HA reloads
+    Register a new pet. A new set of sensors will appear after HA reloads
     the integration (or after the next coordinator refresh).
   fields:
     name:
       name: Name
-      description: The dog's name (must be unique).
+      description: The pet's name (must be unique).
       required: true
       selector:
         text:
@@ -91,16 +91,22 @@ add_dog:
       required: false
       selector:
         text:
+    species:
+      name: Animal type
+      description: Type of animal (e.g. Dog, Cat, Rabbit). Defaults to Dog.
+      required: false
+      selector:
+        text:
 
 remove_dog:
-  name: Remove Dog
+  name: Remove Pet
   description: >
-    Remove a dog and permanently delete all of its events.
+    Remove a pet and permanently delete all of its events.
     This action cannot be undone.
   fields:
     dog:
-      name: Dog
-      description: The name of the dog to remove (case-insensitive).
+      name: Pet
+      description: The name of the pet to remove (case-insensitive).
       required: true
       selector:
         text:
@@ -108,12 +114,12 @@ remove_dog:
 list_events:
   name: List Events
   description: >
-    Query events for a dog and return the results via service response
+    Query events for a pet and return the results via service response
     (`response_variable`). Use this in automations to inspect recent activity.
   fields:
     dog:
-      name: Dog
-      description: The name of the dog.
+      name: Pet
+      description: The name of the pet.
       required: true
       selector:
         text:

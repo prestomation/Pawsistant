@@ -157,8 +157,8 @@ class PawsistantOptionsFlow(OptionsFlow):
         dogs_summary = "\n".join(f"• {l}" for l in dog_lines)
 
         action_options = {
-            ACTION_ADD_DOG: "Add a dog",
-            ACTION_REMOVE_DOG: "Remove a dog",
+            ACTION_ADD_DOG: "Add a pet",
+            ACTION_REMOVE_DOG: "Remove a pet",
             ACTION_DONE: "Done",
         }
 
