@@ -430,7 +430,7 @@ class PawsistantOptionsFlow(OptionsFlow):
 
         if user_input is not None:
             key = (
-                user_input.get("event_type_key", "") or existing_key
+                user_input.get("event_type_key") or existing_key
             ).strip()
             name = (user_input.get("name", "")).strip()
             icon = (user_input.get("icon", "")).strip()
