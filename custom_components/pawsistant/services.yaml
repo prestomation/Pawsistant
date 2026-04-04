@@ -170,3 +170,118 @@ import_events:
       required: true
       selector:
         object:
+
+update_event_type:
+  name: Update Event Type
+  description: >
+    Update the display name, icon, color, or button metric for an existing
+    event type. Only the fields you provide are changed — omitted fields
+    are left untouched. Built-in and custom types can both be updated.
+    The sensor immediately reflects the changes after the call.
+  fields:
+    event_type:
+      name: Event type key
+      description: The event type key to update (e.g. walk, food, my_custom_type).
+      required: true
+      selector:
+        text:
+    name:
+      name: Display name
+      description: New display name for the event type.
+      required: false
+      selector:
+        text:
+    icon:
+      name: Icon
+      description: >
+        New icon in mdi: format (e.g. mdi:walk, mdi:bowl). Browse icons at
+        https://pictogrammers.com/library/mdi/
+      required: false
+      selector:
+        text:
+    color:
+      name: Color
+      description: >
+        New hex color (e.g. #4CAF50). Must be a 6-digit hex color.
+      required: false
+      selector:
+        text:
+    metric:
+      name: Button metric
+      description: >
+        What to show on the sensor button. Options: daily_count (N today),
+        days_since (N days), last_value (value from most recent event),
+        hours_since (N hours). Default if omitted is daily_count.
+      required: false
+      selector:
+        select:
+          options:
+            - daily_count
+            - days_since
+            - last_value
+            - hours_since
+
+add_event_type:
+  name: Add Event Type
+  description: >
+    Add a new custom event type. Built-in types (food, walk, etc.) cannot
+    be recreated — use update_event_type to modify them instead. After adding,
+    a new button appears in the card automatically.
+  fields:
+    event_type:
+      name: Event type key
+      description: >
+        Unique lowercase ID using only a-z, 0-9, and underscores. Max 30 chars.
+        Example: outdoor_walk or vet_checkup.
+      required: true
+      selector:
+        text:
+    name:
+      name: Display name
+      description: Human-readable name shown on the card button.
+      required: true
+      selector:
+        text:
+    icon:
+      name: Icon
+      description: >
+        MDI icon in mdi: format (e.g. mdi:walk). Browse icons at
+        https://pictogrammers.com/library/mdi/
+      required: true
+      selector:
+        text:
+    color:
+      name: Color
+      description: >
+        Hex color (e.g. #4CAF50). Must be a 6-digit hex color starting with #.
+      required: true
+      selector:
+        text:
+    metric:
+      name: Button metric
+      description: >
+        What to show on the sensor button. Options: daily_count (N today),
+        days_since (N days), last_value (value from most recent event),
+        hours_since (N hours). Defaults to daily_count if omitted.
+      required: false
+      selector:
+        select:
+          options:
+            - daily_count
+            - days_since
+            - last_value
+            - hours_since
+
+delete_event_type:
+  name: Delete Event Type
+  description: >
+    Permanently delete a custom event type. Built-in types (food, walk, etc.)
+    cannot be deleted — use update_event_type to modify them instead.
+    Events already logged with this type are preserved in the database.
+  fields:
+    event_type:
+      name: Event type key
+      description: The event type key to delete (e.g. my_custom_type).
+      required: true
+      selector:
+        text:

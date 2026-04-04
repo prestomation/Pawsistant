@@ -1,9 +1,19 @@
 """Constants for the Pawsistant integration."""
 
+import re
+
 DOMAIN = "pawsistant"
 PLATFORMS = ["sensor"]
 URL_BASE = "/pawsistant"
 CARD_VERSION = "2.8.0"
+
+# ── Validation constants ──────────────────────────────────────────────────
+MDI_ICON_RE = re.compile(r"^(mdi|hass):[a-z0-9-]+$")
+HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+VALID_BUTTON_METRICS = ["daily_count", "days_since", "last_value", "hours_since"]
+# Max length for a custom event type key
+MAX_EVENT_TYPE_KEY_LEN = 30
+EVENT_TYPE_KEY_RE = re.compile(r"^[a-z0-9_]+$")
 
 CONF_SPECIES = "species"
 DEFAULT_SPECIES = "Dog"
