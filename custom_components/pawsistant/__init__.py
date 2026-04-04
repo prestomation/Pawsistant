@@ -32,7 +32,7 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN, PLATFORMS, URL_BASE, CARD_VERSION
 from .coordinator import PawsistantCoordinator
-from .store import PawsistantStore, VALID_EVENT_TYPES
+from .store import PawsistantStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 LOG_EVENT_SCHEMA = vol.Schema(
     {
         vol.Required("dog"): cv.string,
-        vol.Required("event_type"): vol.In(VALID_EVENT_TYPES),
+        vol.Required("event_type"): cv.string,  # any string is accepted; registry validates
         vol.Optional("note", default=""): cv.string,
         vol.Optional("value"): vol.Coerce(float),
         vol.Optional("timestamp"): cv.string,
@@ -73,7 +73,7 @@ REMOVE_DOG_SCHEMA = vol.Schema(
 LIST_EVENTS_SCHEMA = vol.Schema(
     {
         vol.Required("dog"): cv.string,
-        vol.Optional("event_type"): vol.In(VALID_EVENT_TYPES),
+        vol.Optional("event_type"): cv.string,
         vol.Optional("days", default=7): vol.All(int, vol.Range(min=1, max=3650)),
     }
 )

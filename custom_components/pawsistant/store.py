@@ -5,7 +5,9 @@ Storage layout in HA's .storage directory:
     pawsistant
         Dogs registry + metadata only.  No events.
         Shape:  {"dogs": {dog_id: {name, breed, birth_date}},
-                 "known_years": [2025, 2026, ...]}
+                 "known_years": [2025, 2026, ...],
+                 "event_types": {...user overrides...},
+                 "button_metrics": {...user overrides...}}
 
     pawsistant_events_2025
     pawsistant_events_2026
@@ -24,14 +26,21 @@ Benefits of partitioning
 * Migration: if an old flat store with an "events" key is found on first load,
   events are transparently migrated to year files.
 
-------------------------------
-pawsistant files don't, the load() method will attempt to read from the old
-keys and write to the new ones.  This ensures existing users don't lose data
+The event type registry (display name, icon, color per event_type key) is stored
+as a partial dict in the meta store — only user overrides are persisted, merged
+over the 14 built-in defaults at runtime.  Historical events store only the
+`event_type` key (e.g. "walk"); display metadata is always looked up from the
+registry at render time.
+
+Button metrics (what label/value appears on each sensor button) are similarly
+stored as partial overrides in the meta store and merged with defaults at
+runtime.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -40,12 +49,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from .const import DEFAULT_EVENT_TYPES, DEFAULT_BUTTON_METRICS, CONF_EVENT_TYPES, CONF_BUTTON_METRICS
+
 _LOGGER = logging.getLogger(__name__)
 
 STORAGE_KEY_META = "pawsistant"
 STORAGE_KEY_EVENTS_PREFIX = "pawsistant_events_"
 STORAGE_VERSION = 1
-
 
 # Event types that are retained indefinitely — never pruned
 PERSISTENT_EVENT_TYPES = {"weight", "medicine", "vaccine"}
@@ -53,24 +63,6 @@ PERSISTENT_EVENT_TYPES = {"weight", "medicine", "vaccine"}
 # High-frequency events older than this are pruned per year file.
 # Set to 3 years — generous enough for full history but prevents unbounded growth.
 DEFAULT_RETENTION_DAYS = 1095
-
-# All valid event types (used for service schema validation)
-VALID_EVENT_TYPES = {
-    "food",
-    "treat",
-    "water",
-    "walk",
-    "pee",
-    "poop",
-    "medicine",
-    "weight",
-    "vaccine",
-    "sleep",
-    "grooming",
-    "training",
-    "teeth_brushing",
-    "sick",
-}
 # ---------------------------------------------------------------------------
 # PawsistantStore
 # ---------------------------------------------------------------------------
@@ -134,9 +126,13 @@ class PawsistantStore:
         store = self._get_year_store(year)
         await store.async_save({"events": self._year_events.get(year, [])})
 
-    async def _save_meta(self) -> None:
-        """Persist the meta store (dogs + known_years)."""
-        await self._meta_store.async_save(self._meta)
+    def sync_save_meta(self) -> None:
+        """Schedule a meta store save (fire-and-forget).
+
+        Used by config-flow steps that need the save to complete before
+        returning, but don't need to await it (HassJob handles scheduling).
+        """
+        self._hass.add_job(self._meta_store.async_save(self._meta))
 
     def _record_year(self, year: int) -> None:
         """Add year to the known_years index (no-op if already present)."""
@@ -254,6 +250,70 @@ class PawsistantStore:
         current_year = dt_util.now().year
         await self._ensure_year_loaded(current_year)
         await self._ensure_year_loaded(current_year - 1)
+
+    # -----------------------------------------------------------------------
+    # Event type registry
+    # -----------------------------------------------------------------------
+
+    def get_event_types(self) -> dict[str, dict[str, str]]:
+        """Return the full event type registry.
+
+        Stored overrides (event_types key in meta store) are merged over the
+        14 built-in defaults.  Stored values win for any key that exists in
+        both, so a user can rename "walk" → "stroll" while keeping all other
+        defaults intact.
+        """
+        stored: dict[str, dict[str, str]] = self._meta.get(CONF_EVENT_TYPES, {})
+        result = dict(DEFAULT_EVENT_TYPES)
+        # Merge stored overrides — stored wins for any shared key
+        for key in stored:
+            if key in result or stored[key]:
+                # Shallow merge: replace the entire entry for that key
+                result[key] = stored[key]
+        return result
+
+    def save_event_types(self, event_types: dict[str, dict[str, str]]) -> None:
+        """Persist event type overrides to the meta store.
+
+        Only user overrides are saved (partial dict).  Built-in types not in
+        *event_types* are implicitly preserved by dint of the DEFAULT_EVENT_TYPES
+        fallback in ``get_event_types()``.
+        """
+        self._meta[CONF_EVENT_TYPES] = event_types
+        # no async save — caller is responsible for batching saves if needed
+
+    def get_button_metrics(self) -> dict[str, str]:
+        """Return button metrics for all event types.
+
+        Stored overrides are merged over defaults.  Types not in either dict
+        default to "daily_count" — this method returns the complete resolved
+        map so callers don't need to handle the implicit default.
+        """
+        stored: dict[str, str] = self._meta.get(CONF_BUTTON_METRICS, {})
+        result: dict[str, str] = dict(DEFAULT_BUTTON_METRICS)
+        for key, value in stored.items():
+            result[key] = value
+        # Fill in defaults for types not explicitly set
+        for key in DEFAULT_EVENT_TYPES:
+            if key not in result:
+                result[key] = "daily_count"
+        return result
+
+    def save_button_metrics(self, button_metrics: dict[str, str]) -> None:
+        """Persist button metric overrides to the meta store."""
+        self._meta[CONF_BUTTON_METRICS] = button_metrics
+
+    def sync_save_meta(self) -> None:
+        """Schedule a meta store save (fire-and-forget).
+
+        Used by config-flow steps that need the save to complete before
+        returning, but don't need to await it (HassJob handles scheduling).
+        """
+        self._hass.add_job(self._meta_store.async_save(self._meta))
+
+    async def _save_meta(self) -> None:
+        """Persist the meta store (dogs + known_years)."""
+        await self._meta_store.async_save(self._meta)
 
     # -----------------------------------------------------------------------
     # Dog management

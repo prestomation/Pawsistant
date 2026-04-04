@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one pet activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
- * Version: 2.7.1
+ * Version: 2.8.0
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -14,7 +14,10 @@ window.customCards.push({
 });
 
 /* ── Event-type metadata ────────────────────────────────────────────────── */
-const EVENT_META = {
+// Fallback registry — used when WS state hasn't been populated yet.
+// The card reads live registry from sensor attributes; these values are
+// retained as defaults so the card renders before any sensor has reported.
+const FALLBACK_EVENT_META = {
   poop:     { emoji: '💩', label: 'Poop',     color: 'var(--warning-color, #FF8A65)' },
   pee:      { emoji: '💧', label: 'Pee',      color: 'var(--info-color, #4FC3F7)' },
   medicine: { emoji: '💊', label: 'Medicine', color: 'var(--error-color, #EF5350)' },
@@ -27,14 +30,79 @@ const EVENT_META = {
   vaccine:  { emoji: '💉', label: 'Vaccine',  color: 'var(--info-color, #26A69A)' },
   training: { emoji: '🎓', label: 'Training', color: 'var(--info-color, #5C6BC0)' },
   weight:   { emoji: '⚖️',  label: 'Weight',   color: 'var(--secondary-text-color, #78909C)' },
-  teeth_brushing: { emoji: '🦷', label: 'Teeth', color: 'var(--secondary-text-color, #B0BEC5)' },
+  teeth:    { emoji: '🦷', label: 'Teeth',   color: 'var(--secondary-text-color, #B0BEC5)' },
   grooming: { emoji: '✂️',  label: 'Grooming', color: 'var(--warning-color, #EC407A)' },
 };
+// Alias for backwards compat — old card config YAML may reference EVENT_META
+const EVENT_META = FALLBACK_EVENT_META;
 
 const DEFAULT_SHOWN_TYPES = ['poop', 'pee', 'medicine', 'sick', 'weight'];
 
-function getMeta(type) {
-  return EVENT_META[type] || { emoji: '📝', label: type, color: 'var(--secondary-text-color, #888)' };
+/** Human-readable labels for button metric values */
+const METRIC_LABELS = {
+  daily_count: (n) => `${n} today`,
+  days_since:  (n) => `${n} days`,
+  last_value:  (v, unit) => `${v} ${unit || ''}`,
+  hours_since: (n) => `${n} hours`,
+};
+
+/**
+ * Build the dynamic event-type registry from sensor attributes.
+ * Reads from any Pawsistant sensor's `event_types` attribute (a dict
+ * of {key: {name, icon, color}}).  Falls back to FALLBACK_EVENT_META.
+ *
+ * Also reads `button_metrics` ({key: metric_name}) for button labels.
+ */
+function buildRegistry(hass) {
+  const registry = { ...FALLBACK_EVENT_META };
+  const metrics = {};
+
+  if (hass && hass.states) {
+    for (const state of Object.values(hass.states)) {
+      const attrs = state.attributes || {};
+      if (attrs.event_types && typeof attrs.event_types === 'object') {
+        Object.assign(registry, attrs.event_types);
+      }
+      if (attrs.button_metrics && typeof attrs.button_metrics === 'object') {
+        Object.assign(metrics, attrs.button_metrics);
+      }
+      if (Object.keys(registry).length > Object.keys(FALLBACK_EVENT_META).length ||
+          Object.keys(metrics).length > 0) {
+        break;  // got what we need
+      }
+    }
+  }
+
+  return { registry, metrics };
+}
+
+function getMeta(type, registry) {
+  if (registry && registry[type]) {
+    // Live registry: {name, icon, color} — map to card's {emoji, label, color}
+    const entry = registry[type];
+    return {
+      emoji: entry.icon ? iconToEmoji(entry.icon) : '📝',
+      label: entry.name || type,
+      color: entry.color || 'var(--secondary-text-color, #888)',
+      icon: entry.icon || '',
+    };
+  }
+  const fallback = FALLBACK_EVENT_META[type];
+  if (fallback) return { ...fallback, icon: '' };
+  return { emoji: '📝', label: type, color: 'var(--secondary-text-color, #888)', icon: '' };
+}
+
+/** Map an MDI icon name (e.g. "mdi:walk") to a fallback emoji. */
+function iconToEmoji(icon) {
+  const map = {
+    'mdi:walk': '🦮', 'mdi:food-drumstick': '🍖', 'mdi:cookie': '🍪',
+    'mdi:bowl': '🍽️', 'mdi:cup-water': '🥤', 'mdi:water': '💧',
+    'mdi:emoticon-poop': '💩', 'mdi:pill': '💊', 'mdi:scale-bathroom': '⚖️',
+    'mdi:needle': '💉', 'mdi:sleep': '😴', 'mdi:content-cut': '✂️',
+    'mdi:hand-pointing-up': '🎯', 'mdi:toothbrush': '🦷', 'mdi:emoticon-sick': '🤒',
+    'mdi:tag': '🏷️', 'mdi:school': '🎓',
+  };
+  return map[icon] || '📝';
 }
 
 /* ── Utilities ──────────────────────────────────────────────────────────── */
@@ -122,6 +190,9 @@ function buildHash(hass, cfg) {
     stateStr(hass, poopEnt) || '',
     stateStr(hass, medEnt) || '',
     JSON.stringify(stateAttr(hass, tEnt, 'events') || []),
+    // Include registry hash so event-type edits trigger re-render
+    JSON.stringify(stateAttr(hass, tEnt, 'event_types') || {}),
+    JSON.stringify(stateAttr(hass, tEnt, 'button_metrics') || {}),
   ];
   return parts.join('|');
 }
@@ -183,9 +254,10 @@ class PawsistantCardEditor extends HTMLElement {
     const dogNames = this._dogNamesFromHass(this.__hass);
 
     // Build checkbox rows for every known event type
-    const allTypes = Object.keys(EVENT_META);
+    const { registry } = this._registry();
+    const allTypes = Object.keys(registry);
     const checkboxesHTML = allTypes.map(type => {
-      const meta = EVENT_META[type];
+      const meta = getMeta(type, registry);
       const checked = currentShown.includes(type) ? 'checked' : '';
       return `
         <label class="type-checkbox">
@@ -445,6 +517,15 @@ class PawsistantCard extends HTMLElement {
     return types;
   }
 
+  /** Build event-type registry + button metrics from sensor attributes.
+   *  Cached on this._registryCache, invalidated when hass changes. */
+  _registry() {
+    if (this._registryCache) return this._registryCache;
+    const { registry, metrics } = buildRegistry(this._hass);
+    this._registryCache = { registry, metrics };
+    return this._registryCache;
+  }
+
   /* ── Render ────────────────────────────────────────────────────────── */
   _render() {
     const hass = this._hass;
@@ -453,6 +534,7 @@ class PawsistantCard extends HTMLElement {
     const cfg = this._config;
     const ent = this._entities();
     const dogName = cfg.dog;
+    const { registry, metrics } = this._registry();
 
     const peeCount = stateNum(hass, ent.pee_count);
     const poopCount = stateNum(hass, ent.poop_count);
@@ -469,7 +551,7 @@ class PawsistantCard extends HTMLElement {
     } else {
       let lastDate = null;
       for (const ev of events) {
-        const meta = getMeta(ev.type);
+        const meta = getMeta(ev.type, registry);
         const evDate = ev.date || '';
         if (evDate !== lastDate) {
           const label = evDate || ev.day || '';
@@ -502,14 +584,30 @@ class PawsistantCard extends HTMLElement {
       : null;
     let buttonsHTML = '';
     for (const type of shownTypes) {
-      const meta = getMeta(type);
+      const meta = getMeta(type, registry);
       const isWeight = type === 'weight';
 
       /* Inline count/stat for supported types */
       let countSuffix = '';
-      if (type === 'pee' && peeCount !== null) countSuffix = ` (${peeCount})`;
-      else if (type === 'poop' && poopCount !== null) countSuffix = ` (${poopCount})`;
-      else if (type === 'medicine' && medDays !== null) countSuffix = ` (${medDaysText})`;
+      const metric = metrics[type] || 'daily_count';
+      if (metric === 'daily_count') {
+        if (type === 'pee' && peeCount !== null) countSuffix = ` (${peeCount})`;
+        else if (type === 'poop' && poopCount !== null) countSuffix = ` (${poopCount})`;
+        else if (type === 'medicine' && medDays !== null) countSuffix = ` (${medDaysText})`;
+        else if (type === 'food' && peeCount !== null) {} // food has no inline stat
+      } else if (metric === 'days_since' && medDays !== null) {
+        countSuffix = ` (${Math.floor(medDays)}d)`;
+      } else if (metric === 'last_value') {
+        const w = stateNum(hass, ent.weight);
+        if (w !== null) countSuffix = ` (${w} ${weightUnit})`;
+      } else if (metric === 'hours_since') {
+        // Show hours since most recent of this type
+        const lastTs = stateAttr(hass, ent.timeline, 'last_' + type + '_ts');
+        if (lastTs) {
+          const hrs = Math.floor((Date.now() - new Date(lastTs).getTime()) / 3600000);
+          if (hrs >= 0) countSuffix = ` (${hrs}h)`;
+        }
+      }
 
       const ariaLabel = isWeight
         ? `Log weight`
@@ -1021,7 +1119,8 @@ class PawsistantCard extends HTMLElement {
     this._activeType = type;
     this._activeTriggerBtn = activeBtn;
 
-    const meta = getMeta(type);
+    const { registry } = this._registry();
+    const meta = getMeta(type, registry);
     const formEl = this.shadowRoot.getElementById('inline-form');
     /* U10 — proper <label for> on all inputs */
     formEl.innerHTML = `

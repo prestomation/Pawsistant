@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "pawsistant",
+  "data": {
+    "dogs": {
+      "dog_001": {"name": "Testdog", "breed": "Labrador", "birth_date": "2020-01-01", "species": "Dog"},
+      "dog_002": {"name": "Buddy", "breed": "Beagle", "birth_date": "2019-06-15", "species": "Dog"}
+    },
+    "known_years": [2024, 2025, 2026],
+    "event_types": {
+      "custom_bark": {"name": "Bark", "icon": "mdi:dog", "color": "#123456"}
+    },
+    "button_metrics": {}
+  }
+}

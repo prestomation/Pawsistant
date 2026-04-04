@@ -13,6 +13,7 @@ Flow:
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import voluptuous as vol
@@ -25,7 +26,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 
-from .const import CONF_SPECIES, DEFAULT_SPECIES, DOMAIN
+from .const import CONF_SPECIES, DEFAULT_SPECIES, DOMAIN, CONF_EVENT_TYPES, CONF_BUTTON_METRICS, DEFAULT_EVENT_TYPES, DEFAULT_BUTTON_METRICS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,6 +43,21 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 ACTION_ADD_DOG = "add_dog"
 ACTION_REMOVE_DOG = "remove_dog"
 ACTION_DONE = "done"
+ACTION_EDIT_EVENT_TYPES = "edit_event_types"
+
+# Allowed button metric values
+VALID_BUTTON_METRICS = ["daily_count", "days_since", "last_value", "hours_since"]
+
+# MDI icon validation pattern
+MDI_ICON_RE = re.compile(r"^(mdi|hass):")
+
+# Human-readable labels for button metrics
+METRIC_LABELS = {
+    "daily_count": "shows daily count",
+    "days_since": "shows days since",
+    "last_value": "shows last value",
+    "hours_since": "shows hours since",
+}
 
 
 class PawsistantConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -139,6 +155,8 @@ class PawsistantOptionsFlow(OptionsFlow):
                 return await self.async_step_add_dog()
             if action == ACTION_REMOVE_DOG:
                 return await self.async_step_remove_dog()
+            if action == ACTION_EDIT_EVENT_TYPES:
+                return await self.async_step_manage_event_types()
             # ACTION_DONE or anything else — close the dialog
             return self.async_create_entry(title="", data={})
 
@@ -159,6 +177,7 @@ class PawsistantOptionsFlow(OptionsFlow):
         action_options = {
             ACTION_ADD_DOG: "Add a pet",
             ACTION_REMOVE_DOG: "Remove a pet",
+            ACTION_EDIT_EVENT_TYPES: "Edit event types",
             ACTION_DONE: "Done",
         }
 
@@ -299,4 +318,215 @@ class PawsistantOptionsFlow(OptionsFlow):
                 }
             ),
             errors=errors,
+        )
+
+    # ------------------------------------------------------------------
+    # Step 4: manage_event_types — list all event types
+    # ------------------------------------------------------------------
+
+    async def async_step_manage_event_types(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """List all event types with Edit/Delete/Add actions."""
+        store, _ = self._get_store_and_coord()
+        if store is None:
+            return self.async_create_entry(title="", data={})
+
+        event_types = store.get_event_types()
+        button_metrics = store.get_button_metrics()
+
+        if user_input is not None:
+            action = user_input.get("action", "")
+            if action == "add":
+                return await self.async_step_edit_event_type(user_input={})
+            if action == "done":
+                return self.async_create_entry(title="", data={})
+            if action.startswith("edit_"):
+                key = action[5:]
+                return await self.async_step_edit_event_type(
+                    user_input={"event_type": key}
+                )
+            if action.startswith("delete_"):
+                key = action[7:]
+                # Cannot delete built-in types
+                if key in DEFAULT_EVENT_TYPES:
+                    errors = await self._validate_manage_event_types(store, button_metrics)
+                    errors["base"] = "cannot_delete_default"
+                    return self.async_show_form(
+                        step_id="manage_event_types",
+                        data_schema=self._build_manage_event_types_schema(
+                            event_types, button_metrics
+                        ),
+                        errors=errors,
+                    )
+                # Perform deletion
+                current = store.get_event_types()
+                del current[key]
+                store.save_event_types(current)
+                bm = store.get_button_metrics()
+                if key in bm and key not in DEFAULT_BUTTON_METRICS:
+                    del bm[key]
+                    store.save_button_metrics(bm)
+                store.sync_save_meta()
+                return await self.async_step_manage_event_types()
+
+        return self.async_show_form(
+            step_id="manage_event_types",
+            data_schema=self._build_manage_event_types_schema(
+                event_types, button_metrics
+            ),
+            description_placeholders={"count": str(len(event_types))},
+        )
+
+    async def _validate_manage_event_types(self, store, button_metrics):
+        """Re-validate — currently no per-field errors for manage step."""
+        return {}
+
+    def _build_manage_event_types_schema(
+        self,
+        event_types: dict[str, dict[str, str]],
+        button_metrics: dict[str, str],
+    ) -> vol.Schema:
+        """Build the selector schema for manage_event_types."""
+        # Build action options dict
+        actions = {}
+        for key in sorted(event_types.keys()):
+            meta = event_types[key]
+            metric = button_metrics.get(key, "daily_count")
+            metric_label = METRIC_LABELS.get(metric, metric)
+            label = (
+                f"{meta.get('icon', 'mdi:help')} {meta.get('name', key)} "
+                f"(#{meta.get('color', '?')}) — {metric_label}"
+            )
+            actions[f"edit_{key}"] = f"Edit {label}"
+            if key not in DEFAULT_EVENT_TYPES:
+                actions[f"delete_{key}"] = f"Delete {label}"
+        actions["add"] = "+ Add new event type"
+        actions["done"] = "Done"
+
+        return vol.Schema({vol.Required("action", default="done"): vol.In(actions)})
+
+    # ------------------------------------------------------------------
+    # Step 5: edit_event_type — add or edit a single event type
+    # ------------------------------------------------------------------
+
+    async def async_step_edit_event_type(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add or edit a single event type.
+
+        user_input carries "event_type" key when editing existing type.
+        When adding, "event_type" is absent or empty.
+        """
+        store, _ = self._get_store_and_coord()
+        if store is None:
+            return self.async_create_entry(title="", data={})
+
+        existing_key = (
+            user_input.get("event_type", "") if user_input else ""
+        )
+        is_edit = bool(existing_key) and existing_key in store.get_event_types()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            key = (
+                user_input.get("event_type_key", "") or existing_key
+            ).strip()
+            name = (user_input.get("name", "")).strip()
+            icon = (user_input.get("icon", "")).strip()
+            color = (user_input.get("color", "")).strip()
+            metric = user_input.get("metric", "daily_count")
+
+            # Validate key
+            if not key:
+                errors["event_type_key"] = "required"
+            elif len(key) > 30:
+                errors["event_type_key"] = "key_too_long"
+            elif not re.match(r"^[a-z0-9_]+$", key):
+                errors["event_type_key"] = "invalid_key_format"
+            else:
+                # Duplicate check
+                if not is_edit or (is_edit and key != existing_key):
+                    if key in store.get_event_types():
+                        errors["event_type_key"] = "key_already_exists"
+
+            # Validate name
+            if not name:
+                errors["name"] = "required"
+
+            # Validate icon
+            if not icon:
+                errors["icon"] = "required"
+            elif not MDI_ICON_RE.match(icon):
+                errors["icon"] = "invalid_icon_format"
+
+            # Validate color
+            if not color:
+                errors["color"] = "required"
+            elif not re.match(r"^#[0-9a-fA-F]{6}$", color):
+                errors["color"] = "invalid_color_format"
+
+            # Validate metric
+            if metric not in VALID_BUTTON_METRICS:
+                errors["metric"] = "invalid_metric"
+
+            if not errors:
+                # Persist event type entry
+                entry = {
+                    "name": name,
+                    "icon": icon,
+                    "color": color.upper(),
+                }
+                all_types = store.get_event_types()
+                all_types[key] = entry
+                store.save_event_types(all_types)
+
+                # Persist button metric if non-default
+                bm = store.get_button_metrics()
+                default_metric = DEFAULT_BUTTON_METRICS.get(key, "daily_count")
+                if metric != default_metric:
+                    bm[key] = metric
+                    store.save_button_metrics(bm)
+                elif key in bm and key not in DEFAULT_BUTTON_METRICS:
+                    del bm[key]
+                    store.save_button_metrics(bm)
+
+                store.sync_save_meta()
+
+                if is_edit:
+                    _, coord = self._get_store_and_coord()
+                    if coord is not None:
+                        await coord.async_refresh()
+
+                return self.async_create_entry(title="", data={})
+
+        # Build form schema
+        if is_edit:
+            current = store.get_event_types().get(existing_key, {})
+            schema_dict = {
+                vol.Optional("event_type_key", default=existing_key): str,
+                vol.Optional("name", default=current.get("name", "")): str,
+                vol.Optional("icon", default=current.get("icon", "")): str,
+                vol.Optional("color", default=current.get("color", "")): str,
+                vol.Optional(
+                    "metric",
+                    default=store.get_button_metrics().get(existing_key, "daily_count"),
+                ): vol.In({k: k for k in VALID_BUTTON_METRICS}),
+            }
+        else:
+            schema_dict = {
+                vol.Optional("event_type_key", default=""): str,
+                vol.Optional("name", default=""): str,
+                vol.Optional("icon", default="mdi:tag"): str,
+                vol.Optional("color", default="#4CAF50"): str,
+                vol.Optional(
+                    "metric", default="daily_count"
+                ): vol.In({k: k for k in VALID_BUTTON_METRICS}),
+            }
+
+        return self.async_show_form(
+            step_id="edit_event_type",
+            data_schema=vol.Schema(schema_dict),
+            errors=errors,
+            description_placeholders={"mode": "edit" if is_edit else "add"},
         )

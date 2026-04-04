@@ -50,13 +50,44 @@
         "data": {
           "dog_name": "Select a pet to remove"
         }
+      },
+      "manage_event_types": {
+        "title": "Event Types",
+        "description": "{count} event types configured. Built-in types cannot be deleted.",
+        "data": {
+          "action": "Select an action"
+        }
+      },
+      "edit_event_type": {
+        "title": "{mode} Event Type",
+        "description": "Set the display name, icon (MDI), color, and button metric for this event type.",
+        "data": {
+          "event_type_key": "Event type ID",
+          "name": "Display name",
+          "icon": "MDI icon",
+          "color": "Color (hex)",
+          "metric": "Button metric"
+        },
+        "data_description": {
+          "event_type_key": "Lowercase letters, numbers, underscores only. Max 30 characters. Cannot be changed after creation.",
+          "icon": "Must start with mdi: or hass: (e.g. mdi:walk)",
+          "metric": "What to show on the sensor button. daily_count = \"3 today\", days_since = \"2 days\", last_value = \"28.5 lbs\", hours_since = \"5 hours\""
+        }
       }
     },
     "error": {
       "name_required": "Pet name is required.",
       "name_already_exists": "A pet with this name is already registered.",
       "dog_not_found": "Pet not found. Please refresh and try again.",
-      "store_unavailable": "Integration storage is unavailable. Please reload the integration and try again."
+      "store_unavailable": "Integration storage is unavailable. Please reload the integration and try again.",
+      "cannot_delete_default": "Built-in event types cannot be deleted. You can edit their name, icon, or color instead.",
+      "required": "This field is required.",
+      "key_too_long": "Event type ID must be 30 characters or fewer.",
+      "invalid_key_format": "Event type ID must contain only lowercase letters, numbers, and underscores.",
+      "key_already_exists": "An event type with this ID already exists.",
+      "invalid_icon_format": "Icon must start with mdi: or hass: (e.g. mdi:walk).",
+      "invalid_color_format": "Color must be a valid hex code (e.g. #4CAF50).",
+      "invalid_metric": "Button metric must be one of: daily_count, days_since, last_value, hours_since."
     }
   }
 }

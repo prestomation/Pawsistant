@@ -93,6 +93,16 @@ class PawsistantCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]
                 ) from err
         return result
 
+    @property
+    def event_types(self) -> dict[str, dict[str, str]]:
+        """Return the current event type registry (name/icon/color per key)."""
+        return self.store.get_event_types()
+
+    @property
+    def button_metrics(self) -> dict[str, str]:
+        """Return button metrics for all event types."""
+        return self.store.get_button_metrics()
+
     def get_device_info(self, dog_id: str, dog_name: str, species: str = "Dog") -> DeviceInfo:
         """Return DeviceInfo for a dog (used by sensor entities)."""
         return DeviceInfo(
