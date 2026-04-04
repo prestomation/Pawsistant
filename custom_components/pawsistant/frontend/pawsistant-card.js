@@ -54,14 +54,28 @@ const METRIC_LABELS = {
  * Also reads `button_metrics` ({key: metric_name}) for button labels.
  */
 function buildRegistry(hass) {
-  const registry = { ...FALLBACK_EVENT_META };
+  // Deep-copy so we never mutate the module-level FALLBACK_EVENT_META
+  const registry = {};
+  for (const [k, v] of Object.entries(FALLBACK_EVENT_META)) {
+    registry[k] = { ...v };
+  }
   const metrics = {};
 
   if (hass && hass.states) {
     for (const state of Object.values(hass.states)) {
       const attrs = state.attributes || {};
       if (attrs.event_types && typeof attrs.event_types === 'object') {
-        Object.assign(registry, attrs.event_types);
+        // Shallow-merge: live icon wins, but preserve fallback emoji when live icon is absent
+        for (const [k, v] of Object.entries(attrs.event_types || {})) {
+          if (v && typeof v === 'object') {
+            registry[k] = {
+              emoji:    v.icon ? iconToEmoji(v.icon) : (registry[k]?.emoji || '📝'),
+              label:    v.name  || k,
+              color:    v.color || registry[k]?.color || '#888',
+              icon:     v.icon  || '',
+            };
+          }
+        }
       }
       if (attrs.button_metrics && typeof attrs.button_metrics === 'object') {
         Object.assign(metrics, attrs.button_metrics);
@@ -94,7 +108,7 @@ function getMeta(type, registry) {
 
 /** Map an MDI icon name (e.g. "mdi:walk") to a fallback emoji. */
 function iconToEmoji(icon) {
-  const map = {
+  if (!icon) return undefined;  // undefined → getMeta uses fallback emoji from registry
     'mdi:walk': '🦮', 'mdi:food-drumstick': '🍖', 'mdi:cookie': '🍪',
     'mdi:bowl': '🍽️', 'mdi:cup-water': '🥤', 'mdi:water': '💧',
     'mdi:emoticon-poop': '💩', 'mdi:pill': '💊', 'mdi:scale-bathroom': '⚖️',
@@ -525,7 +539,9 @@ class PawsistantCard extends HTMLElement {
   /** Build event-type registry + button metrics from sensor attributes.
    *  Cached on this._registryCache, invalidated when hass changes. */
   _registry() {
-    if (this._registryCache) return this._registryCache;
+    if (this._registryCache && typeof this._registryCache === 'object') {
+      return this._registryCache;
+    }
     const { registry, metrics } = buildRegistry(this._hass);
     this._registryCache = { registry, metrics };
     return this._registryCache;
