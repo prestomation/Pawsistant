@@ -264,6 +264,7 @@ class PawsistantStore:
         name: str,
         breed: str = "",
         birth_date: str = "",
+        species: str = "Dog",
     ) -> str:
         """Register a new dog. Returns the generated dog_id (UUID).
 
@@ -280,6 +281,7 @@ class PawsistantStore:
             "name": name,
             "breed": breed,
             "birth_date": birth_date,
+            "species": species or "Dog",
         }
         await self._save_meta()
         _LOGGER.info("Pawsistant: added dog '%s' (id=%s)", name, dog_id)

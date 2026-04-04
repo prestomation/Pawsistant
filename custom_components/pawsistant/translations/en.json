@@ -2,52 +2,61 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add your first dog",
+        "title": "Add your first pet",
         "description": "Pawsistant stores all data locally in Home Assistant — no cloud account required.",
         "data": {
-          "dog_name": "Dog name",
+          "dog_name": "Pet name",
           "breed": "Breed (optional)",
-          "birth_date": "Birth date (optional, YYYY-MM-DD)"
+          "birth_date": "Birth date (optional, YYYY-MM-DD)",
+          "species": "Animal type"
+        },
+        "data_description": {
+          "species": "Type of animal (e.g. Dog, Cat, Rabbit). Used in sensor names and card labels."
         }
       }
     },
     "error": {
-      "name_required": "Dog name is required."
+      "name_required": "Pet name is required."
     },
     "abort": {
-      "already_configured": "Pawsistant is already configured. Use the pawsistant.add_dog service to add more dogs."
+      "already_configured": "Pawsistant is already configured. Use the pawsistant.add_dog service to add more pets."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Manage dogs",
-        "description": "Current dogs:\n{current_dogs}",
+        "title": "Manage pets",
+        "description": "Current pets:\n{current_dogs}",
         "data": {
           "action": "What would you like to do?"
         }
       },
       "add_dog": {
-        "title": "Add a dog",
-        "description": "Enter the details for your new dog.",
+        "title": "Add a pet",
+        "description": "Enter the details for your new pet.",
         "data": {
-          "dog_name": "Dog name",
+          "dog_name": "Pet name",
           "breed": "Breed (optional)",
-          "birth_date": "Birth date (optional, YYYY-MM-DD)"
+          "birth_date": "Birth date (optional, YYYY-MM-DD)",
+          "species": "Animal type"
+        },
+        "data_description": {
+          "species": "Type of animal (e.g. Dog, Cat, Rabbit). Used in sensor names and card labels."
         }
       },
       "remove_dog": {
-        "title": "Remove a dog",
-        "description": "⚠️ This will permanently delete all events for this dog.",
+        "title": "Remove a pet",
+        "description": "⚠️ This will permanently delete all events for this pet.",
         "data": {
-          "dog_name": "Select a dog to remove"
+          "dog_name": "Select a pet to remove"
         }
       }
     },
     "error": {
-      "name_required": "Dog name is required.",
-      "name_already_exists": "A dog with this name is already registered.",
-      "dog_not_found": "Dog not found. Please refresh and try again."
+      "name_required": "Pet name is required.",
+      "name_already_exists": "A pet with this name is already registered.",
+      "dog_not_found": "Pet not found. Please refresh and try again.",
+      "store_unavailable": "Integration storage is unavailable. Please reload the integration and try again."
     }
   }
 }

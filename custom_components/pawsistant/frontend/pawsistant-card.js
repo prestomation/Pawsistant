@@ -1,5 +1,5 @@
 /**
- * Pawsistant Card — All-in-one dog activity dashboard for Home Assistant
+ * Pawsistant Card — All-in-one pet activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
  * Version: 2.7.1
  */
@@ -9,7 +9,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'pawsistant-card',
   name: 'Pawsistant',
-  description: 'All-in-one dog activity tracker — log events, view timeline, track stats',
+  description: 'All-in-one pet activity tracker — log events, view timeline, track stats',
   preview: true,
 });
 
@@ -261,10 +261,10 @@ class PawsistantCardEditor extends HTMLElement {
       </style>
       <div class="form">
         <div>
-          <label class="field-label" for="ed-dog">Dog *</label>
+          <label class="field-label" for="ed-dog">Pet *</label>
           ${dogNames.length > 0
             ? `<select id="ed-dog" name="dog">
-                <option value="">— select a dog —</option>
+                <option value="">— select a pet —</option>
                 ${dogNames.map(n => `<option value="${esc(n)}"${cfg.dog === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}
               </select>`
             : `<input id="ed-dog" name="dog" value="${esc(cfg.dog || '')}" placeholder="Sharky" />
