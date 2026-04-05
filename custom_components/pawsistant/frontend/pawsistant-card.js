@@ -1491,12 +1491,12 @@ class PawsistantCard extends HTMLElement {
     if (!confirm(`Delete event type '${key}'? Events logged with this type will be preserved.`)) return;
     this._hass.callService('pawsistant', 'delete_event_type', { event_type: key })
       .then(() => {
-        this._closeEventTypesPanel();
-        this._setTimeout(() => { this._lastHash = null; this._render(); }, 300);
+        // Stay in the panel — re-render so the deleted type disappears from the list
+        this._lastHash = null;
+        this._render();
       })
       .catch(err => {
         console.error('[pawsistant-card] delete_event_type failed:', err);
-        // Show inline error in panel
         this._eventTypeFormError = 'Delete failed: ' + ((err && err.message) || 'Unknown error');
         this._render();
       });
