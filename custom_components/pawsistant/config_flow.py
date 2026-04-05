@@ -367,7 +367,7 @@ class PawsistantOptionsFlow(OptionsFlow):
                 if key in bm and key not in DEFAULT_BUTTON_METRICS:
                     del bm[key]
                     store.save_button_metrics(bm)
-                store.sync_save_meta()
+                store._save_meta_sync()
                 return await self.async_step_manage_event_types()
 
         return self.async_show_form(
@@ -491,7 +491,7 @@ class PawsistantOptionsFlow(OptionsFlow):
                     del bm[key]
                     store.save_button_metrics(bm)
 
-                store.sync_save_meta()
+                store._save_meta_sync()
 
                 if is_edit:
                     _, coord = self._get_store_and_coord()

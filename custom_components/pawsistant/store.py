@@ -126,7 +126,7 @@ class PawsistantStore:
         store = self._get_year_store(year)
         await store.async_save({"events": self._year_events.get(year, [])})
 
-    def sync_save_meta(self) -> None:
+    def _save_meta_sync(self) -> None:
         """Schedule a meta store save (fire-and-forget).
 
         Used by config-flow steps that need the save to complete before
