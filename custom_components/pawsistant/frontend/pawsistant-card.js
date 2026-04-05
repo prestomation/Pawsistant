@@ -109,6 +109,7 @@ function getMeta(type, registry) {
 /** Map an MDI icon name (e.g. "mdi:walk") to a fallback emoji. */
 function iconToEmoji(icon) {
   if (!icon) return undefined;  // undefined → getMeta uses fallback emoji from registry
+  const map = {
     'mdi:walk': '🦮', 'mdi:food-drumstick': '🍖', 'mdi:cookie': '🍪',
     'mdi:bowl': '🍽️', 'mdi:cup-water': '🥤', 'mdi:water': '💧',
     'mdi:emoticon-poop': '💩', 'mdi:pill': '💊', 'mdi:scale-bathroom': '⚖️',
