@@ -1,0 +1,31 @@
+{
+  "name": "pawsistant",
+  "version": "1.0.0",
+  "description": "[![GitHub Release](https://img.shields.io/github/v/release/prestomation/Pawsistant?style=for-the-badge)](https://github.com/prestomation/Pawsistant/releases) [![GitHub Downloads](https://img.shields.io/github/downloads/prestomation/Pawsistant/total.svg?style=for-the-badge)](https://github.com/prestomation/Pawsistant/releases) [![GitHub Latest Downloads](https://img.shields.io/github/downloads-pre/prestomation/Pawsistant/latest/total?style=for-the-badge)](https://github.com/prestomation/Pawsistant/releases) [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration) [![HACS Validation](https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml/badge.svg)](https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml) [![License](https://img.shields.io/github/license/prestomation/Pawsistant)](LICENSE) [![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.4%2B-blue.svg)](https://www.home-assistant.io/)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/prestomation/Pawsistant.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/prestomation/Pawsistant/issues"
+  },
+  "homepage": "https://github.com/prestomation/Pawsistant#readme",
+  "devDependencies": {
+    "@vitest/ui": "^4.1.2",
+    "vitest": "^4.1.2"
+  },
+  "dependencies": {
+    "jsdom": "^29.0.1"
+  }
+}

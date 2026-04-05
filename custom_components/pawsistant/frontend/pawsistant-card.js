@@ -42,7 +42,7 @@ const DEFAULT_SHOWN_TYPES = ['poop', 'pee', 'medicine', 'sick', 'weight'];
 const METRIC_LABELS = {
   daily_count: (n) => `${n} today`,
   days_since:  (n) => `${n} days`,
-  last_value:  (v, unit) => `${v} ${unit || ''}`,
+  last_value:  (v, unit) => `${v}${unit ? ' ' + unit : ''}`,
   hours_since: (n) => `${n} hours`,
 };
 
@@ -69,7 +69,8 @@ function buildRegistry(hass) {
         for (const [k, v] of Object.entries(attrs.event_types || {})) {
           if (v && typeof v === 'object') {
             registry[k] = {
-              emoji:    v.icon ? iconToEmoji(v.icon) : (registry[k]?.emoji || '📝'),
+              // If live icon maps to 📝 (unknown icon), preserve fallback emoji instead of overwriting
+              emoji:    v.icon ? (iconToEmoji(v.icon) !== '📝' ? iconToEmoji(v.icon) : (registry[k]?.emoji || '📝')) : (registry[k]?.emoji || '📝'),
               label:    v.name  || k,
               color:    v.color || registry[k]?.color || '#888',
               icon:     v.icon  || '',
@@ -92,11 +93,15 @@ function buildRegistry(hass) {
 
 function getMeta(type, registry) {
   if (registry && registry[type]) {
-    // Live registry: {name, icon, color} — map to card's {emoji, label, color}
+    // Live registry: {emoji, label, icon, color} — emoji is pre-resolved by buildRegistry
     const entry = registry[type];
+    // Use already-resolved emoji if available; only re-resolve if icon changed (entry.icon set, emoji undefined)
+    const resolvedEmoji = (entry.emoji && entry.emoji !== '📝')
+      ? entry.emoji
+      : (entry.icon ? iconToEmoji(entry.icon) : (entry.emoji || '📝'));
     return {
-      emoji: entry.icon ? iconToEmoji(entry.icon) : '📝',
-      label: entry.name || type,
+      emoji: resolvedEmoji,
+      label: entry.label || type,
       color: entry.color || 'var(--secondary-text-color, #888)',
       icon: entry.icon || '',
     };
