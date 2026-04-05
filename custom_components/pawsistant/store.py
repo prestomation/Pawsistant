@@ -126,14 +126,6 @@ class PawsistantStore:
         store = self._get_year_store(year)
         await store.async_save({"events": self._year_events.get(year, [])})
 
-    def _save_meta_sync(self) -> None:
-        """Schedule a meta store save (fire-and-forget).
-
-        Used by config-flow steps that need the save to complete before
-        returning, but don't need to await it (HassJob handles scheduling).
-        """
-        self._hass.add_job(self._meta_store.async_save(self._meta))
-
     def _record_year(self, year: int) -> None:
         """Add year to the known_years index (no-op if already present)."""
         known: list[int] = self._meta.setdefault("known_years", [])
@@ -254,6 +246,18 @@ class PawsistantStore:
     # -----------------------------------------------------------------------
     # Event type registry
     # -----------------------------------------------------------------------
+
+    def get_stored_event_type_overrides(self) -> dict[str, dict[str, str]]:
+        """Return only the user-stored event type overrides (not defaults).
+
+        Use this when you need to modify only the overrides (e.g. add/edit/delete
+        custom types) without including the built-in defaults.
+        """
+        return dict(self._meta.get(CONF_EVENT_TYPES, {}))
+
+    def get_stored_button_metric_overrides(self) -> dict[str, str]:
+        """Return only the user-stored button metric overrides (not defaults)."""
+        return dict(self._meta.get(CONF_BUTTON_METRICS, {}))
 
     def get_event_types(self) -> dict[str, dict[str, str]]:
         """Return the full event type registry.

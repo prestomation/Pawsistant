@@ -359,15 +359,16 @@ class PawsistantOptionsFlow(OptionsFlow):
                         ),
                         errors=errors,
                     )
-                # Perform deletion
-                current = store.get_event_types()
-                del current[key]
-                store.save_event_types(current)
-                bm = store.get_button_metrics()
+                # Perform deletion — only touch stored overrides, not merged defaults
+                stored = store.get_stored_event_type_overrides()
+                if key in stored:
+                    del stored[key]
+                    store.save_event_types(stored)
+                bm = store.get_stored_button_metric_overrides()
                 if key in bm and key not in DEFAULT_BUTTON_METRICS:
                     del bm[key]
                     store.save_button_metrics(bm)
-                store._save_meta_sync()
+                store.sync_save_meta()
                 return await self.async_step_manage_event_types()
 
         return self.async_show_form(
@@ -471,27 +472,22 @@ class PawsistantOptionsFlow(OptionsFlow):
                 errors["metric"] = "invalid_metric"
 
             if not errors:
-                # Persist event type entry
-                entry = {
-                    "name": name,
-                    "icon": icon,
-                    "color": color.upper(),
-                }
-                all_types = store.get_event_types()
-                all_types[key] = entry
-                store.save_event_types(all_types)
+                # Persist event type entry — save only to stored overrides, not merged defaults
+                stored = store.get_stored_event_type_overrides()
+                stored[key] = entry
+                store.save_event_types(stored)
 
                 # Persist button metric if non-default
-                bm = store.get_button_metrics()
+                stored_bm = store.get_stored_button_metric_overrides()
                 default_metric = DEFAULT_BUTTON_METRICS.get(key, "daily_count")
                 if metric != default_metric:
-                    bm[key] = metric
-                    store.save_button_metrics(bm)
-                elif key in bm and key not in DEFAULT_BUTTON_METRICS:
-                    del bm[key]
-                    store.save_button_metrics(bm)
+                    stored_bm[key] = metric
+                    store.save_button_metrics(stored_bm)
+                elif key in stored_bm and key not in DEFAULT_BUTTON_METRICS:
+                    del stored_bm[key]
+                    store.save_button_metrics(stored_bm)
 
-                store._save_meta_sync()
+                store.sync_save_meta()
 
                 if is_edit:
                     _, coord = self._get_store_and_coord()

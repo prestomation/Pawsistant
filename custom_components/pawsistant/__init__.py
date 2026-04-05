@@ -545,7 +545,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         current = store.get_event_types()
         # Start with built-in defaults, layer on stored overrides, then our update
         base = dict(DEFAULT_EVENT_TYPES)
-        stored = store._meta.get(CONF_EVENT_TYPES, {})
+        stored = store.get_stored_event_type_overrides()
         for k, v in stored.items():
             base[k] = v
         base[event_type] = {**base.get(event_type, {}), **update}
@@ -624,13 +624,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
 
         # Build stored overrides (only the new key)
-        event_types = dict(store._meta.get(CONF_EVENT_TYPES, {}))
+        event_types = store.get_stored_event_type_overrides()
         event_types[key] = {"name": name, "icon": icon_val, "color": color_val}
         store.save_event_types(event_types)
 
         # Persist metric override if not default
         if metric_val != "daily_count":
-            metrics = dict(store._meta.get(CONF_BUTTON_METRICS, {}))
+            metrics = store.get_stored_button_metric_overrides()
             metrics[key] = metric_val
             store.save_button_metrics(metrics)
 
@@ -669,12 +669,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
 
         # Remove from stored overrides
-        event_types = dict(store._meta.get(CONF_EVENT_TYPES, {}))
+        event_types = store.get_stored_event_type_overrides()
         deleted_name = event_types.pop(event_type, None)
         store.save_event_types(event_types)
 
         # Remove metric override if present
-        metrics = dict(store._meta.get(CONF_BUTTON_METRICS, {}))
+        metrics = store.get_stored_button_metric_overrides()
         metrics.pop(event_type, None)
         store.save_button_metrics(metrics)
 
