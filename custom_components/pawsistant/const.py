@@ -55,4 +55,5 @@ DEFAULT_BUTTON_METRICS = {
     "medicine": "days_since",
     "weight":   "last_value",
     "vaccine":  "days_since",
+    "walk":     "daily_count",
 }

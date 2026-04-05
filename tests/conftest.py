@@ -1,38 +1,39 @@
-"""Fixtures for Pawsistant tests."""
-
-from collections.abc import Generator
-from unittest.mock import Mock, patch
-
+"""Pytest configuration for Pawsistant tests."""
 import pytest
+import sys
+from unittest.mock import MagicMock
+import types
 
 
-@pytest.fixture(autouse=True, scope="session")
-def mock_network() -> Generator[None, None, None]:
-    """Override the pytest-homeassistant-custom-component mock_network fixture.
+@pytest.fixture(autouse=True)
+def mock_homeassistant():
+    """Stub out HA modules so tests can import pawsistant without a running HA."""
+    _haconst = types.ModuleType("homeassistant.const")
+    _haconst.VOLUME_MIN = 0
+    _haconst.VOLUME_MAX = 100
 
-    Newer versions of homeassistant changed the import path for ifaddr, causing
-    the upstream fixture to fail with AttributeError on
-    ``homeassistant.components.network.util.ifaddr``.  We patch the canonical
-    ``ifaddr.get_adapters`` directly so the tests work across all supported HA
-    versions.
+    mocks = {}
+    mocks["homeassistant"] = MagicMock()
+    mocks["homeassistant.core"] = MagicMock()
+    mocks["homeassistant.exceptions"] = MagicMock()
+    mocks["homeassistant.helpers"] = MagicMock(__version__="2024.1.0")
+    mocks["homeassistant.helpers.service"] = MagicMock()
+    mocks["homeassistant.helpers.translation"] = MagicMock()
+    mocks["homeassistant.helpers.translation"].__version__ = "2024.1.0"
+    mocks["homeassistant.const"] = _haconst
 
-    When ``ifaddr`` is not installed (e.g. plain integration tests that use
-    requests against a real Docker HA instance), we yield without mocking.
-    """
-    try:
-        import ifaddr  # noqa: F401 — presence check only
-    except ImportError:
-        # Not installed in this environment; skip the mock entirely.
-        yield
-        return
+    for name, mock in mocks.items():
+        sys.modules[name] = mock
 
-    adapters = [
-        Mock(
-            nice_name="eth0",
-            ips=[Mock(is_IPv6=False, ip="10.10.10.10", network_prefix=24)],
-            index=0,
-        )
-    ]
+    # Patch const attr on the homeassistant MagicMock so attribute
+    # access (homeassistant.const.VOLUME_MIN) returns our stub
+    mocks["homeassistant"].const = _haconst
 
-    with patch("ifaddr.get_adapters", return_value=adapters):
-        yield
+    yield
+
+    for name in mocks:
+        if name in sys.modules:
+            del sys.modules[name]
+
+
+

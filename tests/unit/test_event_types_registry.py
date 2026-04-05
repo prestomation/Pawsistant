@@ -27,6 +27,12 @@ _inject_stubs()
 import pathlib
 import importlib.util
 
+# Remove any stale stub left by other test files (e.g. test_options_flow.py,
+# test_species_field.py) so importlib loads the real const.py from disk.
+for key in list(sys.modules):
+    if key == "custom_components.pawsistant.const" or key.startswith("custom_components.pawsistant."):
+        del sys.modules[key]
+
 _repo_root = pathlib.Path(__file__).parent.parent.parent
 _spec = importlib.util.spec_from_file_location(
     "custom_components.pawsistant.const",
@@ -167,3 +173,105 @@ class TestButtonMetrics:
             _const_mod.CONF_BUTTON_METRICS: {"walk": "unknown_metric"}
         })
         assert store.get_button_metrics()["walk"] == "unknown_metric"
+
+# ---------------------------------------------------------------------------
+# Mock store with hide_event_type support (mirrors real PawsistantStore)
+# ---------------------------------------------------------------------------
+
+class MockPawsistantStore:
+    """Lightweight store mock — mirrors real PawsistantStore interface for registry."""
+
+    def __init__(self, initial_meta=None):
+        self._meta = {
+            "dogs": {},
+            "known_years": [],
+            **(initial_meta or {}),
+        }
+        self._hidden_event_types: set[str] = set()
+
+    def get_event_types(self) -> dict[str, dict[str, str]]:
+        stored: dict[str, dict[str, str]] = self._meta.get(_const_mod.CONF_EVENT_TYPES, {})
+        result = dict(_const_mod.DEFAULT_EVENT_TYPES)
+        for key in stored:
+            if key in result or stored[key]:
+                result[key] = stored[key]
+        # Filter out hidden types
+        for key in list(result.keys()):
+            if key in self._hidden_event_types:
+                del result[key]
+        return result
+
+    def save_event_types(self, event_types: dict[str, dict[str, str]]) -> None:
+        # Clearing the hidden flag for any explicitly saved types
+        for key in event_types:
+            self._hidden_event_types.discard(key)
+        self._meta[_const_mod.CONF_EVENT_TYPES] = event_types
+
+    def hide_event_type(self, key: str) -> None:
+        """Remove a built-in or stored event type from the visible registry."""
+        self._hidden_event_types.add(key)
+
+    def get_button_metrics(self) -> dict[str, str]:
+        stored: dict[str, str] = self._meta.get(_const_mod.CONF_BUTTON_METRICS, {})
+        result: dict[str, str] = dict(_const_mod.DEFAULT_BUTTON_METRICS)
+        for key, value in stored.items():
+            result[key] = value
+        for key in _const_mod.DEFAULT_EVENT_TYPES:
+            if key not in result:
+                result[key] = "daily_count"
+        return result
+
+    def save_button_metrics(self, button_metrics: dict[str, str]) -> None:
+        self._meta[_const_mod.CONF_BUTTON_METRICS] = button_metrics
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# ADDITIONAL TESTS — test_event_types_services.py merged in
+# ════════════════════════════════════════════════════════════════════════════════
+
+class TestConstImportsFromStub:
+    """Verify const module exports required constants used by __init__.py services."""
+
+    def test_default_button_metrics_importable(self):
+        """Regression: __init__.py previously omitted DEFAULT_BUTTON_METRICS from the
+        import list, causing NameError at runtime when any event type service ran."""
+        # Use _const_mod directly (loaded from source at module init) rather than
+        # sys.modules, which may be overwritten by other test files' stubs.
+        assert hasattr(_const_mod, "DEFAULT_BUTTON_METRICS")
+        assert _const_mod.DEFAULT_BUTTON_METRICS["medicine"] == "days_since"
+        assert _const_mod.DEFAULT_BUTTON_METRICS["walk"] == "daily_count"
+
+    def test_valid_button_metrics_importable(self):
+        assert hasattr(_const_mod, "VALID_BUTTON_METRICS")
+        assert "daily_count" in _const_mod.VALID_BUTTON_METRICS
+        assert "days_since" in _const_mod.VALID_BUTTON_METRICS
+        assert "last_value" in _const_mod.VALID_BUTTON_METRICS
+
+
+class TestStoreHideEventType:
+    """Tests for store hide_event_type() used by delete_event_type service."""
+
+    def test_hide_removes_seed_type_from_get_event_types(self):
+        store = MockPawsistantStore()
+        assert "walk" in store.get_event_types()
+        store.hide_event_type("walk")
+        assert "walk" not in store.get_event_types()
+
+    def test_hide_removes_stored_override(self):
+        store = MockPawsistantStore()
+        store.save_event_types({"walk": {"name": "Custom", "icon": "mdi:run", "color": "#FF0000"}})
+        assert store.get_event_types()["walk"]["name"] == "Custom"
+        store.hide_event_type("walk")
+        assert "walk" not in store.get_event_types()
+
+    def test_hide_unknown_is_silent(self):
+        store = MockPawsistantStore()
+        store.hide_event_type("nonexistent")  # must not raise
+
+    def test_hidden_type_can_be_readded(self):
+        store = MockPawsistantStore()
+        store.hide_event_type("walk")
+        assert "walk" not in store.get_event_types()
+        store.save_event_types({"walk": {"name": "Restored", "icon": "mdi:walk", "color": "#8BC34A"}})
+        assert "walk" in store.get_event_types()
+        assert store.get_event_types()["walk"]["name"] == "Restored"
