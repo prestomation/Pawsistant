@@ -473,6 +473,11 @@ class PawsistantOptionsFlow(OptionsFlow):
 
             if not errors:
                 # Persist event type entry — save only to stored overrides, not merged defaults
+                entry = {
+                    "name": name,
+                    "icon": icon,
+                    "color": color.upper(),
+                }
                 stored = store.get_stored_event_type_overrides()
                 stored[key] = entry
                 store.save_event_types(stored)
