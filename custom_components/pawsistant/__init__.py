@@ -41,6 +41,7 @@ from .const import (
     MAX_EVENT_TYPE_KEY_LEN,
     EVENT_TYPE_KEY_RE,
     DEFAULT_EVENT_TYPES,
+    DEFAULT_BUTTON_METRICS,
 )
 from .coordinator import PawsistantCoordinator
 from .store import PawsistantStore
