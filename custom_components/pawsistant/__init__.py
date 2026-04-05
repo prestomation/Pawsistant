@@ -661,13 +661,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 f"Event type '{event_type}' does not exist."
             )
 
-        # Validate it's not a built-in
-        if event_type in DEFAULT_EVENT_TYPES:
-            raise ServiceValidationError(
-                f"Event type '{event_type}' is a built-in type and cannot be deleted. "
-                f"Use update_event_type to modify it instead."
-            )
-
         # Remove from stored overrides
         event_types = store.get_stored_event_type_overrides()
         deleted_name = event_types.pop(event_type, None)

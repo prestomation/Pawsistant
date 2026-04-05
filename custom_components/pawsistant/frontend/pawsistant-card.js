@@ -1242,34 +1242,27 @@ class PawsistantCard extends HTMLElement {
   _renderEventTypesPanel(registry, metrics) {
     const esc = _escapeHTML;
     const { registry: allTypes, metrics: buttonMetrics } = this._registry();
-    const BUILTIN_KEYS = Object.keys(FALLBACK_EVENT_META);
 
     // If editing/adding a type, show the form
     if (this._editingEventType !== null) {
       return this._renderEventTypeForm(this._editingEventType);
     }
 
-    // List view
+    // List view — all types are deletable (defaults are just seeded data)
     const rows = Object.entries(allTypes).map(([key, meta]) => {
-      const isBuiltin = BUILTIN_KEYS.includes(key);
       const displayMeta = getMeta(key, registry);
       const metric = buttonMetrics[key] || 'daily_count';
       const metricBadge = METRIC_LABELS[metric] ? metric.replace(/_/g, ' ') : metric;
-      const badgeClass = isBuiltin ? 'builtin' : 'custom';
-      const badgeLabel = isBuiltin ? 'Built-in' : 'Custom';
       const icon = displayMeta.icon ? iconToEmoji(displayMeta.icon) : displayMeta.emoji;
-      const deleteBtn = !isBuiltin
-        ? `<button class="et-btn delete" data-et-key="${esc(key)}" title="Delete '${esc(key)}'">✕</button>`
-        : '';
       return `
         <li class="event-type-row" data-et-key="${esc(key)}">
           <span class="et-color-swatch" style="background:${esc(displayMeta.color)}" title="${esc(displayMeta.color)}"></span>
           <span class="et-icon" title="${esc(displayMeta.icon || '')}">${icon}</span>
           <span class="et-name">${esc(displayMeta.label)}</span>
-          <span class="et-badge ${badgeClass}">${metricBadge}</span>
+          <span class="et-badge">${metricBadge}</span>
           <div class="et-actions">
             <button class="et-btn edit" data-et-key="${esc(key)}" title="Edit '${esc(key)}'">✎</button>
-            ${deleteBtn}
+            <button class="et-btn delete" data-et-key="${esc(key)}" title="Delete '${esc(key)}'">✕</button>
           </div>
         </li>`;
     }).join('');
@@ -1356,12 +1349,9 @@ class PawsistantCard extends HTMLElement {
                   placeholder="mdi:walk"
                   style="flex:1;box-sizing:border-box;padding:10px 12px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font-size:15px;" />
                 <button class="et-browse-btn" id="et-browse-btn" type="button"
-                  title="Browse MDI icons at pictogrammers.com">
-                  🔍 Browse
+                  title="Pick icon from HA's built-in icon picker">
+                  🎨 Pick
                 </button>
-              </div>
-              <div style="font-size:11px;color:var(--secondary-text-color);margin-top:3px;">
-                Example: mdi:walk — search at <a href="https://pictogrammers.com/library/mdi/" target="_blank" rel="noopener" style="color:var(--primary-color);">pictogrammers.com</a>
               </div>
             </div>
             <div class="et-form-field">
@@ -1680,11 +1670,36 @@ class PawsistantCard extends HTMLElement {
       });
     });
 
-    // Browse icons button — opens MDI icon search page
+    // Pick icon button — try HA's built-in icon picker, fall back to text input
     const browseBtn = root.querySelector('#et-browse-btn');
     if (browseBtn) {
-      browseBtn.addEventListener('click', () => {
-        window.open('https://pictogrammers.com/library/mdi/', '_blank', 'noopener');
+      browseBtn.addEventListener('click', async () => {
+        const iconInput = root.querySelector('#et-icon-input');
+        const currentIcon = iconInput ? iconInput.value.trim() : '';
+        // Try HA's internal icon picker (hui-icon-picker is a Lovelace internal)
+        const iconPicker = customElements.get('hui-icon-picker');
+        if (iconPicker) {
+          try {
+            const el = document.createElement('hui-icon-picker');
+            el.value = currentIcon;
+            document.body.appendChild(el);
+            await el.updateComplete;
+            const result = await el.selectIcon?.();
+            document.body.removeChild(el);
+            if (result && iconInput) {
+              iconInput.value = result;
+            }
+          } catch (e) {
+            // Fall back: do nothing, user can type
+          }
+        } else {
+          // No icon picker available — show a simple prompt with common icons
+          const common = ['mdi:walk','mdi:run','mdi:food-drumstick','mdi:cookie','mdi:cup-water','mdi:emoticon-poop','mdi:pill','mdi:needle','mdi:scale-bathroom','mdi:sleep','mdi:content-cut','mdi:hand-pointing-up','mdi:toothbrush','mdi:emoticon-sick','mdi:school'];
+          const picked = window.prompt('Type an MDI icon (e.g. mdi:walk):', currentIcon.startsWith('mdi:') ? currentIcon : 'mdi:');
+          if (picked && iconInput) {
+            iconInput.value = picked.startsWith('mdi:') ? picked : `mdi:${picked}`;
+          }
+        }
       });
     }
 

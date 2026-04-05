@@ -348,17 +348,6 @@ class PawsistantOptionsFlow(OptionsFlow):
                 )
             if action.startswith("delete_"):
                 key = action[7:]
-                # Cannot delete built-in types
-                if key in DEFAULT_EVENT_TYPES:
-                    errors = await self._validate_manage_event_types(store, button_metrics)
-                    errors["base"] = "cannot_delete_default"
-                    return self.async_show_form(
-                        step_id="manage_event_types",
-                        data_schema=self._build_manage_event_types_schema(
-                            event_types, button_metrics
-                        ),
-                        errors=errors,
-                    )
                 # Perform deletion — only touch stored overrides, not merged defaults
                 stored = store.get_stored_event_type_overrides()
                 if key in stored:
