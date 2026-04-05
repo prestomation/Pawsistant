@@ -550,7 +550,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             base[k] = v
         base[event_type] = {**base.get(event_type, {}), **update}
         store.save_event_types({k: v for k, v in base.items() if k in stored or k == event_type})
-        await store._save_meta()
+        store.sync_save_meta()
 
         # Persist metric override separately if provided
         if "metric" in call.data and call.data["metric"]:
@@ -560,7 +560,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 {k: v for k, v in metrics.items()
                  if k in DEFAULT_BUTTON_METRICS or k == event_type}
             )
-            await store._save_meta()
+            store.sync_save_meta()
 
         _LOGGER.info(
             "Updated event type '%s': %s", event_type, update
@@ -634,7 +634,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             metrics[key] = metric_val
             store.save_button_metrics(metrics)
 
-        await store._save_meta()
+        store.sync_save_meta()
         _LOGGER.info(
             "Added event type '%s' (%s, %s, %s)", key, name, icon_val, color_val
         )
@@ -678,7 +678,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         metrics.pop(event_type, None)
         store.save_button_metrics(metrics)
 
-        await store._save_meta()
+        store.sync_save_meta()
         _LOGGER.info("Deleted custom event type '%s'", event_type)
         await coord.async_refresh()
 
