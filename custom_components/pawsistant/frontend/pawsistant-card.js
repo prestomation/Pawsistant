@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one pet activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
- * Version: 2.8.0
+ * Version: 2.8.1
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -54,25 +54,30 @@ const METRIC_LABELS = {
  * Also reads `button_metrics` ({key: metric_name}) for button labels.
  */
 function buildRegistry(hass) {
-  // Deep-copy so we never mutate the module-level FALLBACK_EVENT_META
-  const registry = {};
+  // Deep-copy fallback as the base
+  const fallbackRegistry = {};
   for (const [k, v] of Object.entries(FALLBACK_EVENT_META)) {
-    registry[k] = { ...v };
+    fallbackRegistry[k] = { ...v };
   }
   const metrics = {};
+  let foundLiveTypes = false;
+  let liveRegistry = {};
 
   if (hass && hass.states) {
     for (const state of Object.values(hass.states)) {
       const attrs = state.attributes || {};
       if (attrs.event_types && typeof attrs.event_types === 'object') {
-        // Shallow-merge: live icon wins, but preserve fallback emoji when live icon is absent
-        for (const [k, v] of Object.entries(attrs.event_types || {})) {
+        foundLiveTypes = true;
+        // Build registry from ONLY the live event_types (authoritative source).
+        // This ensures deleted types (tombstones) don't appear — they're not in this dict.
+        for (const [k, v] of Object.entries(attrs.event_types)) {
           if (v && typeof v === 'object') {
-            registry[k] = {
+            const fallbackEntry = fallbackRegistry[k] || {};
+            liveRegistry[k] = {
               // If live icon maps to 📝 (unknown icon), preserve fallback emoji instead of overwriting
-              emoji:    v.icon ? (iconToEmoji(v.icon) !== '📝' ? iconToEmoji(v.icon) : (registry[k]?.emoji || '📝')) : (registry[k]?.emoji || '📝'),
+              emoji:    v.icon ? (iconToEmoji(v.icon) !== '📝' ? iconToEmoji(v.icon) : (fallbackEntry.emoji || '📝')) : (fallbackEntry.emoji || '📝'),
               label:    v.name  || k,
-              color:    v.color || registry[k]?.color || '#888',
+              color:    v.color || fallbackEntry.color || '#888',
               icon:     v.icon  || '',
             };
           }
@@ -81,12 +86,14 @@ function buildRegistry(hass) {
       if (attrs.button_metrics && typeof attrs.button_metrics === 'object') {
         Object.assign(metrics, attrs.button_metrics);
       }
-      if (Object.keys(registry).length > Object.keys(FALLBACK_EVENT_META).length ||
-          Object.keys(metrics).length > 0) {
-        break;  // got what we need
+      if (foundLiveTypes) {
+        break;  // got live types from this sensor, use them
       }
     }
   }
+
+  // Use live registry if we found one; otherwise fall back to defaults
+  const registry = foundLiveTypes ? liveRegistry : fallbackRegistry;
 
   return { registry, metrics };
 }
@@ -484,6 +491,8 @@ class PawsistantCard extends HTMLElement {
     const hash = buildHash(hass, this._config);
     if (hash !== this._lastHash) {
       this._lastHash = hash;
+      // Clear registry cache so buildRegistry runs fresh with new event_types
+      this._registryCache = null;
       // Don't re-render if a form is open — would destroy it
       if (!this._activeForm && !this._eventTypesPanel) {
         this._render();
