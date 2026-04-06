@@ -1511,6 +1511,29 @@ class PawsistantCard extends HTMLElement {
       });
   }
 
+  /* ── Icon picker helper ────────────────────────────────────────────── */
+  async _pickIcon(currentIcon) {
+    // Try HA's built-in ha-icon-picker
+    const picker = document.createElement('ha-icon-picker');
+    if (picker && (typeof picker.value !== 'undefined' || customElements.get('ha-icon-picker'))) {
+      return new Promise((resolve) => {
+        const dialog = document.createElement('ha-dialog');
+        dialog.setAttribute('open', '');
+        dialog.heading = 'Pick an icon';
+        picker.value = currentIcon || '';
+        picker.addEventListener('value-changed', (e) => {
+          resolve(e.detail.value);
+          dialog.remove();
+        });
+        dialog.appendChild(picker);
+        document.body.appendChild(dialog);
+      });
+    }
+    // Fallback
+    const val = window.prompt('Enter MDI icon name (e.g. mdi:dog):', currentIcon || '');
+    return val || currentIcon;
+  }
+
   /* ── Attach listeners ──────────────────────────────────────────────── */
   _attachListeners() {
     const root = this.shadowRoot;
@@ -1679,35 +1702,15 @@ class PawsistantCard extends HTMLElement {
       });
     });
 
-    // Pick icon button — try HA's built-in icon picker, fall back to text input
+    // Pick icon button — use the icon picker helper
     const browseBtn = root.querySelector('#et-browse-btn');
     if (browseBtn) {
       browseBtn.addEventListener('click', async () => {
         const iconInput = root.querySelector('#et-icon-input');
         const currentIcon = iconInput ? iconInput.value.trim() : '';
-        // Try HA's internal icon picker (hui-icon-picker is a Lovelace internal)
-        const iconPicker = customElements.get('hui-icon-picker');
-        if (iconPicker) {
-          try {
-            const el = document.createElement('hui-icon-picker');
-            el.value = currentIcon;
-            document.body.appendChild(el);
-            await el.updateComplete;
-            const result = await el.selectIcon?.();
-            document.body.removeChild(el);
-            if (result && iconInput) {
-              iconInput.value = result;
-            }
-          } catch (e) {
-            // Fall back: do nothing, user can type
-          }
-        } else {
-          // No icon picker available — show a simple prompt with common icons
-          const common = ['mdi:walk','mdi:run','mdi:food-drumstick','mdi:cookie','mdi:cup-water','mdi:emoticon-poop','mdi:pill','mdi:needle','mdi:scale-bathroom','mdi:sleep','mdi:content-cut','mdi:hand-pointing-up','mdi:toothbrush','mdi:emoticon-sick','mdi:school'];
-          const picked = window.prompt('Type an MDI icon (e.g. mdi:walk):', currentIcon.startsWith('mdi:') ? currentIcon : 'mdi:');
-          if (picked && iconInput) {
-            iconInput.value = picked.startsWith('mdi:') ? picked : `mdi:${picked}`;
-          }
+        const picked = await this._pickIcon(currentIcon);
+        if (picked && iconInput) {
+          iconInput.value = picked;
         }
       });
     }
