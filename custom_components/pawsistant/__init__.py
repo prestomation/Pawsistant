@@ -542,15 +542,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "name, icon, color, metric."
             )
 
-        # Merge update into stored event types
-        current = store.get_event_types()
-        # Start with built-in defaults, layer on stored overrides, then our update
-        base = dict(DEFAULT_EVENT_TYPES)
+        # Merge update into stored event types.
+        # Work from the resolved registry (get_event_types already handles tombstones)
+        # and the existing stored overrides (which may contain tombstones for other
+        # deleted defaults that we must preserve).
         stored = store.get_stored_event_type_overrides()
-        for k, v in stored.items():
-            base[k] = v
-        base[event_type] = {**base.get(event_type, {}), **update}
-        store.save_event_types({k: v for k, v in base.items() if k in stored or k == event_type})
+        existing_resolved = current.get(event_type, {})
+        merged = {**existing_resolved, **update}
+        # Preserve all existing stored overrides (including tombstones for other keys),
+        # then set/update just this key.
+        new_overrides = dict(stored)
+        new_overrides[event_type] = merged
+        store.save_event_types(new_overrides)
         store.sync_save_meta()
 
         # Persist metric override separately if provided
@@ -655,16 +658,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         store, coord = _get_store_and_coord()
         event_type: str = call.data["event_type"].strip()
 
-        # Validate it exists
+        # Validate it exists (check both live types and raw stored overrides)
+        # A type may already be tombstoned (None in overrides) from a prior delete;
+        # in that case get_event_types() excludes it, so check DEFAULT_EVENT_TYPES too.
         all_types = store.get_event_types()
-        if event_type not in all_types:
+        in_defaults = event_type in DEFAULT_EVENT_TYPES
+        in_custom = event_type in store.get_stored_event_type_overrides() and                     store.get_stored_event_type_overrides().get(event_type) is not None
+        if event_type not in all_types and not in_defaults:
             raise ServiceValidationError(
                 f"Event type '{event_type}' does not exist."
             )
 
-        # Remove from stored overrides
+        # Remove from stored overrides.
+        # For default event types (those in DEFAULT_EVENT_TYPES), we store a
+        # None tombstone so get_event_types() knows to exclude them even though
+        # they are hardcoded in the defaults dict.  For purely custom types,
+        # we simply drop their entry from the overrides dict.
         event_types = store.get_stored_event_type_overrides()
-        deleted_name = event_types.pop(event_type, None)
+        if event_type in DEFAULT_EVENT_TYPES:
+            # Tombstone: marks the default as explicitly deleted
+            event_types[event_type] = None  # type: ignore[assignment]
+        else:
+            event_types.pop(event_type, None)
         store.save_event_types(event_types)
 
         # Remove metric override if present
@@ -673,7 +688,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         store.save_button_metrics(metrics)
 
         store.sync_save_meta()
-        _LOGGER.info("Deleted custom event type '%s'", event_type)
+        _LOGGER.info("Deleted event type '%s'", event_type)
         await coord.async_refresh()
 
     hass.services.async_register(
