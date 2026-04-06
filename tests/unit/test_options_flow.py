@@ -128,6 +128,10 @@ def _inject_stubs() -> None:
         cv_mod.string = str
         sys.modules["homeassistant.helpers.config_validation"] = cv_mod
 
+    # re module (needed by config_flow.py)
+    import re
+    sys.modules["re"] = re
+
     # voluptuous — always stub.  config_flow.py uses vol.Required/Optional with
     # default= kwargs and vol.Schema/In.  The stub provides minimal behaviour
     # the option-flow tests rely on.  No other test in the suite imports
@@ -147,6 +151,29 @@ def _inject_stubs() -> None:
     _const.DOMAIN = "pawsistant"
     _const.CONF_SPECIES = "species"
     _const.DEFAULT_SPECIES = "Dog"
+    _const.CONF_EVENT_TYPES = "event_types"
+    _const.CONF_BUTTON_METRICS = "button_metrics"
+    _const.DEFAULT_EVENT_TYPES = {
+        "food":     {"name": "Food",     "icon": "mdi:bowl",           "color": "#4CAF50"},
+        "treat":    {"name": "Treat",    "icon": "mdi:cookie",         "color": "#FF9800"},
+        "water":    {"name": "Water",   "icon": "mdi:cup-water",       "color": "#2196F3"},
+        "walk":     {"name": "Walk",    "icon": "mdi:walk",            "color": "#8BC34A"},
+        "pee":      {"name": "Pee",     "icon": "mdi:water",           "color": "#FFEB3B"},
+        "poop":     {"name": "Poop",    "icon": "mdi:emoticon-poop",   "color": "#795548"},
+        "medicine": {"name": "Medicine","icon": "mdi:pill",             "color": "#F44336"},
+        "weight":   {"name": "Weight",  "icon": "mdi:scale-bathroom",  "color": "#9C27B0"},
+        "vaccine":  {"name": "Vaccine", "icon": "mdi:needle",          "color": "#E91E63"},
+        "sleep":    {"name": "Sleep",   "icon": "mdi:sleep",           "color": "#3F51B5"},
+        "grooming": {"name": "Grooming","icon": "mdi:content-cut",     "color": "#00BCD4"},
+        "training": {"name": "Training","icon": "mdi:hand-pointing-up", "color": "#FF5722"},
+        "teeth":    {"name": "Teeth",   "icon": "mdi:toothbrush",      "color": "#009688"},
+        "sick":     {"name": "Sick",    "icon": "mdi:emoticon-sick",   "color": "#F44336"},
+    }
+    _const.DEFAULT_BUTTON_METRICS = {
+        "medicine": "days_since",
+        "weight":   "last_value",
+        "vaccine":  "days_since",
+    }
     sys.modules["custom_components.pawsistant.const"] = _const
 
     # custom_components.pawsistant — always stub to prevent __init__.py from

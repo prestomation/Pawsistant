@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one pet activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
- * Version: 2.7.1
+ * Version: 2.8.1
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -14,7 +14,10 @@ window.customCards.push({
 });
 
 /* ── Event-type metadata ────────────────────────────────────────────────── */
-const EVENT_META = {
+// Fallback registry — used when WS state hasn't been populated yet.
+// The card reads live registry from sensor attributes; these values are
+// retained as defaults so the card renders before any sensor has reported.
+const FALLBACK_EVENT_META = {
   poop:     { emoji: '💩', label: 'Poop',     color: 'var(--warning-color, #FF8A65)' },
   pee:      { emoji: '💧', label: 'Pee',      color: 'var(--info-color, #4FC3F7)' },
   medicine: { emoji: '💊', label: 'Medicine', color: 'var(--error-color, #EF5350)' },
@@ -27,14 +30,106 @@ const EVENT_META = {
   vaccine:  { emoji: '💉', label: 'Vaccine',  color: 'var(--info-color, #26A69A)' },
   training: { emoji: '🎓', label: 'Training', color: 'var(--info-color, #5C6BC0)' },
   weight:   { emoji: '⚖️',  label: 'Weight',   color: 'var(--secondary-text-color, #78909C)' },
-  teeth_brushing: { emoji: '🦷', label: 'Teeth', color: 'var(--secondary-text-color, #B0BEC5)' },
+  teeth:    { emoji: '🦷', label: 'Teeth',   color: 'var(--secondary-text-color, #B0BEC5)' },
   grooming: { emoji: '✂️',  label: 'Grooming', color: 'var(--warning-color, #EC407A)' },
 };
+// Alias for backwards compat — old card config YAML may reference EVENT_META
+const EVENT_META = FALLBACK_EVENT_META;
 
 const DEFAULT_SHOWN_TYPES = ['poop', 'pee', 'medicine', 'sick', 'weight'];
 
-function getMeta(type) {
-  return EVENT_META[type] || { emoji: '📝', label: type, color: 'var(--secondary-text-color, #888)' };
+/** Human-readable labels for button metric values */
+const METRIC_LABELS = {
+  daily_count: (n) => `${n} today`,
+  days_since:  (n) => `${n} days`,
+  last_value:  (v, unit) => `${v}${unit ? ' ' + unit : ''}`,
+  hours_since: (n) => `${n} hours`,
+};
+
+/**
+ * Build the dynamic event-type registry from sensor attributes.
+ * Reads from any Pawsistant sensor's `event_types` attribute (a dict
+ * of {key: {name, icon, color}}).  Falls back to FALLBACK_EVENT_META.
+ *
+ * Also reads `button_metrics` ({key: metric_name}) for button labels.
+ */
+function buildRegistry(hass) {
+  // Deep-copy fallback as the base
+  const fallbackRegistry = {};
+  for (const [k, v] of Object.entries(FALLBACK_EVENT_META)) {
+    fallbackRegistry[k] = { ...v };
+  }
+  const metrics = {};
+  let foundLiveTypes = false;
+  let liveRegistry = {};
+
+  if (hass && hass.states) {
+    for (const state of Object.values(hass.states)) {
+      const attrs = state.attributes || {};
+      if (attrs.event_types && typeof attrs.event_types === 'object' && !Array.isArray(attrs.event_types) && Object.keys(attrs.event_types).length > 0) {
+        foundLiveTypes = true;
+        // Build registry from ONLY the live event_types (authoritative source).
+        // This ensures deleted types (tombstones) don't appear — they're not in this dict.
+        for (const [k, v] of Object.entries(attrs.event_types)) {
+          if (v && typeof v === 'object') {
+            const fallbackEntry = fallbackRegistry[k] || {};
+            liveRegistry[k] = {
+              // If live icon maps to 📝 (unknown icon), preserve fallback emoji instead of overwriting
+              emoji:    v.icon ? (iconToEmoji(v.icon) !== '📝' ? iconToEmoji(v.icon) : (fallbackEntry.emoji || '📝')) : (fallbackEntry.emoji || '📝'),
+              label:    v.name  || k,
+              color:    v.color || fallbackEntry.color || '#888',
+              icon:     v.icon  || '',
+            };
+          }
+        }
+      }
+      if (attrs.button_metrics && typeof attrs.button_metrics === 'object') {
+        Object.assign(metrics, attrs.button_metrics);
+      }
+      if (foundLiveTypes) {
+        break;  // got live types from this sensor, use them
+      }
+    }
+  }
+
+  // Use live registry if we found one; otherwise fall back to defaults
+  const registry = foundLiveTypes ? liveRegistry : fallbackRegistry;
+
+  return { registry, metrics };
+}
+
+function getMeta(type, registry) {
+  if (registry && registry[type]) {
+    // Live registry: {emoji, label, icon, color} — emoji is pre-resolved by buildRegistry
+    const entry = registry[type];
+    // Use already-resolved emoji if available; only re-resolve if icon changed (entry.icon set, emoji undefined)
+    const resolvedEmoji = (entry.emoji && entry.emoji !== '📝')
+      ? entry.emoji
+      : (entry.icon ? iconToEmoji(entry.icon) : (entry.emoji || '📝'));
+    return {
+      emoji: resolvedEmoji,
+      label: entry.label || type,
+      color: entry.color || 'var(--secondary-text-color, #888)',
+      icon: entry.icon || '',
+    };
+  }
+  const fallback = FALLBACK_EVENT_META[type];
+  if (fallback) return { ...fallback, icon: '' };
+  return { emoji: '📝', label: type, color: 'var(--secondary-text-color, #888)', icon: '' };
+}
+
+/** Map an MDI icon name (e.g. "mdi:walk") to a fallback emoji. */
+function iconToEmoji(icon) {
+  if (!icon) return undefined;  // undefined → getMeta uses fallback emoji from registry
+  const map = {
+    'mdi:walk': '🦮', 'mdi:food-drumstick': '🍖', 'mdi:cookie': '🍪',
+    'mdi:bowl': '🍽️', 'mdi:cup-water': '🥤', 'mdi:water': '💧',
+    'mdi:emoticon-poop': '💩', 'mdi:pill': '💊', 'mdi:scale-bathroom': '⚖️',
+    'mdi:needle': '💉', 'mdi:sleep': '😴', 'mdi:content-cut': '✂️',
+    'mdi:hand-pointing-up': '🎯', 'mdi:toothbrush': '🦷', 'mdi:emoticon-sick': '🤒',
+    'mdi:tag': '🏷️', 'mdi:school': '🎓',
+  };
+  return map[icon] || '📝';
 }
 
 /* ── Utilities ──────────────────────────────────────────────────────────── */
@@ -122,6 +217,9 @@ function buildHash(hass, cfg) {
     stateStr(hass, poopEnt) || '',
     stateStr(hass, medEnt) || '',
     JSON.stringify(stateAttr(hass, tEnt, 'events') || []),
+    // Include registry hash so event-type edits trigger re-render
+    JSON.stringify(stateAttr(hass, tEnt, 'event_types') || {}),
+    JSON.stringify(stateAttr(hass, tEnt, 'button_metrics') || {}),
   ];
   return parts.join('|');
 }
@@ -174,25 +272,13 @@ class PawsistantCardEditor extends HTMLElement {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     const cfg = this._config;
     const esc = _escapeHTML;
-    const currentShown = Array.isArray(cfg.shown_types) ? cfg.shown_types : DEFAULT_SHOWN_TYPES;
     const weightUnit = cfg.weight_unit || 'lbs';
-    const buttonsPerRow = cfg.buttons_per_row != null ? String(cfg.buttons_per_row) : '';
 
     // Discover registered dog names from any sensor's `dog` attribute.
     // This is rename-safe: doesn't depend on entity ID patterns.
     const dogNames = this._dogNamesFromHass(this.__hass);
 
-    // Build checkbox rows for every known event type
-    const allTypes = Object.keys(EVENT_META);
-    const checkboxesHTML = allTypes.map(type => {
-      const meta = EVENT_META[type];
-      const checked = currentShown.includes(type) ? 'checked' : '';
-      return `
-        <label class="type-checkbox">
-          <input type="checkbox" name="shown_type_cb" value="${esc(type)}" ${checked} />
-          <span class="type-chip">${meta.emoji} ${esc(meta.label)}</span>
-        </label>`;
-    }).join('');
+
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -210,54 +296,7 @@ class PawsistantCardEditor extends HTMLElement {
         }
         input:focus, select:focus { outline: 2px solid var(--primary-color); border-color: transparent; }
         .hint { font-size: 11px; color: var(--secondary-text-color); margin-top: 3px; }
-        /* Checkbox grid for event types */
-        .type-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-        .type-checkbox {
-          display: flex;
-          align-items: center;
-          gap: 0;
-          cursor: pointer;
-        }
-        .type-checkbox input[type="checkbox"] {
-          position: absolute;
-          opacity: 0;
-          width: 0;
-          height: 0;
-          pointer-events: none;
-        }
-        .type-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 5px 10px;
-          border-radius: 20px;
-          font-size: 13px;
-          border: 1px solid var(--divider-color);
-          background: var(--secondary-background-color, #f5f5f5);
-          color: var(--primary-text-color);
-          cursor: pointer;
-          transition: background 0.15s, border-color 0.15s, color 0.15s;
-          user-select: none;
-        }
-        .type-checkbox input:checked + .type-chip {
-          background: var(--primary-color, #2196f3);
-          border-color: var(--primary-color, #2196f3);
-          color: var(--text-primary-color, #fff);
-        }
-        .type-checkbox:focus-within .type-chip {
-          outline: 2px solid var(--primary-color, #2196f3);
-          outline-offset: 2px;
-        }
-        .max-hint {
-          font-size: 11px;
-          color: var(--secondary-text-color);
-          margin-top: 4px;
-        }
-        .max-hint.over { color: var(--error-color, #EF5350); }
+
       </style>
       <div class="form">
         <div>
@@ -278,18 +317,7 @@ class PawsistantCardEditor extends HTMLElement {
             <option value="kg" ${weightUnit === 'kg' ? 'selected' : ''}>kg</option>
           </select>
         </div>
-        <div>
-          <span class="field-label">Shown buttons (tap to toggle, max 12)</span>
-          <div class="type-grid" id="type-grid">
-            ${checkboxesHTML}
-          </div>
-          <div class="max-hint" id="max-hint">${currentShown.length}/12 selected</div>
-        </div>
-        <div>
-          <label class="field-label" for="ed-buttons-per-row">Buttons per row (2–6, leave blank for auto)</label>
-          <input id="ed-buttons-per-row" name="buttons_per_row" type="number" min="2" max="6" value="${esc(buttonsPerRow)}" placeholder="auto" />
-          <div class="hint">When set, buttons render in a CSS grid of N equal columns. When blank, flex-wrap is used.</div>
-        </div>
+
       </div>
     `;
 
@@ -298,21 +326,7 @@ class PawsistantCardEditor extends HTMLElement {
       el.addEventListener('change', () => this._valueChanged());
     });
 
-    // Checkbox listeners — enforce max 12, update counter
-    const hint = this.shadowRoot.getElementById('max-hint');
-    this.shadowRoot.querySelectorAll('input[name="shown_type_cb"]').forEach(cb => {
-      cb.addEventListener('change', () => {
-        const checked = [...this.shadowRoot.querySelectorAll('input[name="shown_type_cb"]:checked')];
-        if (checked.length > 12) {
-          // Uncheck the one just checked
-          cb.checked = false;
-        }
-        const count = Math.min(checked.length, 12);
-        hint.textContent = `${count}/12 selected`;
-        hint.className = count >= 12 ? 'max-hint over' : 'max-hint';
-        this._valueChanged();
-      });
-    });
+
   }
 
   _valueChanged() {
@@ -322,28 +336,12 @@ class PawsistantCardEditor extends HTMLElement {
     this.shadowRoot.querySelectorAll('input[type="text"], input[type="number"], select').forEach(el => {
       const key = el.name;
       const val = el.value.trim();
-      if (key === 'buttons_per_row') {
-        const n = parseInt(val, 10);
-        if (!isNaN(n) && n >= 2 && n <= 6) {
-          newConfig['buttons_per_row'] = n;
-        } else {
-          delete newConfig['buttons_per_row'];
-        }
-      } else if (val) {
+      if (val) {
         newConfig[key] = val;
       } else {
         delete newConfig[key];
       }
     });
-
-    // shown_types from checkboxes
-    const checked = [...this.shadowRoot.querySelectorAll('input[name="shown_type_cb"]:checked')];
-    const shownTypes = checked.map(cb => cb.value);
-    if (shownTypes.length > 0) {
-      newConfig['shown_types'] = shownTypes;
-    } else {
-      delete newConfig['shown_types'];
-    }
 
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: newConfig }, bubbles: true, composed: true }));
   }
@@ -367,6 +365,11 @@ class PawsistantCard extends HTMLElement {
     this._timers = [];
     // U9 — delete confirm state: eventId -> timeout id
     this._deleteConfirmState = new Map();
+    // Event Types Manager state
+    this._eventTypesPanel = false;      // true = showing manager panel
+    this._editingEventType = null;      // null = list view; object = editing/adding
+    // { event_type: string, name: string, icon: string, color: string, metric: string }
+    this._eventTypeFormError = null;    // error message for form
   }
 
   static getConfigElement() {
@@ -387,8 +390,10 @@ class PawsistantCard extends HTMLElement {
     const hash = buildHash(hass, this._config);
     if (hash !== this._lastHash) {
       this._lastHash = hash;
+      // Clear registry cache so buildRegistry runs fresh with new event_types
+      this._registryCache = null;
       // Don't re-render if a form is open — would destroy it
-      if (!this._activeForm) {
+      if (!this._activeForm && !this._eventTypesPanel) {
         this._render();
       }
     }
@@ -445,6 +450,17 @@ class PawsistantCard extends HTMLElement {
     return types;
   }
 
+  /** Build event-type registry + button metrics from sensor attributes.
+   *  Cached on this._registryCache, invalidated when hass changes. */
+  _registry() {
+    if (this._registryCache && typeof this._registryCache === 'object') {
+      return this._registryCache;
+    }
+    const { registry, metrics } = buildRegistry(this._hass);
+    this._registryCache = { registry, metrics };
+    return this._registryCache;
+  }
+
   /* ── Render ────────────────────────────────────────────────────────── */
   _render() {
     const hass = this._hass;
@@ -453,6 +469,7 @@ class PawsistantCard extends HTMLElement {
     const cfg = this._config;
     const ent = this._entities();
     const dogName = cfg.dog;
+    const { registry, metrics } = this._registry();
 
     const peeCount = stateNum(hass, ent.pee_count);
     const poopCount = stateNum(hass, ent.poop_count);
@@ -469,7 +486,7 @@ class PawsistantCard extends HTMLElement {
     } else {
       let lastDate = null;
       for (const ev of events) {
-        const meta = getMeta(ev.type);
+        const meta = getMeta(ev.type, registry);
         const evDate = ev.date || '';
         if (evDate !== lastDate) {
           const label = evDate || ev.day || '';
@@ -502,14 +519,30 @@ class PawsistantCard extends HTMLElement {
       : null;
     let buttonsHTML = '';
     for (const type of shownTypes) {
-      const meta = getMeta(type);
+      const meta = getMeta(type, registry);
       const isWeight = type === 'weight';
 
       /* Inline count/stat for supported types */
       let countSuffix = '';
-      if (type === 'pee' && peeCount !== null) countSuffix = ` (${peeCount})`;
-      else if (type === 'poop' && poopCount !== null) countSuffix = ` (${poopCount})`;
-      else if (type === 'medicine' && medDays !== null) countSuffix = ` (${medDaysText})`;
+      const metric = metrics[type] || 'daily_count';
+      if (metric === 'daily_count') {
+        if (type === 'pee' && peeCount !== null) countSuffix = ` (${peeCount})`;
+        else if (type === 'poop' && poopCount !== null) countSuffix = ` (${poopCount})`;
+        else if (type === 'medicine' && medDays !== null) countSuffix = ` (${medDaysText})`;
+        else if (type === 'food' && peeCount !== null) {} // food has no inline stat
+      } else if (metric === 'days_since' && medDays !== null) {
+        countSuffix = ` (${Math.floor(medDays)}d)`;
+      } else if (metric === 'last_value') {
+        const w = stateNum(hass, ent.weight);
+        if (w !== null) countSuffix = ` (${w} ${weightUnit})`;
+      } else if (metric === 'hours_since') {
+        // Show hours since most recent of this type
+        const lastTs = stateAttr(hass, ent.timeline, 'last_' + type + '_ts');
+        if (lastTs) {
+          const hrs = Math.floor((Date.now() - new Date(lastTs).getTime()) / 3600000);
+          if (hrs >= 0) countSuffix = ` (${hrs}h)`;
+        }
+      }
 
       const ariaLabel = isWeight
         ? `Log weight`
@@ -551,6 +584,23 @@ class PawsistantCard extends HTMLElement {
           color: var(--primary-text-color);
           flex: 1;
         }
+        .event-types-gear-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 18px;
+          padding: 6px 10px;
+          border-radius: 6px;
+          color: var(--secondary-text-color);
+          min-width: 44px;
+          min-height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.15s;
+          flex-shrink: 0;
+        }
+        .event-types-gear-btn:hover { background: var(--secondary-background-color, #f5f5f5); }
         /* ── Quick-log buttons ── */
         .quick-log {
           display: flex;
@@ -845,10 +895,260 @@ class PawsistantCard extends HTMLElement {
           .log-btn .btn-emoji { font-size: 20px; }
           .log-btn .btn-label { font-size: 10px; }
         }
+
+        /* ── Event Types Manager Panel ── */
+        .event-types-panel {
+          padding: 12px 0 0;
+        }
+        .event-types-panel-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 0 16px 10px;
+          border-bottom: 1px solid var(--divider-color, #e0e0e0);
+        }
+        .event-types-panel-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--primary-text-color);
+          flex: 1;
+        }
+        .event-types-back-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 18px;
+          padding: 6px 10px;
+          border-radius: 6px;
+          color: var(--secondary-text-color);
+          min-width: 44px;
+          min-height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .event-types-back-btn:hover { background: var(--secondary-background-color, #f5f5f5); }
+
+        .event-types-list {
+          list-style: none;
+          padding: 8px 12px;
+          margin: 0;
+        }
+        .event-type-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 4px;
+          border-radius: 8px;
+          transition: background 0.15s;
+        }
+        .event-type-row:hover { background: var(--secondary-background-color, #f5f5f5); }
+        .event-type-row.et-dragging { opacity: 0.4; }
+        .event-type-row.et-drag-over { background: var(--primary-color-light, #e3f2fd); outline: 2px dashed var(--primary-color, #2196f3); }
+        .et-drag-handle {
+          cursor: grab;
+          font-size: 16px;
+          color: var(--secondary-text-color);
+          flex-shrink: 0;
+          user-select: none;
+          padding: 0 2px;
+        }
+        .et-drag-handle:active { cursor: grabbing; }
+        .et-visibility-toggle {
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          flex-shrink: 0;
+        }
+        .et-visibility-toggle input[type="checkbox"] { display: none; }
+        .et-visible-icon { font-size: 16px; line-height: 1; }
+        .et-hint {
+          font-size: 11px;
+          color: var(--secondary-text-color);
+          margin: 0 0 8px 0;
+          padding: 0 4px;
+        }
+        .et-color-swatch {
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          flex-shrink: 0;
+          border: 1px solid rgba(0,0,0,0.1);
+        }
+        .et-icon { font-size: 20px; flex-shrink: 0; width: 26px; text-align: center; }
+        .et-name {
+          flex: 1;
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--primary-text-color);
+        }
+        .et-badge {
+          font-size: 10px;
+          padding: 2px 7px;
+          border-radius: 10px;
+          background: var(--divider-color, #e0e0e0);
+          color: var(--secondary-text-color);
+          flex-shrink: 0;
+        }
+        .et-badge.custom { background: var(--primary-color, #2196f3); color: var(--text-primary-color, #fff); }
+        .et-badge.builtin { background: var(--divider-color, #e0e0e0); color: var(--secondary-text-color); }
+        .et-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .et-btn {
+          background: none;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          cursor: pointer;
+          font-size: 12px;
+          padding: 5px 10px;
+          border-radius: 6px;
+          color: var(--secondary-text-color);
+          min-width: 44px;
+          min-height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.15s;
+        }
+        .et-btn:hover { background: var(--secondary-background-color, #f5f5f5); }
+        .et-btn.delete:hover { background: color-mix(in srgb, var(--error-color, #EF5350) 12%, transparent); color: var(--error-color, #EF5350); border-color: var(--error-color, #EF5350); }
+
+        .add-event-type-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          width: calc(100% - 24px);
+          margin: 8px 12px;
+          padding: 10px;
+          border: 2px dashed var(--divider-color, #e0e0e0);
+          border-radius: 8px;
+          background: transparent;
+          color: var(--secondary-text-color);
+          font-size: 13px;
+          cursor: pointer;
+          transition: border-color 0.15s, background 0.15s;
+        }
+        .add-event-type-btn:hover { border-color: var(--primary-color, #2196f3); background: color-mix(in srgb, var(--primary-color, #2196f3) 8%, transparent); color: var(--primary-color, #2196f3); }
+
+        /* Event Type Edit Form */
+        .et-form {
+          padding: 12px 16px 8px;
+          border-top: 1px solid var(--divider-color, #e0e0e0);
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .et-form-title {
+          font-size: 15px;
+          font-weight: 600;
+          color: var(--primary-text-color);
+        }
+        .et-form-field {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .et-form-label {
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--secondary-text-color);
+        }
+        .et-form-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .et-form-row input[type="text"] {
+          flex: 1;
+        }
+        .et-browse-btn {
+          padding: 8px 12px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 6px;
+          background: var(--secondary-background-color, #f5f5f5);
+          color: var(--primary-text-color);
+          font-size: 12px;
+          cursor: pointer;
+          white-space: nowrap;
+          flex-shrink: 0;
+          min-height: 40px;
+        }
+        .et-browse-btn:hover { background: var(--divider-color, #e0e0e0); }
+        .et-color-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .et-color-input {
+          width: 44px;
+          height: 44px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 8px;
+          padding: 2px;
+          cursor: pointer;
+          background: none;
+          flex-shrink: 0;
+        }
+        .et-color-hex {
+          font-size: 13px;
+          color: var(--secondary-text-color);
+          font-family: monospace;
+        }
+        .et-form-error {
+          color: var(--error-color, #EF5350);
+          font-size: 12px;
+          padding: 6px 10px;
+          border-radius: 6px;
+          background: color-mix(in srgb, var(--error-color, #EF5350) 10%, transparent);
+          display: none;
+        }
+        .et-form-error.visible { display: block; }
+        .et-form-actions {
+          display: flex;
+          gap: 8px;
+          padding-bottom: 8px;
+        }
+        .et-btn-submit {
+          flex: 1;
+          padding: 12px;
+          border: none;
+          border-radius: 8px;
+          background: var(--primary-color, #2196f3);
+          color: var(--text-primary-color, #fff);
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          min-height: 44px;
+        }
+        .et-btn-submit:active { opacity: 0.85; }
+        .et-btn-cancel {
+          padding: 12px 18px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 8px;
+          background: transparent;
+          color: var(--secondary-text-color);
+          font-size: 14px;
+          cursor: pointer;
+          min-height: 44px;
+        }
+        .et-btn-cancel:active { background: var(--secondary-background-color, #f5f5f5); }
       </style>
       <ha-card class="card">
+        ${this._eventTypesPanel
+          ? this._renderEventTypesPanel(registry, metrics)
+          : this._renderMainContent(dogName, buttonsHTML, buttonsPerRow, timelineHTML)
+        }
+      </ha-card>
+    `;
+
+    this._attachListeners();
+  }
+
+  /* ── Render main card content ──────────────────────────────────────── */
+  _renderMainContent(dogName, buttonsHTML, buttonsPerRow, timelineHTML) {
+    return `
         <div class="card-header">
           <span class="card-title">🐾 ${_escapeHTML(dogName)}</span>
+          <button class="event-types-gear-btn" id="et-gear-btn" title="Configure event types" aria-label="Configure event types">⚙️</button>
         </div>
 
         <div class="quick-log-section">
@@ -868,10 +1168,324 @@ class PawsistantCard extends HTMLElement {
 
         <div class="timeline-header">📋 Last 24 hours</div>
         <div class="timeline-body" id="timeline-body">${timelineHTML}</div>
-      </ha-card>
-    `;
+      `;
+  }
 
-    this._attachListeners();
+  /* ── Render Event Types Manager Panel ──────────────────────────────── */
+  _renderEventTypesPanel(registry, metrics) {
+    const esc = _escapeHTML;
+    const { registry: allTypes, metrics: buttonMetrics } = this._registry();
+
+    // If editing/adding a type, show the form
+    if (this._editingEventType !== null) {
+      return this._renderEventTypeForm(this._editingEventType);
+    }
+
+    // Determine order: shown_types first (in order), then remaining unchecked types
+    const shownTypes = Array.isArray(this._config.shown_types) ? this._config.shown_types : DEFAULT_SHOWN_TYPES;
+    const allKeys = Object.keys(allTypes);
+    const shownInOrder = shownTypes.filter(k => allKeys.includes(k));
+    const hiddenKeys = allKeys.filter(k => !shownInOrder.includes(k));
+    const orderedKeys = [...shownInOrder, ...hiddenKeys];
+
+    // List view — drag handle + visibility checkbox + edit/delete
+    const rows = orderedKeys.map(key => {
+      const displayMeta = getMeta(key, allTypes);
+      const metric = buttonMetrics[key] || 'daily_count';
+      const metricBadge = METRIC_LABELS[metric] ? metric.replace(/_/g, ' ') : metric;
+      const icon = displayMeta.icon ? iconToEmoji(displayMeta.icon) : displayMeta.emoji;
+      const isVisible = shownInOrder.includes(key);
+      return `
+        <li class="event-type-row" data-et-key="${esc(key)}" draggable="true">
+          <span class="et-drag-handle" title="Drag to reorder">☰</span>
+          <span class="et-color-swatch" style="background:${esc(displayMeta.color)}" title="${esc(displayMeta.color)}"></span>
+          <span class="et-icon" title="${esc(displayMeta.icon || '')}">${icon}</span>
+          <span class="et-name">${esc(displayMeta.label)}</span>
+          <span class="et-badge">${metricBadge}</span>
+          <div class="et-actions">
+            <label class="et-visibility-toggle" title="${isVisible ? 'Hide from card' : 'Show on card'}">
+              <input type="checkbox" class="et-visible-cb" data-et-key="${esc(key)}" ${isVisible ? 'checked' : ''} />
+              <span class="et-visible-icon">${isVisible ? '👁' : '🚫'}</span>
+            </label>
+            <button class="et-btn edit" data-et-key="${esc(key)}" title="Edit '${esc(key)}'">✎</button>
+            <button class="et-btn delete" data-et-key="${esc(key)}" title="Delete '${esc(key)}'">✕</button>
+          </div>
+        </li>`;
+    }).join('');
+
+    return `
+        <div class="event-types-panel">
+          <div class="event-types-panel-header">
+            <button class="event-types-back-btn" id="et-back-btn" title="Back">←</button>
+            <span class="event-types-panel-title">⚙️ Event Types</span>
+          </div>
+          <p class="et-hint">Drag ☰ to reorder · 👁 toggles button visibility</p>
+          <ul class="event-types-list" id="et-list">
+            ${rows}
+          </ul>
+          <button class="add-event-type-btn" id="et-add-btn">
+            <span>+</span> Add Event Type
+          </button>
+        </div>
+      `;
+  }
+
+  /* ── Render Event Type Edit/Add Form ──────────────────────────────── */
+  _renderEventTypeForm(editing) {
+    // editing = null means ADD mode; otherwise it's {event_type, name, icon, color, metric}
+    const isAdd = editing === '__ADD__';
+    const isEdit = !isAdd && editing !== null;
+    const esc = _escapeHTML;
+
+    let keyVal = '', nameVal = '', iconVal = '', colorVal = '#4CAF50', metricVal = 'daily_count';
+    let formTitle = 'Add Event Type';
+
+    if (isEdit) {
+      const meta = getMeta(editing.event_type, this._registry().registry) || {};
+      const { metrics } = this._registry();
+      keyVal = editing.event_type;
+      nameVal = editing.name || meta.label || editing.event_type;
+      iconVal = editing.icon || meta.icon || '';
+      colorVal = editing.color || meta.color || '#4CAF50';
+      metricVal = editing.metric || metrics[editing.event_type] || 'daily_count';
+      formTitle = 'Edit Event Type';
+    }
+
+    const metricOptions = ['daily_count', 'days_since', 'last_value', 'hours_since']
+      .map(m => `<option value="${m}"${metricVal === m ? ' selected' : ''}>${m.replace(/_/g, ' ')}</option>`)
+      .join('');
+
+    // Show key field only in ADD mode
+    const keyField = isAdd
+      ? `<div class="et-form-field">
+           <label class="et-form-label" for="et-key-input">Event type key</label>
+           <input type="text" id="et-key-input" value="${esc(keyVal)}"
+             placeholder="e.g. outdoor_walk" maxlength="30"
+             style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font-size:15px;" />
+           <div class="hint" style="font-size:11px;color:var(--secondary-text-color);margin-top:3px;">
+             Lowercase letters, numbers, underscores only. Max 30 chars.
+           </div>
+         </div>`
+      : `<div class="et-form-field">
+           <label class="et-form-label">Event type key</label>
+           <div style="font-size:14px;color:var(--secondary-text-color);padding:4px 0;font-family:monospace;">${esc(keyVal)}</div>
+         </div>`;
+
+    const errorHTML = this._eventTypeFormError
+      ? `<div class="et-form-error visible" role="alert">${_escapeHTML(this._eventTypeFormError)}</div>`
+      : `<div class="et-form-error" role="alert"></div>`;
+
+    return `
+        <div class="event-types-panel">
+          <div class="event-types-panel-header">
+            <button class="event-types-back-btn" id="et-form-back-btn" title="Back to list">←</button>
+            <span class="event-types-panel-title">${esc(formTitle)}</span>
+          </div>
+          <div class="et-form" id="et-form">
+            ${isAdd ? keyField : ''}
+            <div class="et-form-field">
+              <label class="et-form-label" for="et-name-input">Display name</label>
+              <input type="text" id="et-name-input" value="${esc(nameVal)}"
+                placeholder="e.g. Morning Walk"
+                style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font-size:15px;" />
+            </div>
+            <div class="et-form-field">
+              <label class="et-form-label" for="et-icon-input">Icon (mdi: format)</label>
+              <div class="et-form-row">
+                <input type="text" id="et-icon-input" value="${esc(iconVal)}"
+                  placeholder="mdi:walk"
+                  style="flex:1;box-sizing:border-box;padding:10px 12px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font-size:15px;" />
+                <button class="et-browse-btn" id="et-browse-btn" type="button"
+                  title="Pick icon from HA's built-in icon picker">
+                  🎨 Pick
+                </button>
+              </div>
+            </div>
+            <div class="et-form-field">
+              <label class="et-form-label" for="et-color-input">Color</label>
+              <div class="et-color-row">
+                <input type="color" id="et-color-input" class="et-color-input"
+                  value="${esc(colorVal)}" />
+                <span class="et-color-hex" id="et-color-hex">${esc(colorVal)}</span>
+              </div>
+            </div>
+            <div class="et-form-field">
+              <label class="et-form-label" for="et-metric-select">Button metric</label>
+              <select id="et-metric-select"
+                style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font-size:15px;">
+                ${metricOptions}
+              </select>
+              <div style="font-size:11px;color:var(--secondary-text-color);margin-top:3px;">
+                daily_count = "N today" · days_since = "N days" · last_value = "value" · hours_since = "N hours"
+              </div>
+            </div>
+            ${errorHTML}
+            <div class="et-form-actions">
+              <button class="et-btn-cancel" id="et-form-cancel">Cancel</button>
+              <button class="et-btn-submit" id="et-form-submit">${isAdd ? 'Add Event Type' : 'Save Changes'}</button>
+            </div>
+          </div>
+        </div>
+      `;
+  }
+
+  /* ── Open Event Types Manager Panel ──────────────────────────────── */
+  _openEventTypesPanel() {
+    this._eventTypesPanel = true;
+    this._editingEventType = null;
+    this._eventTypeFormError = null;
+    this._render();
+  }
+
+  _closeEventTypesPanel() {
+    this._eventTypesPanel = false;
+    this._editingEventType = null;
+    this._eventTypeFormError = null;
+    this._render();
+    // Refresh hash so normal render picks up any registry changes
+    this._lastHash = null;
+  }
+
+  /* ── Open Edit/Add Form ───────────────────────────────────────────── */
+  _openEventTypeForm(key) {
+    // key = event_type key to edit, or '__ADD__' for new
+    if (key === '__ADD__') {
+      this._editingEventType = '__ADD__';
+    } else {
+      // Snapshot current state for this type
+      const { registry, metrics } = this._registry();
+      const meta = getMeta(key, registry) || {};
+      this._editingEventType = {
+        event_type: key,
+        name: meta.label || key,
+        icon: meta.icon || '',
+        color: meta.color || '#4CAF50',
+        metric: metrics[key] || 'daily_count',
+      };
+    }
+    this._eventTypeFormError = null;
+    this._render();
+  }
+
+  /* ── Save Event Type Form ─────────────────────────────────────────── */
+  _saveEventTypeForm() {
+    const isAdd = this._editingEventType === '__ADD__';
+    const formEl = this.shadowRoot.getElementById('et-form');
+    if (!formEl) return;
+
+    // Collect values
+    const name = (formEl.querySelector('#et-name-input') || {}).value || '';
+    const icon = (formEl.querySelector('#et-icon-input') || {}).value || '';
+    const color = (formEl.querySelector('#et-color-input') || {}).value || '';
+    const metric = (formEl.querySelector('#et-metric-select') || {}).value || 'daily_count';
+
+    let eventType;
+    if (isAdd) {
+      eventType = (formEl.querySelector('#et-key-input') || {}).value || '';
+    } else {
+      eventType = this._editingEventType.event_type;
+    }
+
+    // Basic client-side validation before calling service
+    if (isAdd && !eventType.trim()) {
+      this._eventTypeFormError = "Event type key is required.";
+      this._render();
+      return;
+    }
+    if (!name.trim()) {
+      this._eventTypeFormError = "Display name is required.";
+      this._render();
+      return;
+    }
+    if (!icon.trim()) {
+      this._eventTypeFormError = "Icon is required.";
+      this._render();
+      return;
+    }
+
+    // Auto-prepend mdi: if user typed just "walk"
+    const normalizedIcon = icon.trim().startsWith('mdi:') || icon.trim().startsWith('hass:')
+      ? icon.trim()
+      : 'mdi:' + icon.trim();
+
+    // Build service call
+    const payload = {
+      event_type: eventType,
+      name: name.trim(),
+      icon: normalizedIcon,
+      color: color.trim(),
+      metric: metric,
+    };
+
+    const serviceName = isAdd ? 'add_event_type' : 'update_event_type';
+
+    this._hass.callService('pawsistant', serviceName, payload)
+      .then(() => {
+        this._closeEventTypesPanel();
+        // Force refresh the card to pick up new registry
+        this._setTimeout(() => { this._lastHash = null; this._render(); }, 300);
+      })
+      .catch(err => {
+        // Surface service validation error
+        const msg = (err && err.message) ? String(err.message).replace(/^Error: /i, '') : 'Unknown error.';
+        this._eventTypeFormError = msg;
+        this._render();
+      });
+  }
+
+  /* ── Save shown_types (order + visibility) ────────────────────────── */
+  _saveShownTypes(orderedShownKeys) {
+    this._config = { ...this._config, shown_types: orderedShownKeys };
+    this.dispatchEvent(new CustomEvent('config-changed', {
+      detail: { config: this._config },
+      bubbles: true,
+      composed: true,
+    }));
+    this._lastHash = null;
+    this._render();
+  }
+
+  /* ── Delete Event Type ─────────────────────────────────────────────── */
+  _deleteEventType(key) {
+    if (!confirm(`Delete event type '${key}'? Events logged with this type will be preserved.`)) return;
+    this._hass.callService('pawsistant', 'delete_event_type', { event_type: key })
+      .then(() => {
+        // Optimistically remove the type from the cached registry immediately,
+        // without waiting for HA to push updated sensor state.
+        if (this._registryCache && this._registryCache.registry) {
+          delete this._registryCache.registry[key];
+        }
+        this._lastHash = null;
+        this._render();
+      })
+      .catch(err => {
+        console.error('[pawsistant-card] delete_event_type failed:', err);
+        this._eventTypeFormError = 'Delete failed: ' + ((err && err.message) || 'Unknown error');
+        this._render();
+      });
+  }
+
+  /* ── Icon picker helper ────────────────────────────────────────────── */
+  async _pickIcon(currentIcon) {
+    // Try HA's built-in ha-icon-picker
+    const picker = document.createElement('ha-icon-picker');
+    if (picker && (typeof picker.value !== 'undefined' || customElements.get('ha-icon-picker'))) {
+      return new Promise((resolve) => {
+        const dialog = document.createElement('ha-dialog');
+        dialog.setAttribute('open', '');
+        dialog.heading = 'Pick an icon';
+        picker.value = currentIcon || '';
+        picker.addEventListener('value-changed', (e) => {
+          resolve(e.detail.value);
+          dialog.remove();
+        });
+        dialog.appendChild(picker);
+        document.body.appendChild(dialog);
+      });
+    }
+    // Fallback
+    const val = window.prompt('Enter MDI icon name (e.g. mdi:dog):', currentIcon || '');
+    return val || currentIcon;
   }
 
   /* ── Attach listeners ──────────────────────────────────────────────── */
@@ -995,9 +1609,149 @@ class PawsistantCard extends HTMLElement {
         }
       });
     });
-  }
 
-  /* ── Instant log (tap) ─────────────────────────────────────────────── */
+    /* ── Event Types Manager Panel listeners ── */
+
+    // Gear button to open panel
+    const gearBtn = root.querySelector('#et-gear-btn');
+    if (gearBtn) {
+      gearBtn.addEventListener('click', () => this._openEventTypesPanel());
+    }
+
+    // Back button in panel header
+    const backBtn = root.querySelector('#et-back-btn');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => this._closeEventTypesPanel());
+    }
+
+    // Back button in form header (return to list)
+    const formBackBtn = root.querySelector('#et-form-back-btn');
+    if (formBackBtn) {
+      formBackBtn.addEventListener('click', () => {
+        this._editingEventType = null;
+        this._eventTypeFormError = null;
+        this._render();
+      });
+    }
+
+    // Add button
+    const addBtn = root.querySelector('#et-add-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => this._openEventTypeForm('__ADD__'));
+    }
+
+    // Edit buttons on event type rows
+    root.querySelectorAll('.et-btn.edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.etKey;
+        if (key) this._openEventTypeForm(key);
+      });
+    });
+
+    // Delete buttons on event type rows
+    root.querySelectorAll('.et-btn.delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.etKey;
+        if (key) this._deleteEventType(key);
+      });
+    });
+
+    // Visibility checkboxes — toggle shown_types
+    root.querySelectorAll('.et-visible-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const shownTypes = Array.isArray(this._config.shown_types) ? [...this._config.shown_types] : [...DEFAULT_SHOWN_TYPES];
+        const key = cb.dataset.etKey;
+        if (cb.checked) {
+          if (!shownTypes.includes(key)) shownTypes.push(key);
+        } else {
+          const idx = shownTypes.indexOf(key);
+          if (idx !== -1) shownTypes.splice(idx, 1);
+        }
+        this._saveShownTypes(shownTypes);
+      });
+    });
+
+    // Drag-to-reorder on event type rows
+    let _dragKey = null;
+    root.querySelectorAll('.event-type-row[draggable]').forEach(row => {
+      row.addEventListener('dragstart', (e) => {
+        _dragKey = row.dataset.etKey;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', _dragKey);
+        row.classList.add('et-dragging');
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('et-dragging');
+        root.querySelectorAll('.event-type-row').forEach(r => r.classList.remove('et-drag-over'));
+        _dragKey = null;
+      });
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        root.querySelectorAll('.event-type-row').forEach(r => r.classList.remove('et-drag-over'));
+        row.classList.add('et-drag-over');
+      });
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const fromKey = _dragKey;
+        const toKey = row.dataset.etKey;
+        if (!fromKey || fromKey === toKey) return;
+
+        // Get current full ordered list from DOM
+        const allRows = [...root.querySelectorAll('.event-type-row')];
+        const orderedAll = allRows.map(r => r.dataset.etKey);
+
+        // Reorder: move fromKey to toKey's position
+        const fromIdx = orderedAll.indexOf(fromKey);
+        const toIdx = orderedAll.indexOf(toKey);
+        orderedAll.splice(fromIdx, 1);
+        orderedAll.splice(toIdx, 0, fromKey);
+
+        // Only keep keys that were in shown_types (preserve visibility state)
+        const shownTypes = Array.isArray(this._config.shown_types) ? this._config.shown_types : DEFAULT_SHOWN_TYPES;
+        const newShown = orderedAll.filter(k => shownTypes.includes(k));
+        this._saveShownTypes(newShown);
+      });
+    });
+
+    // Pick icon button — use the icon picker helper
+    const browseBtn = root.querySelector('#et-browse-btn');
+    if (browseBtn) {
+      browseBtn.addEventListener('click', async () => {
+        const iconInput = root.querySelector('#et-icon-input');
+        const currentIcon = iconInput ? iconInput.value.trim() : '';
+        const picked = await this._pickIcon(currentIcon);
+        if (picked && iconInput) {
+          iconInput.value = picked;
+        }
+      });
+    }
+
+    // Color input — update hex display
+    const colorInput = root.querySelector('#et-color-input');
+    const colorHex = root.querySelector('#et-color-hex');
+    if (colorInput && colorHex) {
+      colorInput.addEventListener('input', () => {
+        colorHex.textContent = colorInput.value;
+      });
+    }
+
+    // Submit form
+    const submitBtn = root.querySelector('#et-form-submit');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', () => this._saveEventTypeForm());
+    }
+
+    // Cancel form
+    const cancelBtn = root.querySelector('#et-form-cancel');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        this._editingEventType = null;
+        this._eventTypeFormError = null;
+        this._render();
+      });
+    }
+  }
   _instantLog(btn, type) {
     /* U7 — debounce: set pending, re-enable after service call */
     if (btn.dataset.pending) return;
@@ -1021,7 +1775,8 @@ class PawsistantCard extends HTMLElement {
     this._activeType = type;
     this._activeTriggerBtn = activeBtn;
 
-    const meta = getMeta(type);
+    const { registry } = this._registry();
+    const meta = getMeta(type, registry);
     const formEl = this.shadowRoot.getElementById('inline-form');
     /* U10 — proper <label for> on all inputs */
     formEl.innerHTML = `

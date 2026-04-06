@@ -45,7 +45,7 @@ EVENT_TYPE_ICONS: dict[str, str] = {
     "walk": "mdi:walk",
     "pee": "mdi:water",
     "poop": "mdi:emoticon-poop",
-    "teeth_brushing": "mdi:toothbrush",
+    "teeth": "mdi:toothbrush",
     "grooming": "mdi:content-cut",
     "training": "mdi:school",
     "medicine": "mdi:pill",
@@ -55,8 +55,6 @@ EVENT_TYPE_ICONS: dict[str, str] = {
     "vaccine": "mdi:needle",
     "sick": "mdi:emoticon-sick",
 }
-
-# Sensor types that show "most recent timestamp + note"
 MOST_RECENT_EVENT_TYPES: list[str] = [
     "food",
     "treat",
@@ -65,7 +63,7 @@ MOST_RECENT_EVENT_TYPES: list[str] = [
     "poop",
     "water",
     "sleep",
-    "teeth_brushing",
+    "teeth",
     "grooming",
     "training",
     "medicine",
@@ -279,9 +277,14 @@ class _PawsistantSensorBase(CoordinatorEntity[PawsistantCoordinator], SensorEnti
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose the dog name and species on every sensor so the card can
-        resolve entities by dog name regardless of entity ID slug (rename-safe)."""
-        return {"dog": self._dog_name, "species": self._species}
+        """Expose the dog name, species, event type registry, and button metrics
+        on every sensor so the card can render dynamic metadata at runtime."""
+        return {
+            "dog": self._dog_name,
+            "species": self._species,
+            "event_types": self.coordinator.event_types,
+            "button_metrics": self.coordinator.button_metrics,
+        }
 
 
 # ---------------------------------------------------------------------------

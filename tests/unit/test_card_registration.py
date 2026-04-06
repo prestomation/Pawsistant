@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib
 import pathlib
+import re
 import sys
 import types
 from enum import Enum
@@ -121,6 +122,13 @@ def _inject_stubs() -> None:
     _const.PLATFORMS = []
     _const.URL_BASE = "/pawsistant"
     _const.CARD_VERSION = "test"
+    _const.MDI_ICON_RE = re.compile(r"^(mdi|hass):[a-z0-9-]+$")
+    _const.HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+    _const.VALID_BUTTON_METRICS = ["daily_count", "days_since", "last_value", "hours_since"]
+    _const.MAX_EVENT_TYPE_KEY_LEN = 30
+    _const.EVENT_TYPE_KEY_RE = re.compile(r"^[a-z0-9_]+$")
+    _const.DEFAULT_EVENT_TYPES = {}
+    _const.DEFAULT_BUTTON_METRICS = {}
     sys.modules["custom_components.pawsistant.const"] = _const
 
     _coord = types.ModuleType("custom_components.pawsistant.coordinator")

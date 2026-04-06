@@ -27,12 +27,33 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
-from homeassistant.components.http import StaticPathConfig
+try:
+    from homeassistant.components.http import StaticPathConfig
+except ImportError:
+    # StaticPathConfig introduced in HA 2024.4; provide a compat shim for older test envs
+    from dataclasses import dataclass
+    @dataclass
+    class StaticPathConfig:  # type: ignore[no-redef]
+        url: str
+        path: str
+        cache_headers: bool
 from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN, PLATFORMS, URL_BASE, CARD_VERSION
+from .const import (
+    DOMAIN,
+    PLATFORMS,
+    URL_BASE,
+    CARD_VERSION,
+    MDI_ICON_RE,
+    HEX_COLOR_RE,
+    VALID_BUTTON_METRICS,
+    MAX_EVENT_TYPE_KEY_LEN,
+    EVENT_TYPE_KEY_RE,
+    DEFAULT_EVENT_TYPES,
+    DEFAULT_BUTTON_METRICS,
+)
 from .coordinator import PawsistantCoordinator
-from .store import PawsistantStore, VALID_EVENT_TYPES
+from .store import PawsistantStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +64,7 @@ _LOGGER = logging.getLogger(__name__)
 LOG_EVENT_SCHEMA = vol.Schema(
     {
         vol.Required("dog"): cv.string,
-        vol.Required("event_type"): vol.In(VALID_EVENT_TYPES),
+        vol.Required("event_type"): cv.string,  # any string is accepted; registry validates
         vol.Optional("note", default=""): cv.string,
         vol.Optional("value"): vol.Coerce(float),
         vol.Optional("timestamp"): cv.string,
@@ -73,7 +94,7 @@ REMOVE_DOG_SCHEMA = vol.Schema(
 LIST_EVENTS_SCHEMA = vol.Schema(
     {
         vol.Required("dog"): cv.string,
-        vol.Optional("event_type"): vol.In(VALID_EVENT_TYPES),
+        vol.Optional("event_type"): cv.string,
         vol.Optional("days", default=7): vol.All(int, vol.Range(min=1, max=3650)),
     }
 )
@@ -81,6 +102,32 @@ LIST_EVENTS_SCHEMA = vol.Schema(
 IMPORT_EVENTS_SCHEMA = vol.Schema(
     {
         vol.Required("events"): list,
+    }
+)
+
+UPDATE_EVENT_TYPE_SCHEMA = vol.Schema(
+    {
+        vol.Required("event_type"): cv.string,
+        vol.Optional("name"): cv.string,
+        vol.Optional("icon"): cv.string,
+        vol.Optional("color"): cv.string,
+        vol.Optional("metric"): cv.string,
+    }
+)
+
+ADD_EVENT_TYPE_SCHEMA = vol.Schema(
+    {
+        vol.Required("event_type"): cv.string,
+        vol.Required("name"): cv.string,
+        vol.Required("icon"): cv.string,
+        vol.Required("color"): cv.string,
+        vol.Optional("metric", default="daily_count"): cv.string,
+    }
+)
+
+DELETE_EVENT_TYPE_SCHEMA = vol.Schema(
+    {
+        vol.Required("event_type"): cv.string,
     }
 )
 
@@ -453,6 +500,213 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DOMAIN, "import_events", handle_import_events, schema=IMPORT_EVENTS_SCHEMA
     )
 
+    # ── Event type management services ────────────────────────────────────
+
+    async def handle_update_event_type(call: ServiceCall) -> None:
+        """Handle pawsistant.update_event_type."""
+        from homeassistant.exceptions import ServiceValidationError
+
+        store, coord = _get_store_and_coord()
+        event_type: str = call.data["event_type"]
+        update: dict[str, Any] = {}
+
+        # Validate event_type exists
+        all_types = store.get_event_types()
+        if event_type not in all_types:
+            raise ServiceValidationError(
+                f"Event type '{event_type}' does not exist. "
+                f"Use add_event_type to create it first."
+            )
+
+        # Validate optional fields
+        if "name" in call.data and call.data["name"]:
+            update["name"] = call.data["name"].strip()
+        if "icon" in call.data and call.data["icon"]:
+            icon_val = call.data["icon"].strip()
+            if not MDI_ICON_RE.match(icon_val):
+                raise ServiceValidationError(
+                    f"Invalid icon '{icon_val}'. Must match mdi:... or hass:... "
+                    f"(e.g. mdi:walk, mdi:bowl)."
+                )
+            update["icon"] = icon_val
+        if "color" in call.data and call.data["color"]:
+            color_val = call.data["color"].strip()
+            if not HEX_COLOR_RE.match(color_val):
+                raise ServiceValidationError(
+                    f"Invalid color '{color_val}'. Must be a 6-digit hex color "
+                    f"starting with # (e.g. #4CAF50)."
+                )
+            update["color"] = color_val
+        if "metric" in call.data and call.data["metric"]:
+            metric_val = call.data["metric"].strip()
+            if metric_val not in VALID_BUTTON_METRICS:
+                raise ServiceValidationError(
+                    f"Invalid metric '{metric_val}'. Must be one of: "
+                    f"{', '.join(VALID_BUTTON_METRICS)}."
+                )
+
+        if not update:
+            raise ServiceValidationError(
+                "No fields to update. Provide at least one of: "
+                "name, icon, color, metric."
+            )
+
+        # Merge update into stored event types.
+        # Work from the resolved registry (get_event_types already handles tombstones)
+        # and the existing stored overrides (which may contain tombstones for other
+        # deleted defaults that we must preserve).
+        stored = store.get_stored_event_type_overrides()
+        existing_resolved = all_types.get(event_type, {})
+        merged = {**existing_resolved, **update}
+        # Preserve all existing stored overrides (including tombstones for other keys),
+        # then set/update just this key.
+        new_overrides = dict(stored)
+        new_overrides[event_type] = merged
+        store.save_event_types(new_overrides)
+        store.sync_save_meta()
+
+        # Persist metric override separately if provided
+        if "metric" in call.data and call.data["metric"]:
+            metrics = store.get_button_metrics()
+            metrics[event_type] = call.data["metric"].strip()
+            store.save_button_metrics(
+                {k: v for k, v in metrics.items()
+                 if k in DEFAULT_BUTTON_METRICS or k == event_type}
+            )
+            store.sync_save_meta()
+
+        _LOGGER.info(
+            "Updated event type '%s': %s", event_type, update
+        )
+        await coord.async_refresh()
+
+    hass.services.async_register(
+        DOMAIN,
+        "update_event_type",
+        handle_update_event_type,
+        schema=UPDATE_EVENT_TYPE_SCHEMA,
+    )
+
+    async def handle_add_event_type(call: ServiceCall) -> None:
+        """Handle pawsistant.add_event_type."""
+        from homeassistant.exceptions import ServiceValidationError
+
+        store, coord = _get_store_and_coord()
+        key: str = call.data["event_type"].strip()
+        name: str = call.data["name"].strip()
+        icon_val: str = call.data["icon"].strip()
+        color_val: str = call.data["color"].strip()
+        metric_val: str = call.data.get("metric", "daily_count")
+
+        # Validate key format
+        if len(key) > MAX_EVENT_TYPE_KEY_LEN:
+            raise ServiceValidationError(
+                f"Event type key '{key}' exceeds maximum length of "
+                f"{MAX_EVENT_TYPE_KEY_LEN} characters."
+            )
+        if not EVENT_TYPE_KEY_RE.match(key):
+            raise ServiceValidationError(
+                f"Event type key '{key}' contains invalid characters. "
+                f"Only lowercase letters (a-z), numbers (0-9), and underscores "
+                f"are allowed."
+            )
+        if not name:
+            raise ServiceValidationError("Display name must not be empty.")
+        if not MDI_ICON_RE.match(icon_val):
+            raise ServiceValidationError(
+                f"Invalid icon '{icon_val}'. Must match mdi:... or hass:... "
+                f"(e.g. mdi:walk, mdi:bowl)."
+            )
+        if not HEX_COLOR_RE.match(color_val):
+            raise ServiceValidationError(
+                f"Invalid color '{color_val}'. Must be a 6-digit hex color "
+                f"starting with # (e.g. #4CAF50)."
+            )
+        if metric_val not in VALID_BUTTON_METRICS:
+            raise ServiceValidationError(
+                f"Invalid metric '{metric_val}'. Must be one of: "
+                f"{', '.join(VALID_BUTTON_METRICS)}."
+            )
+
+        # Check key doesn't already exist
+        all_types = store.get_event_types()
+        if key in all_types:
+            raise ServiceValidationError(
+                f"Event type '{key}' already exists. "
+                f"Use update_event_type to modify it, or choose a different key."
+            )
+
+        # Build stored overrides (only the new key)
+        event_types = store.get_stored_event_type_overrides()
+        event_types[key] = {"name": name, "icon": icon_val, "color": color_val}
+        store.save_event_types(event_types)
+
+        # Persist metric override if not default
+        if metric_val != "daily_count":
+            metrics = store.get_stored_button_metric_overrides()
+            metrics[key] = metric_val
+            store.save_button_metrics(metrics)
+
+        store.sync_save_meta()
+        _LOGGER.info(
+            "Added event type '%s' (%s, %s, %s)", key, name, icon_val, color_val
+        )
+        await coord.async_refresh()
+
+    hass.services.async_register(
+        DOMAIN,
+        "add_event_type",
+        handle_add_event_type,
+        schema=ADD_EVENT_TYPE_SCHEMA,
+    )
+
+    async def handle_delete_event_type(call: ServiceCall) -> None:
+        """Handle pawsistant.delete_event_type."""
+        from homeassistant.exceptions import ServiceValidationError
+
+        store, coord = _get_store_and_coord()
+        event_type: str = call.data["event_type"].strip()
+
+        # Validate it exists (check both live types and raw stored overrides)
+        # A type may already be tombstoned (None in overrides) from a prior delete;
+        # in that case get_event_types() excludes it, so check DEFAULT_EVENT_TYPES too.
+        all_types = store.get_event_types()
+        in_defaults = event_type in DEFAULT_EVENT_TYPES
+        in_custom = event_type in store.get_stored_event_type_overrides() and                     store.get_stored_event_type_overrides().get(event_type) is not None
+        if event_type not in all_types and not in_defaults:
+            raise ServiceValidationError(
+                f"Event type '{event_type}' does not exist."
+            )
+
+        # Remove from stored overrides.
+        # For default event types (those in DEFAULT_EVENT_TYPES), we store a
+        # None tombstone so get_event_types() knows to exclude them even though
+        # they are hardcoded in the defaults dict.  For purely custom types,
+        # we simply drop their entry from the overrides dict.
+        event_types = store.get_stored_event_type_overrides()
+        if event_type in DEFAULT_EVENT_TYPES:
+            # Tombstone: marks the default as explicitly deleted
+            event_types[event_type] = None  # type: ignore[assignment]
+        else:
+            event_types.pop(event_type, None)
+        store.save_event_types(event_types)
+
+        # Remove metric override if present
+        metrics = store.get_stored_button_metric_overrides()
+        metrics.pop(event_type, None)
+        store.save_button_metrics(metrics)
+
+        store.sync_save_meta()
+        _LOGGER.info("Deleted event type '%s'", event_type)
+        await coord.async_refresh()
+
+    hass.services.async_register(
+        DOMAIN,
+        "delete_event_type",
+        handle_delete_event_type,
+        schema=DELETE_EVENT_TYPE_SCHEMA,
+    )
+
     return True
 
 
@@ -493,6 +747,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "remove_dog",
             "list_events",
             "import_events",
+            "update_event_type",
+            "add_event_type",
+            "delete_event_type",
         ):
             hass.services.async_remove(DOMAIN, service)
 

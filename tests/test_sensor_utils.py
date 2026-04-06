@@ -1,8 +1,10 @@
 """Tests for pure sensor utility functions."""
+# These tests use real HA modules — skip the mock_homeassistant autouse fixture.
+import pytest
+pytestmark = pytest.mark.real_ha
 
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
-import pytest
 import zoneinfo
 
 from homeassistant.util import dt as dt_util
