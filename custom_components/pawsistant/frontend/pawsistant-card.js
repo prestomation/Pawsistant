@@ -1500,7 +1500,11 @@ class PawsistantCard extends HTMLElement {
     if (!confirm(`Delete event type '${key}'? Events logged with this type will be preserved.`)) return;
     this._hass.callService('pawsistant', 'delete_event_type', { event_type: key })
       .then(() => {
-        // Stay in the panel — re-render so the deleted type disappears from the list
+        // Optimistically remove the type from the cached registry immediately,
+        // without waiting for HA to push updated sensor state.
+        if (this._registryCache && this._registryCache.registry) {
+          delete this._registryCache.registry[key];
+        }
         this._lastHash = null;
         this._render();
       })
