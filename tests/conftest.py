@@ -6,8 +6,11 @@ import types
 
 
 @pytest.fixture(autouse=True)
-def mock_homeassistant():
+def mock_homeassistant(request):
     """Stub out HA modules so tests can import pawsistant without a running HA."""
+    if request.node.get_closest_marker("real_ha"):
+        yield
+        return
     _haconst = types.ModuleType("homeassistant.const")
     _haconst.VOLUME_MIN = 0
     _haconst.VOLUME_MAX = 100
@@ -34,6 +37,9 @@ def mock_homeassistant():
     for name in mocks:
         if name in sys.modules:
             del sys.modules[name]
+
+
+
 
 
 

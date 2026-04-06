@@ -9,3 +9,6 @@ dev = ["pytest>=8.0", "requests>=2.31"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "real_ha: marks tests that use real HA modules (not mocked)",
+]
