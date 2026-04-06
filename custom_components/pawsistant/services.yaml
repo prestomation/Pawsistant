@@ -285,3 +285,22 @@ delete_event_type:
       required: true
       selector:
         text:
+
+set_shown_types:
+  name: Set Shown Types
+  description: >
+    Set the visible event type buttons (and their order) for a specific dog.
+    Changes persist server-side so they sync across all devices and dashboards.
+  fields:
+    dog:
+      name: Dog
+      description: The name of the dog to configure.
+      required: true
+      selector:
+        text:
+    shown_types:
+      name: Shown types
+      description: Ordered list of event type keys to show as buttons.
+      required: false
+      selector:
+        object:
