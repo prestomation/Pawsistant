@@ -272,26 +272,13 @@ class PawsistantCardEditor extends HTMLElement {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     const cfg = this._config;
     const esc = _escapeHTML;
-    const currentShown = Array.isArray(cfg.shown_types) ? cfg.shown_types : DEFAULT_SHOWN_TYPES;
     const weightUnit = cfg.weight_unit || 'lbs';
-    const buttonsPerRow = cfg.buttons_per_row != null ? String(cfg.buttons_per_row) : '';
 
     // Discover registered dog names from any sensor's `dog` attribute.
     // This is rename-safe: doesn't depend on entity ID patterns.
     const dogNames = this._dogNamesFromHass(this.__hass);
 
-    // Build checkbox rows for every known event type
-    const { registry } = buildRegistry(this.__hass);
-    const allTypes = Object.keys(registry);
-    const checkboxesHTML = allTypes.map(type => {
-      const meta = getMeta(type, registry);
-      const checked = currentShown.includes(type) ? 'checked' : '';
-      return `
-        <label class="type-checkbox">
-          <input type="checkbox" name="shown_type_cb" value="${esc(type)}" ${checked} />
-          <span class="type-chip">${meta.emoji} ${esc(meta.label)}</span>
-        </label>`;
-    }).join('');
+
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -309,54 +296,7 @@ class PawsistantCardEditor extends HTMLElement {
         }
         input:focus, select:focus { outline: 2px solid var(--primary-color); border-color: transparent; }
         .hint { font-size: 11px; color: var(--secondary-text-color); margin-top: 3px; }
-        /* Checkbox grid for event types */
-        .type-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-        .type-checkbox {
-          display: flex;
-          align-items: center;
-          gap: 0;
-          cursor: pointer;
-        }
-        .type-checkbox input[type="checkbox"] {
-          position: absolute;
-          opacity: 0;
-          width: 0;
-          height: 0;
-          pointer-events: none;
-        }
-        .type-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 5px 10px;
-          border-radius: 20px;
-          font-size: 13px;
-          border: 1px solid var(--divider-color);
-          background: var(--secondary-background-color, #f5f5f5);
-          color: var(--primary-text-color);
-          cursor: pointer;
-          transition: background 0.15s, border-color 0.15s, color 0.15s;
-          user-select: none;
-        }
-        .type-checkbox input:checked + .type-chip {
-          background: var(--primary-color, #2196f3);
-          border-color: var(--primary-color, #2196f3);
-          color: var(--text-primary-color, #fff);
-        }
-        .type-checkbox:focus-within .type-chip {
-          outline: 2px solid var(--primary-color, #2196f3);
-          outline-offset: 2px;
-        }
-        .max-hint {
-          font-size: 11px;
-          color: var(--secondary-text-color);
-          margin-top: 4px;
-        }
-        .max-hint.over { color: var(--error-color, #EF5350); }
+
       </style>
       <div class="form">
         <div>
@@ -377,18 +317,7 @@ class PawsistantCardEditor extends HTMLElement {
             <option value="kg" ${weightUnit === 'kg' ? 'selected' : ''}>kg</option>
           </select>
         </div>
-        <div>
-          <span class="field-label">Shown buttons (tap to toggle, max 12)</span>
-          <div class="type-grid" id="type-grid">
-            ${checkboxesHTML}
-          </div>
-          <div class="max-hint" id="max-hint">${currentShown.length}/12 selected</div>
-        </div>
-        <div>
-          <label class="field-label" for="ed-buttons-per-row">Buttons per row (2–6, leave blank for auto)</label>
-          <input id="ed-buttons-per-row" name="buttons_per_row" type="number" min="2" max="6" value="${esc(buttonsPerRow)}" placeholder="auto" />
-          <div class="hint">When set, buttons render in a CSS grid of N equal columns. When blank, flex-wrap is used.</div>
-        </div>
+
       </div>
     `;
 
@@ -397,21 +326,7 @@ class PawsistantCardEditor extends HTMLElement {
       el.addEventListener('change', () => this._valueChanged());
     });
 
-    // Checkbox listeners — enforce max 12, update counter
-    const hint = this.shadowRoot.getElementById('max-hint');
-    this.shadowRoot.querySelectorAll('input[name="shown_type_cb"]').forEach(cb => {
-      cb.addEventListener('change', () => {
-        const checked = [...this.shadowRoot.querySelectorAll('input[name="shown_type_cb"]:checked')];
-        if (checked.length > 12) {
-          // Uncheck the one just checked
-          cb.checked = false;
-        }
-        const count = Math.min(checked.length, 12);
-        hint.textContent = `${count}/12 selected`;
-        hint.className = count >= 12 ? 'max-hint over' : 'max-hint';
-        this._valueChanged();
-      });
-    });
+
   }
 
   _valueChanged() {
@@ -421,28 +336,12 @@ class PawsistantCardEditor extends HTMLElement {
     this.shadowRoot.querySelectorAll('input[type="text"], input[type="number"], select').forEach(el => {
       const key = el.name;
       const val = el.value.trim();
-      if (key === 'buttons_per_row') {
-        const n = parseInt(val, 10);
-        if (!isNaN(n) && n >= 2 && n <= 6) {
-          newConfig['buttons_per_row'] = n;
-        } else {
-          delete newConfig['buttons_per_row'];
-        }
-      } else if (val) {
+      if (val) {
         newConfig[key] = val;
       } else {
         delete newConfig[key];
       }
     });
-
-    // shown_types from checkboxes
-    const checked = [...this.shadowRoot.querySelectorAll('input[name="shown_type_cb"]:checked')];
-    const shownTypes = checked.map(cb => cb.value);
-    if (shownTypes.length > 0) {
-      newConfig['shown_types'] = shownTypes;
-    } else {
-      delete newConfig['shown_types'];
-    }
 
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: newConfig }, bubbles: true, composed: true }));
   }
