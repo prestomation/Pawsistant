@@ -66,7 +66,7 @@ function buildRegistry(hass) {
   if (hass && hass.states) {
     for (const state of Object.values(hass.states)) {
       const attrs = state.attributes || {};
-      if (attrs.event_types && typeof attrs.event_types === 'object') {
+      if (attrs.event_types && typeof attrs.event_types === 'object' && Object.keys(attrs.event_types).length > 0) {
         foundLiveTypes = true;
         // Build registry from ONLY the live event_types (authoritative source).
         // This ensures deleted types (tombstones) don't appear — they're not in this dict.
