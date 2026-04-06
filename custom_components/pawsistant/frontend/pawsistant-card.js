@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one pet activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
- * Version: 2.8.1
+ * Version: 2.11.0
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -370,6 +370,9 @@ class PawsistantCard extends HTMLElement {
     this._editingEventType = null;      // null = list view; object = editing/adding
     // { event_type: string, name: string, icon: string, color: string, metric: string }
     this._eventTypeFormError = null;    // error message for form
+    // Two-press confirmation state for log buttons
+    this._pendingConfirm = null;        // event type key currently awaiting confirm
+    this._pendingConfirmTimer = null;   // timeout id for auto-cancel
   }
 
   static getConfigElement() {
@@ -409,6 +412,16 @@ class PawsistantCard extends HTMLElement {
       clearTimeout(id);
     }
     this._deleteConfirmState.clear();
+    this._clearPendingConfirm();
+  }
+
+  /** Clear the pending confirmation state for two-press log buttons */
+  _clearPendingConfirm() {
+    if (this._pendingConfirmTimer) {
+      clearTimeout(this._pendingConfirmTimer);
+      this._pendingConfirmTimer = null;
+    }
+    this._pendingConfirm = null;
   }
 
   /** Schedule a timeout and track its ID for cleanup */
@@ -440,6 +453,17 @@ class PawsistantCard extends HTMLElement {
   }
 
   _shownTypes() {
+    // First, check if server-side shown_types exists for this dog
+    const serverShown = this._getServerShownTypes();
+    if (serverShown !== null && Array.isArray(serverShown) && serverShown.length > 0) {
+      let types = serverShown;
+      if (types.length > 12) {
+        console.warn('[pawsistant-card] shown_types has more than 12 entries; trimming to 12. Maximum is 12 buttons.');
+        types = types.slice(0, 12);
+      }
+      return types;
+    }
+    // Fallback to card config
     const t = this._config.shown_types;
     let types = (Array.isArray(t) && t.length > 0) ? t : DEFAULT_SHOWN_TYPES;
     // Maximum of 12 buttons total
@@ -448,6 +472,20 @@ class PawsistantCard extends HTMLElement {
       types = types.slice(0, 12);
     }
     return types;
+  }
+
+  /** Get server-side shown_types from sensor attributes for this dog.
+   *  Returns the array if found, null otherwise. */
+  _getServerShownTypes() {
+    if (!this._hass || !this._config.dog) return null;
+    const dogNameLower = this._config.dog.toLowerCase();
+    for (const state of Object.values(this._hass.states)) {
+      const attrs = state.attributes || {};
+      if (attrs.dog && attrs.dog.toLowerCase() === dogNameLower && Array.isArray(attrs.shown_types)) {
+        return attrs.shown_types;
+      }
+    }
+    return null;
   }
 
   /** Build event-type registry + button metrics from sensor attributes.
@@ -550,12 +588,24 @@ class PawsistantCard extends HTMLElement {
       const dataAttrs = isWeight
         ? `data-type="weight" data-weight="true"`
         : `data-type="${_escapeHTML(type)}" data-longpress="true"`;
-      buttonsHTML += `
-        <button class="log-btn" ${dataAttrs} aria-label="${_escapeHTML(ariaLabel)}">
-          <span class="btn-emoji" aria-hidden="true">${meta.emoji}</span>
-          <span class="btn-label">${_escapeHTML(meta.label)}${countSuffix}</span>
-        </button>
-      `;
+
+      // Two-press confirmation: show confirm UI if this type is pending
+      if (this._pendingConfirm === type) {
+        buttonsHTML += `
+          <div class="log-btn-confirm" data-key="${_escapeHTML(type)}">
+            <span class="confirm-label">Log ${_escapeHTML(meta.label)}?</span>
+            <button class="confirm-yes" data-key="${_escapeHTML(type)}">✓</button>
+            <button class="confirm-no" data-key="${_escapeHTML(type)}">✕</button>
+          </div>
+        `;
+      } else {
+        buttonsHTML += `
+          <button class="log-btn" ${dataAttrs} aria-label="${_escapeHTML(ariaLabel)}">
+            <span class="btn-emoji" aria-hidden="true">${meta.emoji}</span>
+            <span class="btn-label">${_escapeHTML(meta.label)}${countSuffix}</span>
+          </button>
+        `;
+      }
     }
 
     this.shadowRoot.innerHTML = `
@@ -678,6 +728,49 @@ class PawsistantCard extends HTMLElement {
         .log-btn[data-pending] {
           opacity: 0.6;
           pointer-events: none;
+        }
+        /* Two-press confirm state */
+        .log-btn-confirm {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: var(--primary-color, #2196f3);
+          color: white;
+          border-radius: 10px;
+          padding: 12px 10px;
+          animation: pulse-confirm 0.3s ease;
+          min-height: 64px;
+          min-width: 60px;
+          flex: 1 1 60px;
+          max-width: 120px;
+          box-sizing: border-box;
+        }
+        .quick-log.grid-layout .log-btn-confirm {
+          max-width: unset;
+          flex: unset;
+          width: 100%;
+        }
+        .confirm-label { font-size: 13px; flex: 1; font-weight: 500; }
+        .confirm-yes, .confirm-no {
+          border: none;
+          background: rgba(255,255,255,0.2);
+          color: white;
+          border-radius: 6px;
+          padding: 6px 10px;
+          cursor: pointer;
+          font-size: 16px;
+          min-width: 36px;
+          min-height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.15s;
+        }
+        .confirm-yes:hover { background: rgba(255,255,255,0.4); }
+        .confirm-no:hover { background: rgba(255,255,255,0.15); }
+        @keyframes pulse-confirm {
+          from { transform: scaleX(0.95); opacity: 0.8; }
+          to { transform: scaleX(1); opacity: 1; }
         }
         /* U1 — long-press hint */
         .longpress-hint {
@@ -1435,12 +1528,20 @@ class PawsistantCard extends HTMLElement {
 
   /* ── Save shown_types (order + visibility) ────────────────────────── */
   _saveShownTypes(orderedShownKeys) {
-    this._config = { ...this._config, shown_types: orderedShownKeys };
-    this.dispatchEvent(new CustomEvent('config-changed', {
-      detail: { config: this._config },
-      bubbles: true,
-      composed: true,
-    }));
+    // Call server-side service to persist shown_types per dog
+    const dogName = this._config.dog;
+    this._hass.callService('pawsistant', 'set_shown_types', {
+      dog: dogName,
+      shown_types: orderedShownKeys,
+    })
+      .then(() => {
+        // Force re-render after server updates sensor attribute
+        this._setTimeout(() => { this._lastHash = null; this._render(); }, 300);
+      })
+      .catch(err => {
+        console.error('[pawsistant-card] set_shown_types failed:', err);
+      });
+    // Optimistically update local state for immediate visual feedback
     this._lastHash = null;
     this._render();
   }
@@ -1581,6 +1682,39 @@ class PawsistantCard extends HTMLElement {
         this._instantLog(btn, btn.dataset.type);
       });
     });
+
+    /* Two-press confirm button listeners */
+    root.querySelectorAll('.confirm-yes').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const type = btn.dataset.key;
+        this._clearPendingConfirm();
+        this._doLogEvent(null, type);
+        this._render();
+      });
+    });
+    root.querySelectorAll('.confirm-no').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._clearPendingConfirm();
+        this._render();
+      });
+    });
+
+    /* Click outside confirm panel cancels it */
+    const quickLogSection = root.querySelector('.quick-log-section');
+    if (quickLogSection && this._pendingConfirm) {
+      quickLogSection.addEventListener('click', (e) => {
+        // If click is not on a confirm button or the confirm panel itself, cancel
+        if (this._pendingConfirm &&
+            !e.target.closest('.log-btn-confirm') &&
+            !e.target.closest('.confirm-yes') &&
+            !e.target.closest('.confirm-no')) {
+          this._clearPendingConfirm();
+          this._render();
+        }
+      });
+    }
 
     /* U9 — two-tap delete confirmation */
     root.querySelectorAll('.delete-btn').forEach(btn => {
@@ -1753,19 +1887,42 @@ class PawsistantCard extends HTMLElement {
     }
   }
   _instantLog(btn, type) {
+    // Two-press confirmation: first press enters confirm state
+    if (this._pendingConfirm === type) {
+      // Second press on same type (shouldn't happen — confirm buttons handle this)
+      // but handle gracefully by logging
+      this._clearPendingConfirm();
+      this._doLogEvent(btn, type);
+      return;
+    }
+
+    // First press — enter confirm state
+    this._clearPendingConfirm();
+    this._pendingConfirm = type;
+    this._pendingConfirmTimer = setTimeout(() => {
+      this._clearPendingConfirm();
+      this._render();
+    }, 3000);
+    this._render(); // re-render to show confirm UI
+  }
+
+  /** Actually log the event after confirmation */
+  _doLogEvent(btn, type) {
     /* U7 — debounce: set pending, re-enable after service call */
-    if (btn.dataset.pending) return;
-    btn.dataset.pending = '1';
+    if (btn && btn.dataset && btn.dataset.pending) return;
+    if (btn) btn.dataset.pending = '1';
     this._logEvent(type)
       .then(() => {
-        delete btn.dataset.pending;
-        btn.classList.remove('flash');
-        void btn.offsetWidth;
-        btn.classList.add('flash');
-        btn.addEventListener('animationend', () => btn.classList.remove('flash'), { once: true });
+        if (btn) {
+          delete btn.dataset.pending;
+          btn.classList.remove('flash');
+          void btn.offsetWidth;
+          btn.classList.add('flash');
+          btn.addEventListener('animationend', () => btn.classList.remove('flash'), { once: true });
+        }
       })
       .catch(() => {
-        delete btn.dataset.pending;
+        if (btn) delete btn.dataset.pending;
       });
   }
 
