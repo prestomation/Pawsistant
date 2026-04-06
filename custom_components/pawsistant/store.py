@@ -266,14 +266,20 @@ class PawsistantStore:
         14 built-in defaults.  Stored values win for any key that exists in
         both, so a user can rename "walk" → "stroll" while keeping all other
         defaults intact.
+
+        A stored value of ``None`` (or any falsy non-dict value) acts as a
+        tombstone — it means the user explicitly deleted that event type, so
+        it is excluded from the result even if it appears in DEFAULT_EVENT_TYPES.
         """
-        stored: dict[str, dict[str, str]] = self._meta.get(CONF_EVENT_TYPES, {})
+        stored: dict[str, Any] = self._meta.get(CONF_EVENT_TYPES, {})
         result = dict(DEFAULT_EVENT_TYPES)
-        # Merge stored overrides — stored wins for any shared key
-        for key in stored:
-            if key in result or stored[key]:
-                # Shallow merge: replace the entire entry for that key
-                result[key] = stored[key]
+        # Apply stored overrides — None tombstones remove a key; dict overrides replace it
+        for key, value in stored.items():
+            if value is None:
+                # Tombstone: explicitly deleted, remove from result
+                result.pop(key, None)
+            elif value:  # non-empty dict → override/add
+                result[key] = value
         return result
 
     def save_event_types(self, event_types: dict[str, dict[str, str]]) -> None:
