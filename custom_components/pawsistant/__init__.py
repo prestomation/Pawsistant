@@ -547,7 +547,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # and the existing stored overrides (which may contain tombstones for other
         # deleted defaults that we must preserve).
         stored = store.get_stored_event_type_overrides()
-        existing_resolved = current.get(event_type, {})
+        existing_resolved = all_types.get(event_type, {})
         merged = {**existing_resolved, **update}
         # Preserve all existing stored overrides (including tombstones for other keys),
         # then set/update just this key.

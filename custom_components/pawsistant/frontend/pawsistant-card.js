@@ -281,7 +281,7 @@ class PawsistantCardEditor extends HTMLElement {
     const dogNames = this._dogNamesFromHass(this.__hass);
 
     // Build checkbox rows for every known event type
-    const { registry } = this._registry();
+    const { registry } = buildRegistry(this.__hass);
     const allTypes = Object.keys(registry);
     const checkboxesHTML = allTypes.map(type => {
       const meta = getMeta(type, registry);
