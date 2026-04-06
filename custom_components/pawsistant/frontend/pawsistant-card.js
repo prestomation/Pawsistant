@@ -1044,6 +1044,31 @@ class PawsistantCard extends HTMLElement {
           transition: background 0.15s;
         }
         .event-type-row:hover { background: var(--secondary-background-color, #f5f5f5); }
+        .event-type-row.et-dragging { opacity: 0.4; }
+        .event-type-row.et-drag-over { background: var(--primary-color-light, #e3f2fd); outline: 2px dashed var(--primary-color, #2196f3); }
+        .et-drag-handle {
+          cursor: grab;
+          font-size: 16px;
+          color: var(--secondary-text-color);
+          flex-shrink: 0;
+          user-select: none;
+          padding: 0 2px;
+        }
+        .et-drag-handle:active { cursor: grabbing; }
+        .et-visibility-toggle {
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          flex-shrink: 0;
+        }
+        .et-visibility-toggle input[type="checkbox"] { display: none; }
+        .et-visible-icon { font-size: 16px; line-height: 1; }
+        .et-hint {
+          font-size: 11px;
+          color: var(--secondary-text-color);
+          margin: 0 0 8px 0;
+          padding: 0 4px;
+        }
         .et-color-swatch {
           width: 20px;
           height: 20px;
@@ -1257,19 +1282,32 @@ class PawsistantCard extends HTMLElement {
       return this._renderEventTypeForm(this._editingEventType);
     }
 
-    // List view — all types are deletable (defaults are just seeded data)
-    const rows = Object.entries(allTypes).map(([key, meta]) => {
-      const displayMeta = getMeta(key, registry);
+    // Determine order: shown_types first (in order), then remaining unchecked types
+    const shownTypes = Array.isArray(this._config.shown_types) ? this._config.shown_types : DEFAULT_SHOWN_TYPES;
+    const allKeys = Object.keys(allTypes);
+    const shownInOrder = shownTypes.filter(k => allKeys.includes(k));
+    const hiddenKeys = allKeys.filter(k => !shownInOrder.includes(k));
+    const orderedKeys = [...shownInOrder, ...hiddenKeys];
+
+    // List view — drag handle + visibility checkbox + edit/delete
+    const rows = orderedKeys.map(key => {
+      const displayMeta = getMeta(key, allTypes);
       const metric = buttonMetrics[key] || 'daily_count';
       const metricBadge = METRIC_LABELS[metric] ? metric.replace(/_/g, ' ') : metric;
       const icon = displayMeta.icon ? iconToEmoji(displayMeta.icon) : displayMeta.emoji;
+      const isVisible = shownInOrder.includes(key);
       return `
-        <li class="event-type-row" data-et-key="${esc(key)}">
+        <li class="event-type-row" data-et-key="${esc(key)}" draggable="true">
+          <span class="et-drag-handle" title="Drag to reorder">☰</span>
           <span class="et-color-swatch" style="background:${esc(displayMeta.color)}" title="${esc(displayMeta.color)}"></span>
           <span class="et-icon" title="${esc(displayMeta.icon || '')}">${icon}</span>
           <span class="et-name">${esc(displayMeta.label)}</span>
           <span class="et-badge">${metricBadge}</span>
           <div class="et-actions">
+            <label class="et-visibility-toggle" title="${isVisible ? 'Hide from card' : 'Show on card'}">
+              <input type="checkbox" class="et-visible-cb" data-et-key="${esc(key)}" ${isVisible ? 'checked' : ''} />
+              <span class="et-visible-icon">${isVisible ? '👁' : '🚫'}</span>
+            </label>
             <button class="et-btn edit" data-et-key="${esc(key)}" title="Edit '${esc(key)}'">✎</button>
             <button class="et-btn delete" data-et-key="${esc(key)}" title="Delete '${esc(key)}'">✕</button>
           </div>
@@ -1282,6 +1320,7 @@ class PawsistantCard extends HTMLElement {
             <button class="event-types-back-btn" id="et-back-btn" title="Back">←</button>
             <span class="event-types-panel-title">⚙️ Event Types</span>
           </div>
+          <p class="et-hint">Drag ☰ to reorder · 👁 toggles button visibility</p>
           <ul class="event-types-list" id="et-list">
             ${rows}
           </ul>
@@ -1495,6 +1534,18 @@ class PawsistantCard extends HTMLElement {
       });
   }
 
+  /* ── Save shown_types (order + visibility) ────────────────────────── */
+  _saveShownTypes(orderedShownKeys) {
+    this._config = { ...this._config, shown_types: orderedShownKeys };
+    this.dispatchEvent(new CustomEvent('config-changed', {
+      detail: { config: this._config },
+      bubbles: true,
+      composed: true,
+    }));
+    this._lastHash = null;
+    this._render();
+  }
+
   /* ── Delete Event Type ─────────────────────────────────────────────── */
   _deleteEventType(key) {
     if (!confirm(`Delete event type '${key}'? Events logged with this type will be preserved.`)) return;
@@ -1703,6 +1754,64 @@ class PawsistantCard extends HTMLElement {
       btn.addEventListener('click', () => {
         const key = btn.dataset.etKey;
         if (key) this._deleteEventType(key);
+      });
+    });
+
+    // Visibility checkboxes — toggle shown_types
+    root.querySelectorAll('.et-visible-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const shownTypes = Array.isArray(this._config.shown_types) ? [...this._config.shown_types] : [...DEFAULT_SHOWN_TYPES];
+        const key = cb.dataset.etKey;
+        if (cb.checked) {
+          if (!shownTypes.includes(key)) shownTypes.push(key);
+        } else {
+          const idx = shownTypes.indexOf(key);
+          if (idx !== -1) shownTypes.splice(idx, 1);
+        }
+        this._saveShownTypes(shownTypes);
+      });
+    });
+
+    // Drag-to-reorder on event type rows
+    let _dragKey = null;
+    root.querySelectorAll('.event-type-row[draggable]').forEach(row => {
+      row.addEventListener('dragstart', (e) => {
+        _dragKey = row.dataset.etKey;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', _dragKey);
+        row.classList.add('et-dragging');
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('et-dragging');
+        root.querySelectorAll('.event-type-row').forEach(r => r.classList.remove('et-drag-over'));
+        _dragKey = null;
+      });
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        root.querySelectorAll('.event-type-row').forEach(r => r.classList.remove('et-drag-over'));
+        row.classList.add('et-drag-over');
+      });
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const fromKey = _dragKey;
+        const toKey = row.dataset.etKey;
+        if (!fromKey || fromKey === toKey) return;
+
+        // Get current full ordered list from DOM
+        const allRows = [...root.querySelectorAll('.event-type-row')];
+        const orderedAll = allRows.map(r => r.dataset.etKey);
+
+        // Reorder: move fromKey to toKey's position
+        const fromIdx = orderedAll.indexOf(fromKey);
+        const toIdx = orderedAll.indexOf(toKey);
+        orderedAll.splice(fromIdx, 1);
+        orderedAll.splice(toIdx, 0, fromKey);
+
+        // Only keep keys that were in shown_types (preserve visibility state)
+        const shownTypes = Array.isArray(this._config.shown_types) ? this._config.shown_types : DEFAULT_SHOWN_TYPES;
+        const newShown = orderedAll.filter(k => shownTypes.includes(k));
+        this._saveShownTypes(newShown);
       });
     });
 
