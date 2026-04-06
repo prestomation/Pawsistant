@@ -27,7 +27,16 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
-from homeassistant.components.http import StaticPathConfig
+try:
+    from homeassistant.components.http import StaticPathConfig
+except ImportError:
+    # StaticPathConfig introduced in HA 2024.4; provide a compat shim for older test envs
+    from dataclasses import dataclass
+    @dataclass
+    class StaticPathConfig:  # type: ignore[no-redef]
+        url: str
+        path: str
+        cache_headers: bool
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
