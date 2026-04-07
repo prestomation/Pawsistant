@@ -220,6 +220,7 @@ function buildHash(hass, cfg) {
     // Include registry hash so event-type edits trigger re-render
     JSON.stringify(stateAttr(hass, tEnt, 'event_types') || {}),
     JSON.stringify(stateAttr(hass, tEnt, 'button_metrics') || {}),
+    JSON.stringify(stateAttr(hass, tEnt, 'shown_types') || null),
   ];
   return parts.join('|');
 }
@@ -373,6 +374,7 @@ class PawsistantCard extends HTMLElement {
     // Two-press confirmation state for log buttons
     this._pendingConfirm = null;        // event type key currently awaiting confirm
     this._pendingConfirmTimer = null;   // timeout id for auto-cancel
+    this._logCooldown = false;          // brief lock after confirmed log (blocks ghost clicks)
   }
 
   static getConfigElement() {
@@ -395,8 +397,9 @@ class PawsistantCard extends HTMLElement {
       this._lastHash = hash;
       // Clear registry cache so buildRegistry runs fresh with new event_types
       this._registryCache = null;
-      // Don't re-render if a form is open — would destroy it
-      if (!this._activeForm && !this._eventTypesPanel) {
+      // Don't re-render if an edit form is open — would destroy in-progress edits
+      // But DO re-render the gear panel so shown_types updates propagate
+      if (!this._activeForm) {
         this._render();
       }
     }
@@ -1888,14 +1891,8 @@ class PawsistantCard extends HTMLElement {
     }
   }
   _instantLog(btn, type) {
-    // Two-press confirmation: first press enters confirm state
-    if (this._pendingConfirm === type) {
-      // Second press on same type (shouldn't happen — confirm buttons handle this)
-      // but handle gracefully by logging
-      this._clearPendingConfirm();
-      this._doLogEvent(btn, type);
-      return;
-    }
+    // Block ghost clicks for 500ms after a confirmed log
+    if (this._logCooldown) return;
 
     // First press — enter confirm state
     this._clearPendingConfirm();
@@ -1909,6 +1906,10 @@ class PawsistantCard extends HTMLElement {
 
   /** Actually log the event after confirmation */
   _doLogEvent(btn, type) {
+    // Set cooldown to block ghost clicks after confirm
+    this._logCooldown = true;
+    setTimeout(() => { this._logCooldown = false; }, 500);
+
     /* U7 — debounce: set pending, re-enable after service call */
     if (btn && btn.dataset && btn.dataset.pending) return;
     if (btn) btn.dataset.pending = '1';
