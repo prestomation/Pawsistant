@@ -1275,7 +1275,7 @@ class PawsistantCard extends HTMLElement {
     }
 
     // Determine order: shown_types first (in order), then remaining unchecked types
-    const shownTypes = Array.isArray(this._config.shown_types) ? this._config.shown_types : DEFAULT_SHOWN_TYPES;
+    const shownTypes = this._shownTypes();
     const allKeys = Object.keys(allTypes);
     const shownInOrder = shownTypes.filter(k => allKeys.includes(k));
     const hiddenKeys = allKeys.filter(k => !shownInOrder.includes(k));
@@ -1626,10 +1626,10 @@ class PawsistantCard extends HTMLElement {
         let didLongPress = false;
 
         const startPress = (e) => {
-          e.preventDefault();
           didLongPress = false;
           pressTimer = setTimeout(() => {
             didLongPress = true;
+            e.preventDefault(); // prevent click after long-press
             const type = btn.dataset.type;
             if (this._activeForm === 'backdate' && this._activeType === type) {
               this._closeForm();
@@ -1646,10 +1646,6 @@ class PawsistantCard extends HTMLElement {
             this._timers = this._timers.filter(t => t !== pressTimer);
             pressTimer = null;
           }
-          if (!didLongPress && e.type !== 'pointerleave' && e.type !== 'pointercancel') {
-            const type = btn.dataset.type;
-            this._instantLog(btn, type);
-          }
           didLongPress = false;
         };
 
@@ -1657,6 +1653,11 @@ class PawsistantCard extends HTMLElement {
         btn.addEventListener('pointerup', endPress);
         btn.addEventListener('pointerleave', endPress);
         btn.addEventListener('pointercancel', endPress);
+
+        // Use click for confirm (works on both desktop and mobile)
+        btn.addEventListener('click', () => {
+          if (!didLongPress) this._instantLog(btn, btn.dataset.type);
+        });
 
         /* U3 — keyboard: Enter = backdate form, Space = instant log */
         btn.addEventListener('keydown', (e) => {
@@ -1793,7 +1794,7 @@ class PawsistantCard extends HTMLElement {
     // Visibility checkboxes — toggle shown_types
     root.querySelectorAll('.et-visible-cb').forEach(cb => {
       cb.addEventListener('change', () => {
-        const shownTypes = Array.isArray(this._config.shown_types) ? [...this._config.shown_types] : [...DEFAULT_SHOWN_TYPES];
+        const shownTypes = [...this._shownTypes()];
         const key = cb.dataset.etKey;
         if (cb.checked) {
           if (!shownTypes.includes(key)) shownTypes.push(key);
@@ -1842,7 +1843,7 @@ class PawsistantCard extends HTMLElement {
         orderedAll.splice(toIdx, 0, fromKey);
 
         // Only keep keys that were in shown_types (preserve visibility state)
-        const shownTypes = Array.isArray(this._config.shown_types) ? this._config.shown_types : DEFAULT_SHOWN_TYPES;
+        const shownTypes = this._shownTypes();
         const newShown = orderedAll.filter(k => shownTypes.includes(k));
         this._saveShownTypes(newShown);
       });
