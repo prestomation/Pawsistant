@@ -107,6 +107,27 @@ describe('buildRegistry', () => {
     expect(metrics.poop).toBe('daily_count');
     expect(metrics.weight).toBe('last_value');
   });
+  it('collects button_metrics from sensors even without event_types', () => {
+    const hass = {
+      states: {
+        'sensor.sharky_recent_timeline': {
+          attributes: {
+            dog: 'Sharky',
+            event_types: { poop: { name: 'Poop', icon: 'mdi:emoticon-poop' } },
+          },
+        },
+        'sensor.sharky_daily_pee_count': {
+          attributes: {
+            dog: 'Sharky',
+            button_metrics: { pee: 'daily_count' },
+          },
+        },
+      },
+    };
+    const { registry, metrics } = buildRegistry(hass);
+    expect(registry.poop).toBeDefined();
+    expect(metrics.pee).toBe('daily_count');
+  });
 });
 
 describe('getMeta', () => {

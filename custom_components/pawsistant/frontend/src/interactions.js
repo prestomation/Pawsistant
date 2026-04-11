@@ -30,7 +30,10 @@ export function setupLongPress(btn, { onLongPress, onTap }, timers) {
   const endPress = () => {
     if (pressTimer) {
       clearTimeout(pressTimer);
-      timers = timers.filter(t => t !== pressTimer);
+      const idx = timers.indexOf(pressTimer);
+      if (idx !== -1) {
+        timers.splice(idx, 1);
+      }
       pressTimer = null;
     }
     didLongPress = false;

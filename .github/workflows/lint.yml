@@ -37,7 +37,8 @@ jobs:
           # Only fail if committed file exists and differs
           if [ -s /tmp/committed.js ]; then
             if ! diff -q /tmp/built.js /tmp/committed.js > /dev/null 2>&1; then
-              echo "WARNING: pawsistant-card.js is out of date. Run 'npm run build' and commit the result."
+              echo "ERROR: pawsistant-card.js is out of date. Run 'npm run build' and commit the result."
+              exit 1
             fi
           fi
 

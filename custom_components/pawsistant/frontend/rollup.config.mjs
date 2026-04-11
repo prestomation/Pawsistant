@@ -5,8 +5,19 @@ import { fileURLToPath } from 'url';
 
 // Read CARD_VERSION from const.py — single source of truth
 const constPy = resolve(dirname(fileURLToPath(import.meta.url)), '../const.py');
-const versionMatch = readFileSync(constPy, 'utf8').match(/CARD_VERSION\s*=\s*"([^"]+)"/);
-const CARD_VERSION = versionMatch ? versionMatch[1] : '0.0.0';
+let CARD_VERSION = '0.0.0';
+try {
+  const contents = readFileSync(constPy, 'utf8');
+  const versionMatch = contents.match(/CARD_VERSION\s*=\s*"([^"]+)"/);
+  if (versionMatch) {
+    CARD_VERSION = versionMatch[1];
+  } else {
+    console.warn('Warning: CARD_VERSION not found in const.py, using default 0.0.0');
+  }
+} catch (err) {
+  console.error(`Error reading CARD_VERSION from ${constPy}:`, err.message);
+  throw new Error(`Failed to read version from const.py: ${err.message}`);
+}
 
 export default {
   input: 'src/index.js',

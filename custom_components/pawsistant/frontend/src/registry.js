@@ -83,9 +83,6 @@ export function buildRegistry(hass) {
       if (attrs.button_metrics && typeof attrs.button_metrics === 'object') {
         Object.assign(metrics, attrs.button_metrics);
       }
-      if (foundLiveTypes) {
-        break;  // got live types from this sensor, use them
-      }
     }
   }
 
