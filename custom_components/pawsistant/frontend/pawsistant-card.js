@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — All-in-one pet activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
- * Version: 2.11.0
+ * Version: 2.12.0
  */
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -371,10 +371,7 @@ class PawsistantCard extends HTMLElement {
     this._editingEventType = null;      // null = list view; object = editing/adding
     // { event_type: string, name: string, icon: string, color: string, metric: string }
     this._eventTypeFormError = null;    // error message for form
-    // Two-press confirmation state for log buttons
-    this._pendingConfirm = null;        // event type key currently awaiting confirm
-    this._pendingConfirmTimer = null;   // timeout id for auto-cancel
-    this._logCooldown = false;          // brief lock after confirmed log (blocks ghost clicks)
+    this._logCooldown = false;          // brief lock after logging (blocks ghost clicks)
   }
 
   static getConfigElement() {
@@ -415,16 +412,6 @@ class PawsistantCard extends HTMLElement {
       clearTimeout(id);
     }
     this._deleteConfirmState.clear();
-    this._clearPendingConfirm();
-  }
-
-  /** Clear the pending confirmation state for two-press log buttons */
-  _clearPendingConfirm() {
-    if (this._pendingConfirmTimer) {
-      clearTimeout(this._pendingConfirmTimer);
-      this._pendingConfirmTimer = null;
-    }
-    this._pendingConfirm = null;
   }
 
   /** Schedule a timeout and track its ID for cleanup */
@@ -587,28 +574,17 @@ class PawsistantCard extends HTMLElement {
 
       const ariaLabel = isWeight
         ? `Log weight`
-        : `Log ${meta.label} now. Hold to backdate.`;
+        : `Log ${meta.label}. Hold to log now.`;
       const dataAttrs = isWeight
         ? `data-type="weight" data-weight="true"`
         : `data-type="${_escapeHTML(type)}" data-longpress="true"`;
 
-      // Two-press confirmation: show confirm UI if this type is pending
-      if (this._pendingConfirm === type) {
-        buttonsHTML += `
-          <div class="log-btn-confirm" data-key="${_escapeHTML(type)}">
-            <span class="confirm-label">Log ${_escapeHTML(meta.label)}?</span>
-            <button class="confirm-yes" data-key="${_escapeHTML(type)}">✓</button>
-            <button class="confirm-no" data-key="${_escapeHTML(type)}">✕</button>
-          </div>
-        `;
-      } else {
-        buttonsHTML += `
-          <button class="log-btn" ${dataAttrs} aria-label="${_escapeHTML(ariaLabel)}">
-            <span class="btn-emoji" aria-hidden="true">${meta.emoji}</span>
-            <span class="btn-label">${_escapeHTML(meta.label)}${countSuffix}</span>
-          </button>
-        `;
-      }
+      buttonsHTML += `
+        <button class="log-btn" ${dataAttrs} aria-label="${_escapeHTML(ariaLabel)}">
+          <span class="btn-emoji" aria-hidden="true">${meta.emoji}</span>
+          <span class="btn-label">${_escapeHTML(meta.label)}${countSuffix}</span>
+        </button>
+      `;
     }
 
     this.shadowRoot.innerHTML = `
@@ -731,49 +707,6 @@ class PawsistantCard extends HTMLElement {
         .log-btn[data-pending] {
           opacity: 0.6;
           pointer-events: none;
-        }
-        /* Two-press confirm state */
-        .log-btn-confirm {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          background: var(--primary-color, #2196f3);
-          color: white;
-          border-radius: 10px;
-          padding: 12px 10px;
-          animation: pulse-confirm 0.3s ease;
-          min-height: 64px;
-          min-width: 60px;
-          flex: 1 1 60px;
-          max-width: 120px;
-          box-sizing: border-box;
-        }
-        .quick-log.grid-layout .log-btn-confirm {
-          max-width: unset;
-          flex: unset;
-          width: 100%;
-        }
-        .confirm-label { font-size: 13px; flex: 1; font-weight: 500; }
-        .confirm-yes, .confirm-no {
-          border: none;
-          background: rgba(255,255,255,0.2);
-          color: white;
-          border-radius: 6px;
-          padding: 6px 10px;
-          cursor: pointer;
-          font-size: 16px;
-          min-width: 36px;
-          min-height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: background 0.15s;
-        }
-        .confirm-yes:hover { background: rgba(255,255,255,0.4); }
-        .confirm-no:hover { background: rgba(255,255,255,0.15); }
-        @keyframes pulse-confirm {
-          from { transform: scaleX(0.95); opacity: 0.8; }
-          to { transform: scaleX(1); opacity: 1; }
         }
         /* U1 — long-press hint */
         .longpress-hint {
@@ -1252,7 +1185,7 @@ class PawsistantCard extends HTMLElement {
             ${buttonsHTML}
           </div>
           <!-- U1 — long-press hint -->
-          <div class="longpress-hint" aria-live="polite">Hold to backdate</div>
+          <div class="longpress-hint" aria-live="polite">Hold to log now</div>
 
           <!-- Inline form panel (hidden by default) -->
           <div class="inline-form-wrap" id="inline-form-wrap">
@@ -1634,11 +1567,8 @@ class PawsistantCard extends HTMLElement {
             didLongPress = true;
             e.preventDefault(); // prevent click after long-press
             const type = btn.dataset.type;
-            if (this._activeForm === 'backdate' && this._activeType === type) {
-              this._closeForm();
-            } else {
-              this._openBackdateForm(btn, type);
-            }
+            // Hold = immediate log
+            this._instantLog(btn, type);
           }, 500);
           this._timers.push(pressTimer);
         };
@@ -1657,9 +1587,16 @@ class PawsistantCard extends HTMLElement {
         btn.addEventListener('pointerleave', endPress);
         btn.addEventListener('pointercancel', endPress);
 
-        // Use click for confirm (works on both desktop and mobile)
+        // Tap = backdate form (not immediate log)
         btn.addEventListener('click', () => {
-          if (!didLongPress) this._instantLog(btn, btn.dataset.type);
+          if (!didLongPress) {
+            const type = btn.dataset.type;
+            if (this._activeForm === 'backdate' && this._activeType === type) {
+              this._closeForm();
+            } else {
+              this._openBackdateForm(btn, type);
+            }
+          }
         });
 
         /* U3 — keyboard: Enter = backdate form, Space = instant log */
@@ -1681,44 +1618,11 @@ class PawsistantCard extends HTMLElement {
         return;
       }
 
-      // Fallback: simple click
+      // Fallback: simple click = backdate form
       btn.addEventListener('click', () => {
-        this._instantLog(btn, btn.dataset.type);
+        this._openBackdateForm(btn, btn.dataset.type);
       });
     });
-
-    /* Two-press confirm button listeners */
-    root.querySelectorAll('.confirm-yes').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const type = btn.dataset.key;
-        this._clearPendingConfirm();
-        this._doLogEvent(null, type);
-        this._render();
-      });
-    });
-    root.querySelectorAll('.confirm-no').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this._clearPendingConfirm();
-        this._render();
-      });
-    });
-
-    /* Click outside confirm panel cancels it */
-    const quickLogSection = root.querySelector('.quick-log-section');
-    if (quickLogSection && this._pendingConfirm) {
-      quickLogSection.addEventListener('click', (e) => {
-        // If click is not on a confirm button or the confirm panel itself, cancel
-        if (this._pendingConfirm &&
-            !e.target.closest('.log-btn-confirm') &&
-            !e.target.closest('.confirm-yes') &&
-            !e.target.closest('.confirm-no')) {
-          this._clearPendingConfirm();
-          this._render();
-        }
-      });
-    }
 
     /* U9 — two-tap delete confirmation */
     root.querySelectorAll('.delete-btn').forEach(btn => {
@@ -1891,22 +1795,8 @@ class PawsistantCard extends HTMLElement {
     }
   }
   _instantLog(btn, type) {
-    // Block ghost clicks for 500ms after a confirmed log
+    // Block rapid re-clicks
     if (this._logCooldown) return;
-
-    // First press — enter confirm state
-    this._clearPendingConfirm();
-    this._pendingConfirm = type;
-    this._pendingConfirmTimer = setTimeout(() => {
-      this._clearPendingConfirm();
-      this._render();
-    }, 3000);
-    this._render(); // re-render to show confirm UI
-  }
-
-  /** Actually log the event after confirmation */
-  _doLogEvent(btn, type) {
-    // Set cooldown to block ghost clicks after confirm
     this._logCooldown = true;
     setTimeout(() => { this._logCooldown = false; }, 500);
 
