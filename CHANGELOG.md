@@ -2,6 +2,21 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.11.0] - 2026-04-11
+
+### Added
+- **Hold-to-log, tap-to-backdate**: Long-press any event button (500ms) to log instantly. Tap to open the backdate form with a time slider and optional note.
+- **Custom event type management**: Add, edit, and delete event types from the gear panel in the card. Deleted types can be restored by re-adding them.
+
+### Changed
+- Removed inline confirm UI (two-press to log). Hold is now the instant-log gesture; tap opens the backdate form.
+- Instant sensor updates after logging an event.
+
+### Fixed
+- Card no longer fails to appear after some HA restarts.
+- Button visibility checkboxes now reflect the current state reliably.
+- Third-party sensors with `event_types` arrays no longer break the card.
+
 ## [2.8.0] - 2026-04-01
 
 ### Added
