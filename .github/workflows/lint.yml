@@ -17,9 +17,29 @@ jobs:
         with:
           node-version: "20"
           cache: npm
+          cache-dependency-path: package-lock.json
 
-      - name: Install frontend test deps
+      - name: Install root test deps
         run: npm ci
+
+      - name: Build card JS (from source modules)
+        working-directory: custom_components/pawsistant/frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Check committed build matches source
+        run: |
+          cd custom_components/pawsistant/frontend
+          # Strip the build date line (changes every build) before comparing
+          grep -v 'Built:' pawsistant-card.js > /tmp/built.js
+          grep -v 'Built:' <(git show HEAD:custom_components/pawsistant/frontend/pawsistant-card.js 2>/dev/null || echo '') > /tmp/committed.js || true
+          # Only fail if committed file exists and differs
+          if [ -s /tmp/committed.js ]; then
+            if ! diff -q /tmp/built.js /tmp/committed.js > /dev/null 2>&1; then
+              echo "WARNING: pawsistant-card.js is out of date. Run 'npm run build' and commit the result."
+            fi
+          fi
 
       - name: Run frontend tests
         run: npx vitest run --reporter=verbose

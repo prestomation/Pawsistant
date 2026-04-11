@@ -1,0 +1,16 @@
+{
+  "name": "pawsistant-card",
+  "version": "2.12.0",
+  "private": true,
+  "description": "Pawsistant Lovelace card — built with Rollup",
+  "scripts": {
+    "build": "rollup -c",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@rollup/plugin-virtual": "^3.0.2",
+    "rollup": "^4.34.0",
+    "vitest": "^3.0.0"
+  }
+}
