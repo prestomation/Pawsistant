@@ -131,6 +131,13 @@ DELETE_EVENT_TYPE_SCHEMA = vol.Schema(
     }
 )
 
+SET_SHOWN_TYPES_SCHEMA = vol.Schema(
+    {
+        vol.Required("dog"): cv.string,
+        vol.Optional("shown_types", default=[]): [cv.string],
+    }
+)
+
 
 # ---------------------------------------------------------------------------
 # Frontend registration helpers
@@ -707,6 +714,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         schema=DELETE_EVENT_TYPE_SCHEMA,
     )
 
+    async def handle_set_shown_types(call: ServiceCall) -> None:
+        """Handle pawsistant.set_shown_types.
+
+        Stores the shown_types list per dog in the integration's storage,
+        then triggers a coordinator refresh so the sensor attribute updates.
+        """
+        store, coord = _get_store_and_coord()
+        dog_name: str = call.data["dog"]
+        shown: list[str] = call.data.get("shown_types", [])
+
+        # Validate dog exists
+        result = store.get_dog_by_name(dog_name)
+        if result is None:
+            _LOGGER.error(
+                "pawsistant.set_shown_types: dog '%s' not found", dog_name
+            )
+            return
+
+        await store.set_shown_types(dog_name, shown)
+        _LOGGER.debug(
+            "Set shown_types for '%s': %s", dog_name, shown
+        )
+        await coord.async_refresh()
+
+    hass.services.async_register(
+        DOMAIN,
+        "set_shown_types",
+        handle_set_shown_types,
+        schema=SET_SHOWN_TYPES_SCHEMA,
+    )
+
     return True
 
 
@@ -750,6 +788,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "update_event_type",
             "add_event_type",
             "delete_event_type",
+            "set_shown_types",
         ):
             hass.services.async_remove(DOMAIN, service)
 

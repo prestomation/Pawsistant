@@ -277,14 +277,19 @@ class _PawsistantSensorBase(CoordinatorEntity[PawsistantCoordinator], SensorEnti
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose the dog name, species, event type registry, and button metrics
-        on every sensor so the card can render dynamic metadata at runtime."""
-        return {
+        """Expose the dog name, species, event type registry, button metrics,
+        and shown_types on every sensor so the card can render dynamic metadata."""
+        attrs = {
             "dog": self._dog_name,
             "species": self._species,
             "event_types": self.coordinator.event_types,
             "button_metrics": self.coordinator.button_metrics,
         }
+        # Include server-side shown_types if set for this dog
+        shown = self.coordinator.store.get_shown_types(self._dog_name)
+        if shown is not None:
+            attrs["shown_types"] = shown
+        return attrs
 
 
 # ---------------------------------------------------------------------------

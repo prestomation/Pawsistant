@@ -635,6 +635,30 @@ class PawsistantStore:
     def known_years(self) -> list[int]:
         """Return all years that have ever had data (from the meta index)."""
         return list(self._meta.get("known_years", []))
+
+    # -----------------------------------------------------------------------
+    # Per-dog shown_types storage
+    # -----------------------------------------------------------------------
+
+    def get_shown_types(self, dog_name: str) -> list[str] | None:
+        """Return the stored shown_types for a dog, or None if not set.
+
+        The key is `shown_types_{slug}` where slug is the dog name lowercased
+        with spaces replaced by underscores.
+        """
+        slug = dog_name.lower().replace(" ", "_")
+        key = f"shown_types_{slug}"
+        return self._meta.get(key)
+
+    async def set_shown_types(self, dog_name: str, shown_types: list[str]) -> None:
+        """Store shown_types for a dog.
+
+        Persists immediately to the meta store.
+        """
+        slug = dog_name.lower().replace(" ", "_")
+        key = f"shown_types_{slug}"
+        self._meta[key] = list(shown_types)
+        await self._save_meta()
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------
