@@ -35,7 +35,7 @@ jobs:
       - name: Run frontend tests
         run: npx vitest run --reporter=verbose
       - name: Install Python test dependencies
-        run: pip install pytest pytest-timeout requests
+        run: pip install pytest pytest-timeout requests websockets
       - name: Start Home Assistant
         working-directory: tests/integration
         run: docker compose up -d
