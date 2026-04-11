@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    include: ['tests/frontend/**/*.test.js'],
+    include: [
+      'tests/frontend/**/*.test.js',
+      'custom_components/pawsistant/frontend/test/**/*.test.js',
+    ],
   },
 });

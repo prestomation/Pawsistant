@@ -21,7 +21,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install test dependencies
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install frontend deps
+        working-directory: custom_components/pawsistant/frontend
+        run: npm ci
+      - name: Build card JS
+        working-directory: custom_components/pawsistant/frontend
+        run: npm run build
+      - name: Run frontend tests
+        run: npx vitest run --reporter=verbose
+      - name: Install Python test dependencies
         run: pip install pytest pytest-timeout requests
       - name: Start Home Assistant
         working-directory: tests/integration
@@ -49,11 +60,15 @@ jobs:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Extract version from tag
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Bump version in manifest and card
+      - name: Bump version in manifest and const.py
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -67,15 +82,20 @@ jobs:
               json.dump(data, f, indent=2)
               f.write('\n')
           "
-          sed -i "s/^ \* Version: .*/ * Version: ${VERSION}/" custom_components/pawsistant/frontend/pawsistant-card.js
           sed -i "s/^CARD_VERSION = .*/CARD_VERSION = \"${VERSION}\"/" custom_components/pawsistant/const.py
+
+      - name: Build card JS (version injected from const.py)
+        working-directory: custom_components/pawsistant/frontend
+        run: |
+          npm ci
+          npm run build
 
       - name: Commit version bump
         run: |
           VERSION=${{ steps.version.outputs.version }}
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add custom_components/pawsistant/manifest.json custom_components/pawsistant/frontend/pawsistant-card.js custom_components/pawsistant/const.py
+          git add custom_components/pawsistant/manifest.json custom_components/pawsistant/const.py custom_components/pawsistant/frontend/pawsistant-card.js
           # Only commit if there are changes
           if git diff --cached --quiet; then
             echo "Version already up to date"
@@ -99,7 +119,7 @@ jobs:
       - name: Build release zip
         run: |
           cd custom_components/pawsistant
-          zip -r ../../pawsistant.zip . -x "*/__pycache__/*" "*/__pycache__" "__pycache__/*" "__pycache__" "*.pyc"
+          zip -r ../../pawsistant.zip . -x "*/__pycache__/*" "*/__pycache__" "__pycache__/*" "__pycache__" "*.pyc" "*/node_modules/*" "*/node_modules" "*/src/*" "*/test/*" "rollup.config.mjs" "package.json" "package-lock.json"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
