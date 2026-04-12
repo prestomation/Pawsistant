@@ -2,7 +2,7 @@
  * Pawsistant Card — All-in-one pet activity dashboard for Home Assistant
  * Bundled with the Pawsistant integration — no manual setup required.
  * Version: 2.11.0
- * Built: 2026-04-11
+ * Built: 2026-04-12
  */
 (function () {
   'use strict';
