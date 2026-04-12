@@ -5,10 +5,24 @@ The onboarding endpoint works without authentication when onboarding hasn't
 been completed yet.
 """
 
-import time
+import os
 
 import pytest
-import requests
+
+# Allow real network access for integration tests (unblocks pytest-socket
+# if pytest-homeassistant-custom-component is installed in the same env)
+try:
+    pytest_plugins = ["pytest_socket"]
+    import pytest_socket  # noqa: F401
+    pytest_socket.enable_socket()
+except (ImportError, AttributeError):
+    pass
+
+# Also unblock via environment if pytest-socket respects it
+os.environ.setdefault("PYTEST_DISABLE_SOCKET", "0")
+
+import time  # noqa: E402
+import requests  # noqa: E402
 
 HA_URL = "http://localhost:8123"
 HA_STARTUP_TIMEOUT = 120  # seconds

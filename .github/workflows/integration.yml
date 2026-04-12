@@ -21,6 +21,15 @@ jobs:
       - name: Install test dependencies
         run: pip install -r requirements-test.txt
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: custom_components/pawsistant/frontend/package-lock.json
+
+      - name: Build card JS
+        run: bash ci/build-card.sh
+
       - name: Start Home Assistant
         working-directory: tests/integration
         run: docker compose up -d
