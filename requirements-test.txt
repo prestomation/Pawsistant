@@ -1,5 +1,8 @@
 pytest
 pytest-timeout
-pytest-homeassistant-custom-component
 requests
 websockets
+
+# For unit tests only (mocks HA internals; pulls in pytest-socket which
+# blocks real network access — do NOT install for integration tests)
+# pytest-homeassistant-custom-component
