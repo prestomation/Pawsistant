@@ -11,12 +11,18 @@ import pytest
 import requests
 
 # Integration tests need real sockets to talk to Docker HA on localhost.
-# pytest-socket (pulled in by pytest-homeassistant-custom-component) blocks
-# socket access by default — disable it for the integration test suite.
+# pytest-socket (from pytest-homeassistant-custom-component) blocks
+# socket.socket() by default. Call enable_socket() to restore normal access.
 
 
-def pytest_configure(config):
-    config.option.disable_socket = False
+@pytest.fixture(scope="session", autouse=True)
+def enable_socket_for_integration():
+    """Allow real socket access for integration tests (Docker HA on localhost)."""
+    try:
+        from pytest_socket import enable_socket
+        enable_socket()
+    except ImportError:
+        pass
 
 HA_URL = "http://localhost:8123"
 HA_STARTUP_TIMEOUT = 120  # seconds
