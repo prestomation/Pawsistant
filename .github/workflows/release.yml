@@ -4,55 +4,74 @@ on:
   push:
     tags:
       - "v*"
+  pull_request:
+    branches: [main]
 
 jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hacs/action@main
-        with:
-          category: integration
-
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Install root test deps
-        run: npm ci
-      - name: Install frontend deps
-        working-directory: custom_components/pawsistant/frontend
-        run: npm ci
+
+      - name: Install dependencies
+        run: bash ci/install-deps.sh
+
       - name: Build card JS
-        working-directory: custom_components/pawsistant/frontend
-        run: npm run build
+        run: bash ci/build-card.sh
+
       - name: Run frontend tests
-        run: npx vitest run --reporter=verbose
-      - name: Install Python test dependencies
-        run: pip install pytest pytest-timeout requests websockets
+        run: bash ci/test-frontend.sh
+
       - name: Start Home Assistant
         working-directory: tests/integration
         run: docker compose up -d
+
+      - name: Wait for Home Assistant to start
+        run: |
+          echo "Waiting for Home Assistant..."
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8123/api/ 2>/dev/null || true)
+            if [ "$code" = "200" ] || [ "$code" = "401" ]; then
+              echo "Home Assistant is responding (HTTP $code, attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i/60 - HTTP $code - waiting..."
+            sleep 2
+          done
+          echo "Home Assistant failed to start within 120s"
+          docker compose -f tests/integration/docker-compose.yml logs
+          exit 1
+
       - name: Run integration tests
-        working-directory: tests/integration
-        run: pytest test_lifecycle.py -v --timeout=300
+        run: bash ci/test-python-integration.sh
+
       - name: HA logs on failure
         if: failure()
         working-directory: tests/integration
         run: docker compose logs homeassistant
+
       - name: Cleanup
         if: always()
         working-directory: tests/integration
         run: docker compose down -v
 
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
+
   release:
-    needs: [validate, test]
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -86,11 +105,11 @@ jobs:
           "
           sed -i "s/^CARD_VERSION = .*/CARD_VERSION = \"${VERSION}\"/" custom_components/pawsistant/const.py
 
+      - name: Install frontend deps
+        run: npm ci --prefix custom_components/pawsistant/frontend
+
       - name: Build card JS (version injected from const.py)
-        working-directory: custom_components/pawsistant/frontend
-        run: |
-          npm ci
-          npm run build
+        run: bash ci/build-card.sh
 
       - name: Commit version bump
         run: |
@@ -119,9 +138,7 @@ jobs:
           echo 'EOF' >> $GITHUB_OUTPUT
 
       - name: Build release zip
-        run: |
-          cd custom_components/pawsistant
-          zip -r ../../pawsistant.zip . -x "*/__pycache__/*" "*/__pycache__" "__pycache__/*" "__pycache__" "*.pyc" "*/node_modules/*" "*/node_modules" "*/src/*" "*/test/*" "rollup.config.mjs" "package.json" "package-lock.json"
+        run: bash ci/build-zip.sh
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

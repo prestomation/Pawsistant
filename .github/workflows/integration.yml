@@ -19,7 +19,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install test dependencies
-        run: pip install pytest pytest-timeout requests websockets
+        run: pip install -r requirements-test.txt
 
       - name: Start Home Assistant
         working-directory: tests/integration
@@ -42,8 +42,7 @@ jobs:
           exit 1
 
       - name: Run integration tests
-        working-directory: tests/integration
-        run: python -m pytest . -v --tb=short --override-ini="asyncio_mode=auto"
+        run: bash ci/test-python-integration.sh
 
       - name: Dump Home Assistant logs on failure
         if: failure()
