@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd custom_components/pawsistant/frontend
-# Strip the build date line (changes every build) before comparing
-grep -v 'Built:' pawsistant-card.js > /tmp/built.js
-grep -v 'Built:' <(git show HEAD:custom_components/pawsistant/frontend/pawsistant-card.js 2>/dev/null || echo '') > /tmp/committed.js || true
-# Only fail if committed file exists and differs
-if [ -s /tmp/committed.js ]; then
-  if ! diff -q /tmp/built.js /tmp/committed.js > /dev/null 2>&1; then
-    echo "ERROR: pawsistant-card.js is out of date. Run 'npm run build' and commit the result."
-    exit 1
-  fi
-fi
+# pawsistant-card.js is now gitignored and built during CI.
+# No drift check needed — the build step always produces a fresh copy.
+echo "✓ Drift check skipped (pawsistant-card.js is built on-the-fly, not committed)"
