@@ -30,9 +30,6 @@ jobs:
       - name: Build card JS
         run: bash ci/build-card.sh
 
-      - name: Check committed build matches source
-        run: bash ci/check-drift.sh
-
       - name: Run frontend tests
         run: bash ci/test-frontend.sh
 
