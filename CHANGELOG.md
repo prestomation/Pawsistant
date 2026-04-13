@@ -2,6 +2,11 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.12.1] - 2026-04-13
+
+### Fixed
+- Most-recent event sensors (pee, walk, food, etc.) could show stale timestamps when events had mixed timezone offsets.
+
 ## [2.11.0] - 2026-04-11
 
 ### Added
