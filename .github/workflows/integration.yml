@@ -27,6 +27,9 @@ jobs:
           cache: npm
           cache-dependency-path: custom_components/pawsistant/frontend/package-lock.json
 
+      - name: Install frontend deps
+        run: npm ci --prefix custom_components/pawsistant/frontend
+
       - name: Build card JS
         run: bash ci/build-card.sh
 
