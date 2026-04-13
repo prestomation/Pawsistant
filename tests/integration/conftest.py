@@ -16,10 +16,16 @@ import requests
 # by pytest-homeassistant-custom-component and double-registering causes
 # ValueError: Plugin already registered under a different name.
 try:
-    import pytest_socket
-    pytest_socket.enable_socket()
+    import pytest_socket as _pytest_socket
+    _pytest_socket.enable_socket()
 except ImportError:
-    pass
+    _pytest_socket = None
+
+
+def pytest_configure(config):
+    """Enable socket access for integration tests that need real HTTP."""
+    if _pytest_socket is not None:
+        _pytest_socket.enable_socket()
 
 HA_URL = "http://localhost:8123"
 HA_STARTUP_TIMEOUT = 120  # seconds
