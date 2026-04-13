@@ -143,6 +143,14 @@ jobs:
       - name: Build release zip
         run: bash ci/build-zip.sh
 
+      - name: Verify release zip exists
+        run: |
+          if [ ! -f pawsistant.zip ]; then
+            echo "ERROR: pawsistant.zip not found — release would be missing the zip asset that HACS requires"
+            exit 1
+          fi
+          echo "pawsistant.zip exists ($(du -h pawsistant.zip | cut -f1))"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
