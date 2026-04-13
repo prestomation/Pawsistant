@@ -23,7 +23,10 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: bash ci/install-deps.sh
+        run: |
+          pip install -r requirements-test.txt
+          npm ci
+          npm ci --prefix custom_components/pawsistant/frontend
 
       - name: Build card JS
         run: bash ci/build-card.sh
