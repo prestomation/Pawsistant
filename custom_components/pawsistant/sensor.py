@@ -121,11 +121,15 @@ def _to_datetime(ts: Any) -> datetime:
 def _get_most_recent_event(
     events: list[dict[str, Any]], event_type: str
 ) -> dict[str, Any] | None:
-    """Return the first (newest) event of *event_type*, or None."""
-    for event in events:
-        if event.get("event_type") == event_type:
-            return event
-    return None
+    """Return the event with the latest timestamp for *event_type*, or None.
+
+    Uses _to_datetime() for comparison so mixed timezone offsets are handled
+    correctly regardless of the order events appear in the list.
+    """
+    matching = [e for e in events if e.get("event_type") == event_type]
+    if not matching:
+        return None
+    return max(matching, key=lambda e: _to_datetime(e.get("timestamp")))
 
 
 def _count_today(events: list[dict[str, Any]], event_type: str) -> int:

@@ -193,7 +193,7 @@ class PawsistantStore:
                 added += 1
             # Re-sort newest-first
             self._year_events[year].sort(
-                key=lambda e: e.get("timestamp", ""), reverse=True
+                key=lambda e: _parse_timestamp(e.get("timestamp", "")), reverse=True
             )
             self._record_year(year)
             await self._save_year(year)
@@ -445,7 +445,7 @@ class PawsistantStore:
         # Insert and re-sort newest-first so backdated events land in the correct position
         self._year_events.setdefault(year, []).append(event)
         self._year_events[year].sort(
-            key=lambda e: e.get("timestamp", ""), reverse=True
+            key=lambda e: _parse_timestamp(e.get("timestamp", "")), reverse=True
         )
         await self._save_year(year)
 
@@ -570,7 +570,7 @@ class PawsistantStore:
             if added_this_year:
                 # Re-sort newest-first after bulk insert
                 self._year_events[year].sort(
-                    key=lambda e: e.get("timestamp", ""), reverse=True
+                    key=lambda e: _parse_timestamp(e.get("timestamp", "")), reverse=True
                 )
                 await self._save_year(year)
                 total_imported += added_this_year
