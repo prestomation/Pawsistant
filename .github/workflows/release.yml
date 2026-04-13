@@ -116,7 +116,7 @@ jobs:
           VERSION=${{ steps.version.outputs.version }}
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add custom_components/pawsistant/manifest.json custom_components/pawsistant/const.py custom_components/pawsistant/frontend/pawsistant-card.js
+          git add custom_components/pawsistant/manifest.json custom_components/pawsistant/const.py
           # Only commit if there are changes
           if git diff --cached --quiet; then
             echo "Version already up to date"

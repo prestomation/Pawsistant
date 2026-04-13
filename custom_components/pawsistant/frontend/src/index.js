@@ -1572,9 +1572,9 @@ class PawsistantCard extends HTMLElement {
       <div class="form-field">
         <div class="form-label-row">
           <label class="form-label" for="minutes-slider">Minutes ago</label>
-          <span class="slider-value" id="slider-display">1 min ago</span>
+          <span class="slider-value" id="slider-display">Now</span>
         </div>
-        <input type="range" id="minutes-slider" min="1" max="480" step="1" value="1" aria-label="Minutes ago" />
+        <input type="range" id="minutes-slider" min="0" max="480" step="1" value="0" aria-label="Minutes ago" />
       </div>
       <div class="form-field">
         <label class="form-label" for="backdate-note">Note (optional)</label>
@@ -1593,7 +1593,7 @@ class PawsistantCard extends HTMLElement {
       const v = parseInt(slider.value, 10);
       const t = new Date(Date.now() - v * 60000);
       const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      display.textContent = (v === 1 ? '1 min ago' : `${v} min ago`) + ` · ${timeStr}`;
+      display.textContent = (v === 0 ? 'Now' : v === 1 ? '1 min ago' : `${v} min ago`) + ` · ${timeStr}`;
     };
     slider.addEventListener('input', _updateSliderDisplay);
     _updateSliderDisplay();
