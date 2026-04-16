@@ -13,7 +13,7 @@ import {
 import { METRIC_LABELS } from './metrics.js';
 import { setupLongPress, withCooldown } from './interactions.js';
 import { logEvent, deleteEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services.js';
-import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML } from './utils.js';
+import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, toDisplayWeight } from './utils.js';
 
 /* ── Card picker registration ───────────────────────────────────────────── */
 window.customCards = window.customCards || [];
@@ -350,7 +350,7 @@ class PawsistantCard extends HTMLElement {
       } else if (metric === 'days_since' && medDays !== null) {
         countSuffix = ` (${Math.floor(medDays)}d)`;
       } else if (metric === 'last_value') {
-        const w = stateNum(hass, ent.weight);
+        const w = toDisplayWeight(stateNum(hass, ent.weight), weightUnit);
         if (w !== null) countSuffix = ` (${w} ${weightUnit})`;
       } else if (metric === 'hours_since') {
         // Show hours since most recent of this type
@@ -1616,8 +1616,8 @@ class PawsistantCard extends HTMLElement {
     this._activeTriggerBtn = activeBtn;
 
     const ent = this._entities();
-    const currentWeight = stateNum(this._hass, ent.weight);
     const unit = this._weightUnit();
+    const currentWeight = toDisplayWeight(stateNum(this._hass, ent.weight), unit);
 
     const formEl = this.shadowRoot.getElementById('inline-form');
     /* U10 — <label for>, U21 — inputmode="decimal", U22 — configurable unit */

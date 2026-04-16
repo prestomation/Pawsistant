@@ -92,6 +92,17 @@ export function buildHash(hass, cfg) {
   return parts.join('|');
 }
 
+/**
+ * Convert a stored lbs value to the display unit.
+ * The weight sensor always stores values in lbs; call this wherever a value
+ * from the sensor is shown to the user (button badge, form pre-fill).
+ */
+export function toDisplayWeight(lbs, unit) {
+  if (lbs === null || lbs === undefined) return null;
+  if (unit === 'kg') return Math.round((lbs / 2.20462) * 10) / 10;
+  return lbs;
+}
+
 /** Shared escape helper (XSS prevention) */
 export function _escapeHTML(str) {
   return String(str)
