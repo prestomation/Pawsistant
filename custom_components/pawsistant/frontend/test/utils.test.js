@@ -39,6 +39,23 @@ describe('findEntitiesByDog', () => {
     expect(result.timeline).toBe('sensor.custom_entity_1');
   });
 
+  it('resolves poop_count entity by friendly_name suffix', () => {
+    const hass = {
+      states: {
+        'sensor.sharky_daily_poop_count': {
+          attributes: { dog: 'Sharky', friendly_name: 'Sharky Daily Poop Count' },
+        },
+      },
+    };
+    const result = findEntitiesByDog(hass, 'Sharky');
+    expect(result.poop_count).toBe('sensor.sharky_daily_poop_count');
+  });
+
+  it('fallback poop_count ID matches actual sensor entity ID', () => {
+    const result = findEntitiesByDog(null, 'Sharky');
+    expect(result.poop_count).toBe('sensor.sharky_daily_poop_count');
+  });
+
   it('is case-insensitive', () => {
     const hass = {
       states: {

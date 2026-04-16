@@ -346,7 +346,6 @@ class PawsistantCard extends HTMLElement {
         if (type === 'pee' && peeCount !== null) countSuffix = ` (${peeCount})`;
         else if (type === 'poop' && poopCount !== null) countSuffix = ` (${poopCount})`;
         else if (type === 'medicine' && medDays !== null) countSuffix = ` (${medDaysText})`;
-        else if (type === 'food' && peeCount !== null) {} // food has no inline stat
       } else if (metric === 'days_since' && medDays !== null) {
         countSuffix = ` (${Math.floor(medDays)}d)`;
       } else if (metric === 'last_value') {
