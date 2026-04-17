@@ -33,7 +33,12 @@ from homeassistant.util import dt as dt_util
 
 from .const import DEFAULT_SPECIES, DOMAIN
 from .coordinator import PawsistantCoordinator
-from .sensor_analytics import compute_sick_frequency, compute_weight_trend
+from .sensor_analytics import (
+    ROUTINE_EVENT_TYPES,
+    compute_routine_peaks,
+    compute_sick_frequency,
+    compute_weight_trend,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -309,6 +314,14 @@ async def async_setup_entry(
         # Sickness frequency sensor
         # ------------------------------------------------------------------
         entities.append(PawsistantSicknessFrequencySensor(coordinator, dog_id, dog_name, species))
+
+        # ------------------------------------------------------------------
+        # Routine sensors (one per tracked event type)
+        # ------------------------------------------------------------------
+        for event_type in ROUTINE_EVENT_TYPES:
+            entities.append(
+                PawsistantRoutineSensor(coordinator, dog_id, dog_name, event_type, species)
+            )
 
     async_add_entities(entities)
 
@@ -663,4 +676,45 @@ class PawsistantSicknessFrequencySensor(_PawsistantSensorBase):
         attrs["count_previous_30d"] = result["count_previous"]
         attrs["cluster_size"] = result["cluster_size"]
         attrs["days_since_last"] = result["days_since_last"]
+        return attrs
+
+
+class PawsistantRoutineSensor(_PawsistantSensorBase):
+    """Sensor: routine detection for a specific event type."""
+
+    def __init__(
+        self,
+        coordinator: PawsistantCoordinator,
+        dog_id: str,
+        dog_name: str,
+        event_type: str,
+        species: str = DEFAULT_SPECIES,
+    ) -> None:
+        """Initialise the sensor."""
+        super().__init__(coordinator, dog_id, dog_name, species)
+        self._event_type = event_type
+        display = event_type.replace("_", " ").title()
+        self._attr_unique_id = f"pawsistant_{dog_id}_{event_type}_routine"
+        self._attr_name = f"{display} Routine"
+        self._attr_icon = EVENT_TYPE_ICONS.get(event_type, "mdi:clock-outline")
+
+    def _compute(self) -> dict[str, Any]:
+        """Run the routine-peaks analytics function."""
+        return compute_routine_peaks(self._dog_events(), self._event_type)
+
+    @property
+    def native_value(self) -> str:
+        """Return schedule status: on_schedule, late, or unknown."""
+        return self._compute()["status"]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose event_type, peak_hours, histogram, recency, and sample count."""
+        attrs: dict[str, Any] = {**super().extra_state_attributes}
+        result = self._compute()
+        attrs["event_type"] = self._event_type
+        attrs["peak_hours"] = result["peak_hours"]
+        attrs["histogram"] = result["histogram"]
+        attrs["last_event_ago_hours"] = result["last_event_ago_hours"]
+        attrs["sample_count"] = result["sample_count"]
         return attrs
