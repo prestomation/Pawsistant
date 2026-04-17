@@ -20,6 +20,7 @@ WEIGHT_TREND_SIGNIFICANT_CHANGE_PCT = 5.0
 
 SICK_FREQUENCY_LOOKBACK_DAYS = 30
 SICK_FREQUENCY_PREVIOUS_WINDOW_DAYS = 30
+SICK_CLUSTER_GAP_DAYS = 7
 
 # Event types tracked for routine detection.
 # @todo: allow user to add/remove types from this list via options flow
@@ -38,6 +39,14 @@ ROUTINE_LATE_THRESHOLD_HOURS = 2
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _safe_float(v: Any) -> float | None:
+    """Try to convert *v* to float; return None on failure."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
 
 
 def _parse_ts(ts: Any) -> datetime:
@@ -93,7 +102,8 @@ def compute_weight_trend(events: list[dict[str, Any]]) -> dict[str, Any]:
     weight_events = [
         e
         for e in events
-        if e.get("event_type") == "weight" and e.get("value") is not None
+        if e.get("event_type") == "weight"
+        and _safe_float(e.get("value")) is not None
     ]
 
     weight_events.sort(key=lambda e: _parse_ts(e.get("timestamp")))
@@ -108,8 +118,9 @@ def compute_weight_trend(events: list[dict[str, Any]]) -> dict[str, Any]:
             "over_days": None,
         }
 
-    oldest_value = float(weight_events[0]["value"])
-    newest_value = float(weight_events[-1]["value"])
+    # _safe_float is guaranteed non-None here thanks to the filter above
+    oldest_value: float = _safe_float(weight_events[0]["value"])  # type: ignore[assignment]
+    newest_value: float = _safe_float(weight_events[-1]["value"])  # type: ignore[assignment]
 
     oldest_ts = _parse_ts(weight_events[0].get("timestamp"))
     newest_ts = _parse_ts(weight_events[-1].get("timestamp"))
@@ -199,7 +210,7 @@ def compute_sick_frequency(
         run = 1
         max_run = 1
         for i in range(1, len(current)):
-            if (current[i] - current[i - 1]).total_seconds() <= 7 * 86400:
+            if (current[i] - current[i - 1]).days <= SICK_CLUSTER_GAP_DAYS:
                 run += 1
             else:
                 run = 1

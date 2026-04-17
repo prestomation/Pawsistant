@@ -54,9 +54,17 @@ def _ev(
     return e
 
 
-def _ts(days_ago: int = 0, hour: int = 12) -> str:
-    """ISO timestamp N days ago at a given hour (UTC)."""
-    dt = datetime.now(tz=timezone.utc) - timedelta(days=days_ago)
+def _ts(days_ago: int = 0, hour: int = 12, ref: datetime | None = None) -> str:
+    """ISO timestamp N days ago at a given hour (UTC).
+
+    Args:
+        days_ago: How many days in the past.
+        hour:     Hour-of-day (0-23).
+        ref:      Reference "now" for deterministic tests.
+                  Falls back to ``datetime.now(tz=timezone.utc)``.
+    """
+    base = ref or datetime.now(tz=timezone.utc)
+    dt = base - timedelta(days=days_ago)
     dt = dt.replace(hour=hour, minute=0, second=0, microsecond=0)
     return dt.isoformat()
 
@@ -130,48 +138,53 @@ class TestComputeSickFrequency:
     """Tests for compute_sick_frequency()."""
 
     def test_no_sick_events_returns_zero(self) -> None:
-        events = [_ev("food", _ts(5))]
-        result = compute_sick_frequency(events)
+        frozen_now = datetime.now(tz=timezone.utc)
+        events = [_ev("food", _ts(5, ref=frozen_now))]
+        result = compute_sick_frequency(events, now=frozen_now)
         assert result["count_current"] == 0
         assert result["count_previous"] == 0
 
     def test_counts_recent_sick_events(self) -> None:
+        frozen_now = datetime.now(tz=timezone.utc)
         events = [
-            _ev("sick", _ts(5)),
-            _ev("sick", _ts(10)),
-            _ev("sick", _ts(20)),
-            _ev("food", _ts(3)),
+            _ev("sick", _ts(5, ref=frozen_now)),
+            _ev("sick", _ts(10, ref=frozen_now)),
+            _ev("sick", _ts(20, ref=frozen_now)),
+            _ev("food", _ts(3, ref=frozen_now)),
         ]
-        result = compute_sick_frequency(events)
+        result = compute_sick_frequency(events, now=frozen_now)
         assert result["count_current"] == 3
         assert result["days_since_last"] == pytest.approx(5.0, abs=1.0)
 
     def test_counts_previous_window(self) -> None:
+        frozen_now = datetime.now(tz=timezone.utc)
         events = [
-            _ev("sick", _ts(10)),   # current window (last 30d)
-            _ev("sick", _ts(40)),   # previous window (30-60d)
-            _ev("sick", _ts(50)),   # previous window (30-60d)
+            _ev("sick", _ts(10, ref=frozen_now)),   # current window (last 30d)
+            _ev("sick", _ts(40, ref=frozen_now)),   # previous window (30-60d)
+            _ev("sick", _ts(50, ref=frozen_now)),   # previous window (30-60d)
         ]
-        result = compute_sick_frequency(events)
+        result = compute_sick_frequency(events, now=frozen_now)
         assert result["count_current"] == 1
         assert result["count_previous"] == 2
 
     def test_old_events_outside_both_windows_ignored(self) -> None:
-        events = [_ev("sick", _ts(100))]
-        result = compute_sick_frequency(events)
+        frozen_now = datetime.now(tz=timezone.utc)
+        events = [_ev("sick", _ts(100, ref=frozen_now))]
+        result = compute_sick_frequency(events, now=frozen_now)
         assert result["count_current"] == 0
         assert result["count_previous"] == 0
 
     def test_cluster_detection(self) -> None:
+        frozen_now = datetime.now(tz=timezone.utc)
         # 3 sick events within 7 days of each other (a cluster)
         # plus 1 isolated event well outside the 7-day window
         events = [
-            _ev("sick", _ts(3)),
-            _ev("sick", _ts(5)),
-            _ev("sick", _ts(7)),
-            _ev("sick", _ts(25)),  # isolated -- gap > 7 days from nearest cluster member
+            _ev("sick", _ts(3, ref=frozen_now)),
+            _ev("sick", _ts(5, ref=frozen_now)),
+            _ev("sick", _ts(7, ref=frozen_now)),
+            _ev("sick", _ts(25, ref=frozen_now)),  # isolated -- gap > 7 days from nearest cluster member
         ]
-        result = compute_sick_frequency(events)
+        result = compute_sick_frequency(events, now=frozen_now)
         assert result["cluster_size"] >= 3
 
 
@@ -184,29 +197,33 @@ class TestComputeRoutinePeaks:
     """Tests for compute_routine_peaks()."""
 
     def test_no_events_returns_empty(self) -> None:
-        result = compute_routine_peaks([], "food")
+        frozen_now = datetime.now(tz=timezone.utc)
+        result = compute_routine_peaks([], "food", now=frozen_now)
         assert result["peak_hours"] == []
         assert result["status"] == "unknown"
 
     def test_single_peak_detected(self) -> None:
-        events = [_ev("food", _ts(i, hour=8)) for i in range(30)]
-        result = compute_routine_peaks(events, "food")
+        frozen_now = datetime.now(tz=timezone.utc)
+        events = [_ev("food", _ts(i, hour=8, ref=frozen_now)) for i in range(30)]
+        result = compute_routine_peaks(events, "food", now=frozen_now)
         assert 8 in result["peak_hours"]
         assert isinstance(result["last_event_ago_hours"], (int, float))
 
     def test_two_peaks_detected(self) -> None:
+        frozen_now = datetime.now(tz=timezone.utc)
         events = (
-            [_ev("food", _ts(i, hour=8)) for i in range(30)]
-            + [_ev("food", _ts(i, hour=18)) for i in range(30)]
+            [_ev("food", _ts(i, hour=8, ref=frozen_now)) for i in range(30)]
+            + [_ev("food", _ts(i, hour=18, ref=frozen_now)) for i in range(30)]
         )
-        result = compute_routine_peaks(events, "food")
+        result = compute_routine_peaks(events, "food", now=frozen_now)
         assert 8 in result["peak_hours"]
         assert 18 in result["peak_hours"]
 
     def test_on_schedule_when_recent_event_near_peak(self) -> None:
+        frozen_now = datetime.now(tz=timezone.utc)
         # 30 days of food at 8am, including today
-        events = [_ev("food", _ts(i, hour=8)) for i in range(30)]
-        result = compute_routine_peaks(events, "food")
+        events = [_ev("food", _ts(i, hour=8, ref=frozen_now)) for i in range(30)]
+        result = compute_routine_peaks(events, "food", now=frozen_now)
         assert result["status"] == "on_schedule"
 
     def test_late_when_no_recent_event_near_peak(self) -> None:
@@ -226,12 +243,14 @@ class TestComputeRoutinePeaks:
         assert result["status"] == "late"
 
     def test_ignores_other_event_types(self) -> None:
-        events = [_ev("pee", _ts(i, hour=8)) for i in range(30)]
-        result = compute_routine_peaks(events, "food")
+        frozen_now = datetime.now(tz=timezone.utc)
+        events = [_ev("pee", _ts(i, hour=8, ref=frozen_now)) for i in range(30)]
+        result = compute_routine_peaks(events, "food", now=frozen_now)
         assert result["peak_hours"] == []
         assert result["status"] == "unknown"
 
     def test_histogram_attribute_has_24_buckets(self) -> None:
-        events = [_ev("food", _ts(i, hour=8)) for i in range(30)]
-        result = compute_routine_peaks(events, "food")
+        frozen_now = datetime.now(tz=timezone.utc)
+        events = [_ev("food", _ts(i, hour=8, ref=frozen_now)) for i in range(30)]
+        result = compute_routine_peaks(events, "food", now=frozen_now)
         assert len(result["histogram"]) == 24
