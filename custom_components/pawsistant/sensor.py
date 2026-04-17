@@ -33,6 +33,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DEFAULT_SPECIES, DOMAIN
 from .coordinator import PawsistantCoordinator
+from .sensor_analytics import compute_weight_trend
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -298,6 +299,11 @@ async def async_setup_entry(
         # Recent timeline sensor (last 24h events for dashboard)
         # ------------------------------------------------------------------
         entities.append(PawsistantRecentTimelineSensor(coordinator, dog_id, dog_name, species))
+
+        # ------------------------------------------------------------------
+        # Weight trend sensor
+        # ------------------------------------------------------------------
+        entities.append(PawsistantWeightTrendSensor(coordinator, dog_id, dog_name, species))
 
     async_add_entities(entities)
 
@@ -576,3 +582,42 @@ class PawsistantRecentTimelineSensor(_PawsistantSensorBase):
             "days_since": days_since,
             "last_event_ts": last_event_ts,
         }
+
+
+class PawsistantWeightTrendSensor(_PawsistantSensorBase):
+    """Sensor: weight trend analysis (gaining/losing/stable)."""
+
+    _attr_icon = "mdi:trending-up"
+
+    def __init__(
+        self,
+        coordinator: PawsistantCoordinator,
+        dog_id: str,
+        dog_name: str,
+        species: str = DEFAULT_SPECIES,
+    ) -> None:
+        """Initialise the sensor."""
+        super().__init__(coordinator, dog_id, dog_name, species)
+        self._attr_unique_id = f"pawsistant_{dog_id}_weight_trend"
+        self._attr_name = "Weight Trend"
+
+    def _compute(self) -> dict[str, Any]:
+        """Run the weight-trend analytics function."""
+        return compute_weight_trend(self._dog_events())
+
+    @property
+    def native_value(self) -> str:
+        """Return the trend direction: gaining, losing, stable, or unknown."""
+        return self._compute()["trend"]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose change_pct, sample_count, oldest/newest values, and span."""
+        attrs: dict[str, Any] = {**super().extra_state_attributes}
+        result = self._compute()
+        attrs["change_pct"] = result["change_pct"]
+        attrs["sample_count"] = result["sample_count"]
+        attrs["oldest_value"] = result["oldest_value"]
+        attrs["newest_value"] = result["newest_value"]
+        attrs["over_days"] = result["over_days"]
+        return attrs
