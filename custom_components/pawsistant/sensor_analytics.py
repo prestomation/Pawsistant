@@ -142,11 +142,18 @@ def compute_weight_trend(events: list[dict[str, Any]]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def compute_sick_frequency(events: list[dict[str, Any]]) -> dict[str, Any]:
+def compute_sick_frequency(
+    events: list[dict[str, Any]],
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
     """Analyse sick-event frequency over two 30-day windows.
 
     Args:
         events: List of event dicts (any mix of event types).
+        now:    Optional reference timestamp for "now". Defaults to
+                ``datetime.now(tz=timezone.utc)`` when *None*, but can be
+                overridden for deterministic testing.
 
     Returns:
         Dict with keys:
@@ -157,7 +164,8 @@ def compute_sick_frequency(events: list[dict[str, Any]]) -> dict[str, Any]:
                               (current window only)
             days_since_last -- days since most recent sick event (or None)
     """
-    now = datetime.now(tz=timezone.utc)
+    if now is None:
+        now = datetime.now(tz=timezone.utc)
     current_cutoff = now - timedelta(days=SICK_FREQUENCY_LOOKBACK_DAYS)
     previous_cutoff = now - timedelta(
         days=SICK_FREQUENCY_LOOKBACK_DAYS + SICK_FREQUENCY_PREVIOUS_WINDOW_DAYS
@@ -214,12 +222,17 @@ def compute_sick_frequency(events: list[dict[str, Any]]) -> dict[str, Any]:
 def compute_routine_peaks(
     events: list[dict[str, Any]],
     event_type: str,
+    *,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     """Detect time-of-day peaks for a given event type.
 
     Args:
         events:     List of event dicts (any mix of event types).
         event_type: The event type to analyse (e.g. "food", "walk").
+        now:        Optional reference timestamp for "now". Defaults to
+                    ``datetime.now(tz=timezone.utc)`` when *None*, but can be
+                    overridden for deterministic testing.
 
     Returns:
         Dict with keys:
@@ -230,7 +243,8 @@ def compute_routine_peaks(
                                    (or None)
             sample_count      -- number of matching events in the lookback window
     """
-    now = datetime.now(tz=timezone.utc)
+    if now is None:
+        now = datetime.now(tz=timezone.utc)
     cutoff = now - timedelta(days=ROUTINE_LOOKBACK_DAYS)
 
     matching: list[datetime] = []

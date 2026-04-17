@@ -91,6 +91,7 @@ class TestComputeWeightTrend:
         result = compute_weight_trend(events)
         assert result["trend"] == "gaining"
         assert result["change_pct"] > 5.0
+        assert result["over_days"] == pytest.approx(30.0, abs=1.0)
 
     def test_losing_weight(self) -> None:
         values = [60.0, 57.0, 54.0, 50.0]
@@ -143,6 +144,7 @@ class TestComputeSickFrequency:
         ]
         result = compute_sick_frequency(events)
         assert result["count_current"] == 3
+        assert result["days_since_last"] == pytest.approx(5.0, abs=1.0)
 
     def test_counts_previous_window(self) -> None:
         events = [
@@ -190,6 +192,7 @@ class TestComputeRoutinePeaks:
         events = [_ev("food", _ts(i, hour=8)) for i in range(30)]
         result = compute_routine_peaks(events, "food")
         assert 8 in result["peak_hours"]
+        assert isinstance(result["last_event_ago_hours"], (int, float))
 
     def test_two_peaks_detected(self) -> None:
         events = (
@@ -207,13 +210,20 @@ class TestComputeRoutinePeaks:
         assert result["status"] == "on_schedule"
 
     def test_late_when_no_recent_event_near_peak(self) -> None:
-        # All events are 2+ days ago; none today
-        events = [_ev("food", _ts(i, hour=8)) for i in range(2, 30)]
-        result = compute_routine_peaks(events, "food")
-        # Depending on current hour relative to the 8am peak, the status
-        # may be "late", "on_schedule" (if the peak hour hasn't arrived yet
-        # today), or "unknown".
-        assert result["status"] in ("late", "on_schedule", "unknown")
+        # Freeze "now" to 14:00 UTC so the 8am peak is well in the past.
+        # All events are 2+ days ago at 8am -- none today.
+        frozen_now = datetime.now(tz=timezone.utc).replace(
+            hour=14, minute=0, second=0, microsecond=0,
+        )
+        events = [
+            _ev(
+                "food",
+                (frozen_now - timedelta(days=i)).replace(hour=8).isoformat(),
+            )
+            for i in range(2, 32)
+        ]
+        result = compute_routine_peaks(events, "food", now=frozen_now)
+        assert result["status"] == "late"
 
     def test_ignores_other_event_types(self) -> None:
         events = [_ev("pee", _ts(i, hour=8)) for i in range(30)]
