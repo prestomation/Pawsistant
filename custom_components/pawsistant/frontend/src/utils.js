@@ -19,7 +19,7 @@ export function findEntitiesByDog(hass, dogName) {
   const fallback = {
     timeline:      `sensor.${slug}_recent_timeline`,
     pee_count:     `sensor.${slug}_daily_pee_count`,
-    poop_count:    `sensor.${slug}_poop_count_today`,
+    poop_count:    `sensor.${slug}_daily_poop_count`,
     medicine_days: `sensor.${slug}_days_since_medicine`,
     weight:        `sensor.${slug}_weight`,
   };
@@ -33,7 +33,7 @@ export function findEntitiesByDog(hass, dogName) {
   const ROLE_SUFFIXES = {
     timeline:      'recent timeline',
     pee_count:     'daily pee count',
-    poop_count:    'poop count today',
+    poop_count:    'daily poop count',
     medicine_days: 'days since medicine',
     weight:        'weight',
   };
