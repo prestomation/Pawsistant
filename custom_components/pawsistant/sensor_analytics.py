@@ -194,7 +194,7 @@ def compute_sick_frequency(
         elif ts >= previous_cutoff:
             previous_count += 1
 
-    # days_since_last
+    # days_since_last — unbounded: considers ALL sick events, not just windowed
     days_since_last: float | None = None
     if sick_events:
         most_recent = max(_parse_ts(e.get("timestamp")) for e in sick_events)
