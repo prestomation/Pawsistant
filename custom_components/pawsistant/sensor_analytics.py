@@ -21,6 +21,19 @@ WEIGHT_TREND_SIGNIFICANT_CHANGE_PCT = 5.0
 SICK_FREQUENCY_LOOKBACK_DAYS = 30
 SICK_FREQUENCY_PREVIOUS_WINDOW_DAYS = 30
 
+# Event types tracked for routine detection.
+# @todo: allow user to add/remove types from this list via options flow
+ROUTINE_EVENT_TYPES: list[str] = [
+    "food",
+    "pee",
+    "poop",
+    "walk",
+    "water",
+    "treat",
+]
+ROUTINE_LOOKBACK_DAYS = 30
+ROUTINE_LATE_THRESHOLD_HOURS = 2
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -190,4 +203,98 @@ def compute_sick_frequency(events: list[dict[str, Any]]) -> dict[str, Any]:
         "count_previous": previous_count,
         "cluster_size": cluster_size,
         "days_since_last": days_since_last,
+    }
+
+
+# ---------------------------------------------------------------------------
+# compute_routine_peaks
+# ---------------------------------------------------------------------------
+
+
+def compute_routine_peaks(
+    events: list[dict[str, Any]],
+    event_type: str,
+) -> dict[str, Any]:
+    """Detect time-of-day peaks for a given event type.
+
+    Args:
+        events:     List of event dicts (any mix of event types).
+        event_type: The event type to analyse (e.g. "food", "walk").
+
+    Returns:
+        Dict with keys:
+            peak_hours        -- list of hour-of-day ints (0-23) that are peaks
+            histogram         -- 24-element list of counts per hour bucket
+            status            -- "on_schedule", "late", or "unknown"
+            last_event_ago_hours -- hours since the most recent matching event
+                                   (or None)
+            sample_count      -- number of matching events in the lookback window
+    """
+    now = datetime.now(tz=timezone.utc)
+    cutoff = now - timedelta(days=ROUTINE_LOOKBACK_DAYS)
+
+    matching: list[datetime] = []
+    for ev in events:
+        if ev.get("event_type") != event_type:
+            continue
+        ts = _parse_ts(ev.get("timestamp"))
+        if ts >= cutoff:
+            matching.append(ts)
+
+    histogram = [0] * 24
+    for ts in matching:
+        histogram[ts.hour] += 1
+
+    sample_count = len(matching)
+
+    # last_event_ago_hours
+    last_event_ago_hours: float | None = None
+    if matching:
+        most_recent = max(matching)
+        last_event_ago_hours = round(
+            (now - most_recent).total_seconds() / 3600, 1
+        )
+
+    # Peak detection: hours with count >= 2x average AND >= 3
+    peak_hours: list[int] = []
+    if sample_count > 0:
+        avg = sample_count / 24
+        peak_hours = [
+            h for h in range(24) if histogram[h] >= 2 * avg and histogram[h] >= 3
+        ]
+
+    # Schedule status
+    if not peak_hours:
+        status = "unknown"
+    else:
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_events = [ts for ts in matching if ts >= today_start]
+        today_hours = {ts.hour for ts in today_events}
+
+        # Determine which peak hours have already passed today
+        past_peaks = [h for h in peak_hours if h <= now.hour]
+
+        if not past_peaks:
+            # No peak hour has arrived yet today
+            status = "on_schedule"
+        else:
+            # Check if each past peak is covered by a today-event within
+            # ROUTINE_LATE_THRESHOLD_HOURS
+            all_covered = True
+            for peak_h in past_peaks:
+                covered = any(
+                    abs(th - peak_h) <= ROUTINE_LATE_THRESHOLD_HOURS
+                    for th in today_hours
+                )
+                if not covered:
+                    all_covered = False
+                    break
+            status = "on_schedule" if all_covered else "late"
+
+    return {
+        "peak_hours": peak_hours,
+        "histogram": histogram,
+        "status": status,
+        "last_event_ago_hours": last_event_ago_hours,
+        "sample_count": sample_count,
     }

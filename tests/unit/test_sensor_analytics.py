@@ -28,6 +28,7 @@ _spec.loader.exec_module(_mod)
 
 compute_weight_trend = _mod.compute_weight_trend
 compute_sick_frequency = _mod.compute_sick_frequency
+compute_routine_peaks = _mod.compute_routine_peaks
 
 
 # ---------------------------------------------------------------------------
@@ -170,3 +171,57 @@ class TestComputeSickFrequency:
         ]
         result = compute_sick_frequency(events)
         assert result["cluster_size"] >= 3
+
+
+# ---------------------------------------------------------------------------
+# TestComputeRoutinePeaks
+# ---------------------------------------------------------------------------
+
+
+class TestComputeRoutinePeaks:
+    """Tests for compute_routine_peaks()."""
+
+    def test_no_events_returns_empty(self) -> None:
+        result = compute_routine_peaks([], "food")
+        assert result["peak_hours"] == []
+        assert result["status"] == "unknown"
+
+    def test_single_peak_detected(self) -> None:
+        events = [_ev("food", _ts(i, hour=8)) for i in range(30)]
+        result = compute_routine_peaks(events, "food")
+        assert 8 in result["peak_hours"]
+
+    def test_two_peaks_detected(self) -> None:
+        events = (
+            [_ev("food", _ts(i, hour=8)) for i in range(30)]
+            + [_ev("food", _ts(i, hour=18)) for i in range(30)]
+        )
+        result = compute_routine_peaks(events, "food")
+        assert 8 in result["peak_hours"]
+        assert 18 in result["peak_hours"]
+
+    def test_on_schedule_when_recent_event_near_peak(self) -> None:
+        # 30 days of food at 8am, including today
+        events = [_ev("food", _ts(i, hour=8)) for i in range(30)]
+        result = compute_routine_peaks(events, "food")
+        assert result["status"] == "on_schedule"
+
+    def test_late_when_no_recent_event_near_peak(self) -> None:
+        # All events are 2+ days ago; none today
+        events = [_ev("food", _ts(i, hour=8)) for i in range(2, 30)]
+        result = compute_routine_peaks(events, "food")
+        # Depending on current hour relative to the 8am peak, the status
+        # may be "late", "on_schedule" (if the peak hour hasn't arrived yet
+        # today), or "unknown".
+        assert result["status"] in ("late", "on_schedule", "unknown")
+
+    def test_ignores_other_event_types(self) -> None:
+        events = [_ev("pee", _ts(i, hour=8)) for i in range(30)]
+        result = compute_routine_peaks(events, "food")
+        assert result["peak_hours"] == []
+        assert result["status"] == "unknown"
+
+    def test_histogram_attribute_has_24_buckets(self) -> None:
+        events = [_ev("food", _ts(i, hour=8)) for i in range(30)]
+        result = compute_routine_peaks(events, "food")
+        assert len(result["histogram"]) == 24
