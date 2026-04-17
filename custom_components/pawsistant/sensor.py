@@ -33,7 +33,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DEFAULT_SPECIES, DOMAIN
 from .coordinator import PawsistantCoordinator
-from .sensor_analytics import compute_weight_trend
+from .sensor_analytics import compute_sick_frequency, compute_weight_trend
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -304,6 +304,11 @@ async def async_setup_entry(
         # Weight trend sensor
         # ------------------------------------------------------------------
         entities.append(PawsistantWeightTrendSensor(coordinator, dog_id, dog_name, species))
+
+        # ------------------------------------------------------------------
+        # Sickness frequency sensor
+        # ------------------------------------------------------------------
+        entities.append(PawsistantSicknessFrequencySensor(coordinator, dog_id, dog_name, species))
 
     async_add_entities(entities)
 
@@ -620,4 +625,42 @@ class PawsistantWeightTrendSensor(_PawsistantSensorBase):
         attrs["oldest_value"] = result["oldest_value"]
         attrs["newest_value"] = result["newest_value"]
         attrs["over_days"] = result["over_days"]
+        return attrs
+
+
+class PawsistantSicknessFrequencySensor(_PawsistantSensorBase):
+    """Sensor: count of sick events in the last 30 days."""
+
+    _attr_icon = "mdi:emoticon-sick"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: PawsistantCoordinator,
+        dog_id: str,
+        dog_name: str,
+        species: str = DEFAULT_SPECIES,
+    ) -> None:
+        """Initialise the sensor."""
+        super().__init__(coordinator, dog_id, dog_name, species)
+        self._attr_unique_id = f"pawsistant_{dog_id}_sickness_frequency"
+        self._attr_name = "Sickness Frequency"
+
+    def _compute(self) -> dict[str, Any]:
+        """Run the sick-frequency analytics function."""
+        return compute_sick_frequency(self._dog_events())
+
+    @property
+    def native_value(self) -> int:
+        """Return the count of sick events in the current 30-day window."""
+        return self._compute()["count_current"]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose previous-window count, cluster size, and days since last."""
+        attrs: dict[str, Any] = {**super().extra_state_attributes}
+        result = self._compute()
+        attrs["count_previous_30d"] = result["count_previous"]
+        attrs["cluster_size"] = result["cluster_size"]
+        attrs["days_since_last"] = result["days_since_last"]
         return attrs
