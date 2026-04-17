@@ -620,8 +620,12 @@ class PawsistantWeightTrendSensor(_PawsistantSensorBase):
         self._attr_name = "Weight Trend"
 
     def _compute(self) -> dict[str, Any]:
-        """Run the weight-trend analytics function."""
-        return compute_weight_trend(self._dog_events())
+        """Run the weight-trend analytics function (cached per refresh)."""
+        last = getattr(self.coordinator, "last_update_success_time", None)
+        if last != getattr(self, "_cache_ts", None):
+            self._cache_ts = last
+            self._cache = compute_weight_trend(self._dog_events())
+        return self._cache
 
     @property
     def native_value(self) -> str:
@@ -660,8 +664,12 @@ class PawsistantSicknessFrequencySensor(_PawsistantSensorBase):
         self._attr_name = "Sickness Frequency"
 
     def _compute(self) -> dict[str, Any]:
-        """Run the sick-frequency analytics function."""
-        return compute_sick_frequency(self._dog_events())
+        """Run the sick-frequency analytics function (cached per refresh)."""
+        last = getattr(self.coordinator, "last_update_success_time", None)
+        if last != getattr(self, "_cache_ts", None):
+            self._cache_ts = last
+            self._cache = compute_sick_frequency(self._dog_events())
+        return self._cache
 
     @property
     def native_value(self) -> int:
@@ -699,8 +707,12 @@ class PawsistantRoutineSensor(_PawsistantSensorBase):
         self._attr_icon = EVENT_TYPE_ICONS.get(event_type, "mdi:clock-outline")
 
     def _compute(self) -> dict[str, Any]:
-        """Run the routine-peaks analytics function."""
-        return compute_routine_peaks(self._dog_events(), self._event_type)
+        """Run the routine-peaks analytics function (cached per refresh)."""
+        last = getattr(self.coordinator, "last_update_success_time", None)
+        if last != getattr(self, "_cache_ts", None):
+            self._cache_ts = last
+            self._cache = compute_routine_peaks(self._dog_events(), self._event_type)
+        return self._cache
 
     @property
     def native_value(self) -> str:
