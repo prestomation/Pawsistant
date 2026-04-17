@@ -5,7 +5,6 @@ No Home Assistant imports; these functions operate on plain event dicts.
 
 from __future__ import annotations
 
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -185,7 +184,7 @@ class TestComputeSickFrequency:
             _ev("sick", _ts(25, ref=frozen_now)),  # isolated -- gap > 7 days from nearest cluster member
         ]
         result = compute_sick_frequency(events, now=frozen_now)
-        assert result["cluster_size"] >= 3
+        assert result["cluster_size"] == 3
 
 
 # ---------------------------------------------------------------------------

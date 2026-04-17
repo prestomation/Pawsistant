@@ -618,11 +618,13 @@ class PawsistantWeightTrendSensor(_PawsistantSensorBase):
         super().__init__(coordinator, dog_id, dog_name, species)
         self._attr_unique_id = f"pawsistant_{dog_id}_weight_trend"
         self._attr_name = "Weight Trend"
+        self._cache_ts: object = object()
+        self._cache: dict[str, Any] = {}
 
     def _compute(self) -> dict[str, Any]:
         """Run the weight-trend analytics function (cached per refresh)."""
         last = getattr(self.coordinator, "last_update_success_time", None)
-        if last != getattr(self, "_cache_ts", None):
+        if last != self._cache_ts:
             self._cache_ts = last
             self._cache = compute_weight_trend(self._dog_events())
         return self._cache
@@ -662,11 +664,13 @@ class PawsistantSicknessFrequencySensor(_PawsistantSensorBase):
         super().__init__(coordinator, dog_id, dog_name, species)
         self._attr_unique_id = f"pawsistant_{dog_id}_sickness_frequency"
         self._attr_name = "Sickness Frequency"
+        self._cache_ts: object = object()
+        self._cache: dict[str, Any] = {}
 
     def _compute(self) -> dict[str, Any]:
         """Run the sick-frequency analytics function (cached per refresh)."""
         last = getattr(self.coordinator, "last_update_success_time", None)
-        if last != getattr(self, "_cache_ts", None):
+        if last != self._cache_ts:
             self._cache_ts = last
             self._cache = compute_sick_frequency(self._dog_events())
         return self._cache
@@ -705,11 +709,13 @@ class PawsistantRoutineSensor(_PawsistantSensorBase):
         self._attr_unique_id = f"pawsistant_{dog_id}_{event_type}_routine"
         self._attr_name = f"{display} Routine"
         self._attr_icon = EVENT_TYPE_ICONS.get(event_type, "mdi:clock-outline")
+        self._cache_ts: object = object()
+        self._cache: dict[str, Any] = {}
 
     def _compute(self) -> dict[str, Any]:
         """Run the routine-peaks analytics function (cached per refresh)."""
         last = getattr(self.coordinator, "last_update_success_time", None)
-        if last != getattr(self, "_cache_ts", None):
+        if last != self._cache_ts:
             self._cache_ts = last
             self._cache = compute_routine_peaks(self._dog_events(), self._event_type)
         return self._cache
