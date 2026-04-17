@@ -27,6 +27,7 @@ _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
 compute_weight_trend = _mod.compute_weight_trend
+compute_sick_frequency = _mod.compute_sick_frequency
 
 
 # ---------------------------------------------------------------------------
@@ -116,3 +117,56 @@ class TestComputeWeightTrend:
         assert result["sample_count"] == 3
         assert result["oldest_value"] == 50.0
         assert result["newest_value"] == 54.0
+
+
+# ---------------------------------------------------------------------------
+# TestComputeSickFrequency
+# ---------------------------------------------------------------------------
+
+
+class TestComputeSickFrequency:
+    """Tests for compute_sick_frequency()."""
+
+    def test_no_sick_events_returns_zero(self) -> None:
+        events = [_ev("food", _ts(5))]
+        result = compute_sick_frequency(events)
+        assert result["count_current"] == 0
+        assert result["count_previous"] == 0
+
+    def test_counts_recent_sick_events(self) -> None:
+        events = [
+            _ev("sick", _ts(5)),
+            _ev("sick", _ts(10)),
+            _ev("sick", _ts(20)),
+            _ev("food", _ts(3)),
+        ]
+        result = compute_sick_frequency(events)
+        assert result["count_current"] == 3
+
+    def test_counts_previous_window(self) -> None:
+        events = [
+            _ev("sick", _ts(10)),   # current window (last 30d)
+            _ev("sick", _ts(40)),   # previous window (30-60d)
+            _ev("sick", _ts(50)),   # previous window (30-60d)
+        ]
+        result = compute_sick_frequency(events)
+        assert result["count_current"] == 1
+        assert result["count_previous"] == 2
+
+    def test_old_events_outside_both_windows_ignored(self) -> None:
+        events = [_ev("sick", _ts(100))]
+        result = compute_sick_frequency(events)
+        assert result["count_current"] == 0
+        assert result["count_previous"] == 0
+
+    def test_cluster_detection(self) -> None:
+        # 3 sick events within 7 days of each other (a cluster)
+        # plus 1 isolated event well outside the 7-day window
+        events = [
+            _ev("sick", _ts(3)),
+            _ev("sick", _ts(5)),
+            _ev("sick", _ts(7)),
+            _ev("sick", _ts(25)),  # isolated -- gap > 7 days from nearest cluster member
+        ]
+        result = compute_sick_frequency(events)
+        assert result["cluster_size"] >= 3
