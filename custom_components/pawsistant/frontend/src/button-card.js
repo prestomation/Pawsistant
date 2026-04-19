@@ -30,15 +30,44 @@ class PawsistantButtonCard extends HTMLElement {
     this._hass = null;
     this._timers = [];
     this._buttonCleanup = null;
+    this._lastHash = null;
   }
 
   setConfig(config) {
     this._config = { ...config };
+    this._lastHash = null;
     this._render();
   }
 
-  set hass(h) { this._hass = h; this._render(); }
+  set hass(h) {
+    this._hass = h;
+    const hash = this._computeHash(h, this._config);
+    if (hash === this._lastHash) return;
+    this._lastHash = hash;
+    this._render();
+  }
   get hass() { return this._hass; }
+
+  _computeHash(hass, cfg) {
+    if (!hass || !hass.states) return 'no-hass';
+    const ent = findEntitiesByDog(hass, cfg.dog || '');
+    const parts = [
+      cfg.dog || '',
+      cfg.event_type || '',
+      cfg.show_title === false ? '0' : '1',
+      cfg.haptics ? '1' : '0',
+      cfg.weight_unit || 'lbs',
+      this._resolveDogExists(hass, cfg.dog || '') ? '1' : '0',
+      stateAttr(hass, ent.timeline, 'event_types') ? JSON.stringify(stateAttr(hass, ent.timeline, 'event_types')) : '',
+      stateAttr(hass, ent.timeline, 'button_metrics') ? JSON.stringify(stateAttr(hass, ent.timeline, 'button_metrics')) : '',
+      (hass.states[ent.poop_count] || {}).state || '',
+      (hass.states[ent.pee_count] || {}).state || '',
+      (hass.states[ent.medicine_days] || {}).state || '',
+      (hass.states[ent.weight] || {}).state || '',
+      stateAttr(hass, ent.timeline, 'last_' + (cfg.event_type || '') + '_ts') || '',
+    ];
+    return parts.join('|');
+  }
 
   static getConfigElement() {
     return document.createElement('pawsistant-button-card-editor');
@@ -97,12 +126,7 @@ class PawsistantButtonCard extends HTMLElement {
 
   _metricText(hass, cfg, type) {
     const ent = findEntitiesByDog(hass, cfg.dog);
-    const metrics = {};
-    for (const s of Object.values(hass.states || {})) {
-      if (s.attributes && s.attributes.button_metrics) {
-        Object.assign(metrics, s.attributes.button_metrics);
-      }
-    }
+    const metrics = stateAttr(hass, ent.timeline, 'button_metrics') || {};
     const metric = metrics[type] || 'daily_count';
     const weightUnit = cfg.weight_unit || 'lbs';
 
