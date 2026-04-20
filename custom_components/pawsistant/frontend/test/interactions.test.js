@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — Interactions module tests
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { setupLongPress, withCooldown } from '../src/interactions.js';
 
 describe('setupLongPress', () => {
@@ -28,6 +28,72 @@ describe('setupLongPress', () => {
     const cleanup = setupLongPress(btn, { onTap: () => {}, onLongPress: () => {} }, []);
     // Should not throw
     cleanup();
+  });
+
+  it('calls navigator.vibrate(40) on long press when haptics is true', () => {
+    const btn = document.createElement('button');
+    const vibrateCalls = [];
+    const originalVibrate = navigator.vibrate;
+    navigator.vibrate = (ms) => { vibrateCalls.push(ms); return true; };
+
+    const cleanup = setupLongPress(btn, {
+      onTap: () => {},
+      onLongPress: () => {},
+      haptics: true,
+    }, []);
+
+    vi.useFakeTimers();
+    btn.dispatchEvent(new MouseEvent('pointerdown'));
+    vi.advanceTimersByTime(500);
+    vi.useRealTimers();
+
+    expect(vibrateCalls).toEqual([40]);
+    cleanup();
+    navigator.vibrate = originalVibrate;
+  });
+
+  it('does not call navigator.vibrate when haptics is false', () => {
+    const btn = document.createElement('button');
+    const vibrateCalls = [];
+    const originalVibrate = navigator.vibrate;
+    navigator.vibrate = (ms) => { vibrateCalls.push(ms); return true; };
+
+    const cleanup = setupLongPress(btn, {
+      onTap: () => {},
+      onLongPress: () => {},
+      haptics: false,
+    }, []);
+
+    vi.useFakeTimers();
+    btn.dispatchEvent(new MouseEvent('pointerdown'));
+    vi.advanceTimersByTime(500);
+    vi.useRealTimers();
+
+    expect(vibrateCalls).toEqual([]);
+    cleanup();
+    navigator.vibrate = originalVibrate;
+  });
+
+  it('does not throw when navigator.vibrate is undefined and haptics is true', () => {
+    const btn = document.createElement('button');
+    const originalVibrate = navigator.vibrate;
+    delete navigator.vibrate;
+
+    const cleanup = setupLongPress(btn, {
+      onTap: () => {},
+      onLongPress: () => {},
+      haptics: true,
+    }, []);
+
+    vi.useFakeTimers();
+    expect(() => {
+      btn.dispatchEvent(new MouseEvent('pointerdown'));
+      vi.advanceTimersByTime(500);
+    }).not.toThrow();
+    vi.useRealTimers();
+
+    cleanup();
+    navigator.vibrate = originalVibrate;
   });
 });
 

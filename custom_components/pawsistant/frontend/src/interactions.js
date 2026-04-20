@@ -13,7 +13,7 @@
  *
  * Returns a cleanup function that removes all listeners.
  */
-export function setupLongPress(btn, { onLongPress, onTap }, timers) {
+export function setupLongPress(btn, { onLongPress, onTap, haptics = false }, timers) {
   let pressTimer = null;
   let didLongPress = false;
 
@@ -22,6 +22,9 @@ export function setupLongPress(btn, { onLongPress, onTap }, timers) {
     pressTimer = setTimeout(() => {
       didLongPress = true;
       e.preventDefault();
+      if (haptics && typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(40);
+      }
       if (onLongPress) onLongPress(btn);
     }, 500);
     timers.push(pressTimer);
