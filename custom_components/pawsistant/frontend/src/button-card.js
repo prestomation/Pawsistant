@@ -31,6 +31,7 @@ class PawsistantButtonCard extends HTMLElement {
     this._timers = [];
     this._buttonCleanup = null;
     this._lastHash = null;
+    this._activeForm = null;
   }
 
   setConfig(config) {
@@ -41,6 +42,7 @@ class PawsistantButtonCard extends HTMLElement {
 
   set hass(h) {
     this._hass = h;
+    if (this._activeForm) return;
     const hash = this._computeHash(h, this._config);
     if (hash === this._lastHash) return;
     this._lastHash = hash;
@@ -254,14 +256,22 @@ class PawsistantButtonCard extends HTMLElement {
 
   _openBackdate(type, slot, meta) {
     while (slot.firstChild) slot.removeChild(slot.firstChild);
+    this._activeForm = 'backdate';
     openBackdateForm({ container: slot, meta, defaults: {} }).then((r) => {
-      if (r === null) return;
+      if (r === null) {
+        this._activeForm = null;
+        return;
+      }
       const extra = { timestamp: r.timestamp };
       if (r.note) extra.note = r.note;
+      const done = () => {
+        if (r.cleanup) r.cleanup();
+        this._activeForm = null;
+      };
       logEvent(this._hass, this._config.dog, type, extra)
-        .then(() => { if (r.cleanup) r.cleanup(); })
+        .then(done)
         .catch(err => {
-          if (r.cleanup) r.cleanup();
+          done();
           console.error('[pawsistant-button-card] log_event failed:', err);
         });
     });
@@ -272,12 +282,20 @@ class PawsistantButtonCard extends HTMLElement {
     const ent = findEntitiesByDog(this._hass, this._config.dog);
     const unit = this._config.weight_unit || 'lbs';
     const currentWeight = toDisplayWeight(stateNum(this._hass, ent.weight), unit);
+    this._activeForm = 'weight';
     openWeightForm({ container: slot, meta, currentWeight, displayUnit: unit }).then((r) => {
-      if (r === null) return;
+      if (r === null) {
+        this._activeForm = null;
+        return;
+      }
+      const done = () => {
+        if (r.cleanup) r.cleanup();
+        this._activeForm = null;
+      };
       logEvent(this._hass, this._config.dog, 'weight', { value: r.value })
-        .then(() => { if (r.cleanup) r.cleanup(); })
+        .then(done)
         .catch(err => {
-          if (r.cleanup) r.cleanup();
+          done();
           console.error('[pawsistant-button-card] log_event weight failed:', err);
         });
     });

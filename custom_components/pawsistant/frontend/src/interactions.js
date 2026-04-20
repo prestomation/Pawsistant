@@ -5,6 +5,21 @@
  */
 
 /**
+ * Fire Home Assistant's "haptic" custom event. The HA Companion mobile app
+ * listens for this on the document and triggers native haptics (Taptic
+ * Engine on iOS, system vibration on Android). Valid types per HA frontend:
+ * "success" | "warning" | "failure" | "light" | "medium" | "heavy" | "selection".
+ *
+ * `composed: true` lets the event cross the shadow boundary and bubble up
+ * to wherever HA's listener is attached.
+ */
+export function fireHaptic(node, type = 'medium') {
+  const event = new Event('haptic', { bubbles: true, composed: true });
+  event.detail = { haptic: type };
+  node.dispatchEvent(event);
+}
+
+/**
  * Set up a long-press / tap handler on a button element.
  *
  * - Long press (hold ≥ 500ms): triggers onLongPress, fires immediately on timeout.
@@ -22,9 +37,7 @@ export function setupLongPress(btn, { onLongPress, onTap, haptics = false }, tim
     pressTimer = setTimeout(() => {
       didLongPress = true;
       e.preventDefault();
-      if (haptics && typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(40);
-      }
+      if (haptics) fireHaptic(btn, 'medium');
       if (onLongPress) onLongPress(btn);
     }, 500);
     timers.push(pressTimer);
@@ -39,7 +52,9 @@ export function setupLongPress(btn, { onLongPress, onTap, haptics = false }, tim
       }
       pressTimer = null;
     }
-    didLongPress = false;
+    // Do NOT reset didLongPress here. The synthesized `click` fires after
+    // `pointerup`; if we cleared the flag, `handleClick` would misfire `onTap`
+    // after a successful long-press. `startPress` resets it on the next press.
   };
 
   const handleClick = () => {

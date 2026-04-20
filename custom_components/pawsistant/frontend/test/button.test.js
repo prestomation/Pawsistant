@@ -90,10 +90,10 @@ describe('renderPawsistantButton', () => {
     expect(taps.length).toBe(0);
   });
 
-  it('triggers navigator.vibrate on long-press when haptics is true', () => {
-    const vibrateCalls = [];
-    const orig = navigator.vibrate;
-    navigator.vibrate = (ms) => { vibrateCalls.push(ms); return true; };
+  it('fires a composed bubbling "haptic" event on long-press when haptics is true', () => {
+    const captured = [];
+    const listener = (e) => captured.push(e.detail);
+    document.addEventListener('haptic', listener);
 
     const { element, cleanup } = renderPawsistantButton({
       container: host, meta, metricText: '', disabled: false,
@@ -103,8 +103,9 @@ describe('renderPawsistantButton', () => {
     element.dispatchEvent(new MouseEvent('pointerdown'));
     vi.advanceTimersByTime(500);
     vi.useRealTimers();
-    expect(vibrateCalls).toEqual([40]);
+
+    expect(captured).toEqual([{ haptic: 'medium' }]);
     cleanup();
-    navigator.vibrate = orig;
+    document.removeEventListener('haptic', listener);
   });
 });

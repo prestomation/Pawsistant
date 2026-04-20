@@ -28,9 +28,8 @@ All notable changes to Pawsistant will be documented in this file.
 ## [2.12.0] - 2026-04-13
 
 ### Changed
-- Backdate slider defaults to "Now" (0 min) instead of 1 min ago
-- Card JS removed from git tracking (built on-the-fly by CI)
-- Integration test CI now builds card JS before Docker starts
+- Card frontend now shares a single button renderer and form module, reducing
+  duplicated code between the main card and the new button card.
 
 ## [2.11.0] - 2026-04-11
 
