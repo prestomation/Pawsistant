@@ -318,7 +318,7 @@ class PawsistantCard extends HTMLElement {
         const delAriaLabel = `Delete ${_escapeHTML(ev.type)} event at ${_escapeHTML(ev.time)}`;
         const editAriaLabel = `Edit ${_escapeHTML(ev.type)} event at ${_escapeHTML(ev.time)}`;
         timelineHTML += `
-          <div class="event-row" data-id="${_escapeHTML(ev.event_id)}" data-type="${_escapeHTML(ev.type)}" data-timestamp="${_escapeHTML(ev.timestamp || '')}" data-note="${_escapeHTML(ev.note || '')}" data-value="${ev.value !== undefined && ev.value !== null ? ev.value : ''}"  >
+          <div class="event-row" data-id="${_escapeHTML(ev.event_id)}" data-type="${_escapeHTML(ev.type)}" data-timestamp="${_escapeHTML(ev.iso || '')}" data-note="${_escapeHTML(ev.note || '')}" data-value="${ev.value !== undefined && ev.value !== null ? ev.value : ''}"  >
             <span class="event-emoji">${meta.emoji}</span>
             <span class="event-time">${_escapeHTML(ev.time)}</span>
             <span class="event-type">${_escapeHTML(meta.label)}</span>
