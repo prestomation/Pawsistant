@@ -77,6 +77,15 @@ DELETE_EVENT_SCHEMA = vol.Schema(
     }
 )
 
+UPDATE_EVENT_SCHEMA = vol.Schema(
+    {
+        vol.Required("event_id"): cv.string,
+        vol.Optional("timestamp"): cv.string,
+        vol.Optional("note"): cv.string,
+        vol.Optional("value"): vol.Coerce(float),
+    }
+)
+
 ADD_DOG_SCHEMA = vol.Schema(
     {
         vol.Required("name"): cv.string,
@@ -373,6 +382,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(
         DOMAIN, "delete_event", handle_delete_event, schema=DELETE_EVENT_SCHEMA
+    )
+
+    async def handle_update_event(call: ServiceCall) -> None:
+        """Handle pawsistant.update_event."""
+        from homeassistant.exceptions import ServiceValidationError
+
+        store, coord = _get_store_and_coord()
+        event_id: str = call.data["event_id"]
+        updated = await store.update_event(
+            event_id=event_id,
+            timestamp=call.data.get("timestamp"),
+            note=call.data.get("note"),
+            value=call.data.get("value"),
+        )
+        if updated is None:
+            raise ServiceValidationError(
+                f"pawsistant.update_event: event id '{event_id}' not found"
+            )
+        _LOGGER.debug("Updated event %s", event_id)
+        await coord.async_refresh()
+
+    hass.services.async_register(
+        DOMAIN, "update_event", handle_update_event, schema=UPDATE_EVENT_SCHEMA
     )
 
     async def handle_add_dog(call: ServiceCall) -> None:
@@ -781,6 +813,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for service in (
             "log_event",
             "delete_event",
+            "update_event",
             "add_dog",
             "remove_dog",
             "list_events",
