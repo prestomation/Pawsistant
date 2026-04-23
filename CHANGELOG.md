@@ -2,6 +2,36 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.14.0] - 2026-04-23
+
+### Added
+- **Edit events in the timeline** — tap the ✏️ icon on any event row to open a pre-filled form. Change the time, note, or weight value, then tap "Update Event" to save. Event type is preserved.
+- Edit icon appears on hover/touch for each timeline event row.
+- Backdate slider starts at the event's original time when editing, so you can change just the note without altering the timestamp.
+
+## [2.13.1] - 2026-04-17
+
+### Fixed
+- Poop sensor entity ID and friendly_name suffix corrected (external contributor GasparMDQ)
+- Removed dead `food` branch that referenced `peeCount`
+
+## [2.13.0] - 2026-04-16
+
+### Fixed
+- Weight-unit display: when unit is kg, button badge and form pre-fill now show the converted value instead of raw lbs (e.g. 36.3 kg instead of 80 kg)
+
+## [2.12.1] - 2026-04-13
+
+### Fixed
+- Most-recent sensor bug: `_get_most_recent_event()` now uses `max(key=_to_datetime)` instead of first-match scan, and store sorts use `_parse_timestamp()` instead of string comparison. Fixes stale sensor values when events have mixed timezone offsets.
+
+## [2.12.0] - 2026-04-13
+
+### Changed
+- Backdate slider defaults to "Now" (0 min) instead of 1 min ago
+- Card JS removed from git tracking (built on-the-fly by CI)
+- Integration test CI now builds card JS before Docker starts
+
 ## [2.11.0] - 2026-04-11
 
 ### Added
