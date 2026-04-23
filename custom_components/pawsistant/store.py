@@ -455,6 +455,79 @@ class PawsistantStore:
 
         return event
 
+    async def update_event(
+        self,
+        event_id: str,
+        timestamp: str | None = None,
+        note: str | None = None,
+        value: float | None = None,
+    ) -> dict[str, Any] | None:
+        """Update an existing event's fields.
+
+        Only fields that are not None are patched.  If the timestamp changes
+        and crosses a year boundary the event is moved to the correct year
+        file.  Returns the updated event dict, or None if the event_id is not
+        found.
+        """
+        # Ensure all year files are loaded so we can find the event
+        for year in self._meta.get("known_years", []):
+            await self._ensure_year_loaded(year)
+
+        # Find the event
+        found_year: int | None = None
+        found_event: dict[str, Any] | None = None
+        for year in sorted(self._loaded_years, reverse=True):
+            for ev in self._year_events.get(year, []):
+                if ev.get("id") == event_id:
+                    found_year = year
+                    found_event = ev
+                    break
+            if found_event:
+                break
+
+        if found_event is None or found_year is None:
+            return None
+
+        # Patch provided fields
+        if note is not None:
+            found_event["note"] = note
+        if value is not None:
+            found_event["value"] = value
+        elif "value" in found_event and value is None and note is not None:
+            # value explicitly not passed — leave as-is
+            pass
+        if timestamp is not None:
+            found_event["timestamp"] = timestamp
+
+        # Check if year changed
+        new_year = self._year_of_timestamp(found_event.get("timestamp"))
+        if new_year != found_year:
+            # Remove from old year
+            self._year_events[found_year] = [
+                e for e in self._year_events[found_year] if e.get("id") != event_id
+            ]
+            await self._save_year(found_year)
+
+            # Add to new year
+            await self._ensure_year_loaded(new_year)
+            self._record_year(new_year)
+            self._year_events.setdefault(new_year, []).append(found_event)
+            self._year_events[new_year].sort(
+                key=lambda e: _parse_timestamp(e.get("timestamp", "")), reverse=True
+            )
+            await self._save_year(new_year)
+            await self._save_meta()
+        else:
+            # Re-sort if timestamp changed
+            if timestamp is not None:
+                self._year_events[found_year].sort(
+                    key=lambda e: _parse_timestamp(e.get("timestamp", "")), reverse=True
+                )
+            await self._save_year(found_year)
+
+        _LOGGER.debug("Updated event %s", event_id)
+        return found_event
+
     async def delete_event(self, event_id: str) -> bool:
         """Delete an event by ID.
 

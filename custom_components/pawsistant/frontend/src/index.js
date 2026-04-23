@@ -12,7 +12,7 @@ import {
 } from './registry.js';
 import { METRIC_LABELS } from './metrics.js';
 import { setupLongPress, withCooldown } from './interactions.js';
-import { logEvent, deleteEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services.js';
+import { logEvent, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services.js';
 import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, toDisplayWeight } from './utils.js';
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -316,12 +316,15 @@ class PawsistantCard extends HTMLElement {
           : '';
         /* U2 — aria-label on delete button */
         const delAriaLabel = `Delete ${_escapeHTML(ev.type)} event at ${_escapeHTML(ev.time)}`;
+        const editAriaLabel = `Edit ${_escapeHTML(ev.type)} event at ${_escapeHTML(ev.time)}`;
         timelineHTML += `
-          <div class="event-row" data-id="${_escapeHTML(ev.event_id)}">
+          <div class="event-row" data-id="${_escapeHTML(ev.event_id)}" data-type="${_escapeHTML(ev.type)}" data-timestamp="${_escapeHTML(ev.iso || '')}" data-note="${_escapeHTML(ev.note || '')}" data-value="${ev.value !== undefined && ev.value !== null ? ev.value : ''}"  >
             <span class="event-emoji">${meta.emoji}</span>
             <span class="event-time">${_escapeHTML(ev.time)}</span>
             <span class="event-type">${_escapeHTML(meta.label)}</span>
             ${noteHTML}
+            <button class="edit-btn" data-id="${_escapeHTML(ev.event_id)}"
+              aria-label="${editAriaLabel}" title="Edit event">✏️</button>
             <button class="delete-btn" data-id="${_escapeHTML(ev.event_id)}"
               aria-label="${delAriaLabel}" title="Delete event">🗑️</button>
           </div>
@@ -675,6 +678,24 @@ class PawsistantCard extends HTMLElement {
         /* U14 — truncated notes with title attr for tooltip */
         .event-note { font-size: 12px; color: var(--secondary-text-color); flex: 1; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         /* U6 — 44px touch target for delete button */
+        .edit-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          opacity: 0;
+          font-size: 12px;
+          padding: 8px;
+          border-radius: 4px;
+          min-width: 36px;
+          min-height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: opacity 0.15s, background 0.15s;
+          flex-shrink: 0;
+        }
+        .event-row:hover .edit-btn, .event-row:focus-within .edit-btn { opacity: 0.5; }
+        .edit-btn:hover { opacity: 1 !important; background: color-mix(in srgb, var(--primary-color, #03a9f4) 12%, transparent); }
         .delete-btn {
           background: none;
           border: none;
@@ -1395,6 +1416,21 @@ class PawsistantCard extends HTMLElement {
       });
     });
 
+    /* Edit button on event rows */
+    root.querySelectorAll('.edit-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const row = btn.closest('.event-row');
+        if (!row) return;
+        const eventType = row.dataset.type;
+        const timestamp = row.dataset.timestamp;
+        const note = row.dataset.note;
+        const value = row.dataset.value;
+        const eventId = row.dataset.id;
+        this._openEditForm(eventType, timestamp, note, value, eventId);
+      });
+    });
+
     /* ── Event Types Manager Panel listeners ── */
 
     // Gear button to open panel
@@ -1656,6 +1692,122 @@ class PawsistantCard extends HTMLElement {
     this._applyFormOpenState(activeBtn);
   }
 
+  /* ── Edit form for existing event ───────────────────────────────────── */
+  _openEditForm(eventType, timestamp, note, value, eventId) {
+    this._activeForm = 'edit';
+    this._activeType = eventType;
+    this._editEventId = eventId;
+
+    const { registry } = this._registry();
+    const meta = getMeta(eventType, registry);
+    const isWeight = eventType === 'weight';
+    const unit = this._weightUnit();
+
+    // Calculate minutes ago from timestamp
+    let minutesAgo = 0;
+    if (timestamp) {
+      const diff = Date.now() - new Date(timestamp).getTime();
+      minutesAgo = Math.max(0, Math.round(diff / 60000));
+    }
+
+    const formEl = this.shadowRoot.getElementById('inline-form');
+
+    if (isWeight) {
+      const displayVal = value ? (unit === 'kg' ? Math.round(value / 2.20462 * 10) / 10 : value) : '';
+      formEl.innerHTML = `
+        <div class="form-title">⚖️ Edit Weight</div>
+        <div class="form-field">
+          <label class="form-label" for="weight-input">Weight (${_escapeHTML(unit)})</label>
+          <div class="weight-input-row">
+            <input type="number" id="weight-input" min="1" max="999" step="0.1"
+              inputmode="decimal"
+              value="${displayVal}"
+              placeholder="0.0" />
+            <span class="weight-unit">${_escapeHTML(unit)}</span>
+          </div>
+        </div>
+        <div class="form-error" id="form-error" role="alert"></div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="form-cancel">Cancel</button>
+          <button class="btn-submit" id="form-submit">Update Weight</button>
+        </div>
+      `;
+      formEl.querySelector('#form-cancel').addEventListener('click', () => this._closeForm());
+      formEl.querySelector('#form-submit').addEventListener('click', () => {
+        const wInput = formEl.querySelector('#weight-input');
+        const w = parseFloat(wInput.value);
+        if (isNaN(w) || w < 1 || w > 999) {
+          wInput.style.outline = '2px solid var(--error-color, #ef5350)';
+          wInput.focus();
+          return;
+        }
+        const valueLbs = unit === 'kg' ? Math.round(w * 2.20462 * 10) / 10 : w;
+        this._submitEdit({ value: valueLbs });
+      });
+    } else {
+      formEl.innerHTML = `
+        <div class="form-title">${meta.emoji} Edit ${_escapeHTML(meta.label)}</div>
+        <div class="form-field">
+          <div class="form-label-row">
+            <label class="form-label" for="minutes-slider">Minutes ago</label>
+            <span class="slider-value" id="slider-display">Now</span>
+          </div>
+          <input type="range" id="minutes-slider" min="0" max="480" step="1" value="${minutesAgo}" aria-label="Minutes ago" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="backdate-note">Note (optional)</label>
+          <input type="text" id="backdate-note" placeholder="Add a note…" value="${_escapeHTML(note || '')}" />
+        </div>
+        <div class="form-error" id="form-error" role="alert"></div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="form-cancel">Cancel</button>
+          <button class="btn-submit" id="form-submit">Update Event</button>
+        </div>
+      `;
+
+      const slider = formEl.querySelector('#minutes-slider');
+      const display = formEl.querySelector('#slider-display');
+      const _updateSliderDisplay = () => {
+        const v = parseInt(slider.value, 10);
+        const t = new Date(Date.now() - v * 60000);
+        const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        display.textContent = (v === 0 ? 'Now' : v === 1 ? '1 min ago' : `${v} min ago`) + ` · ${timeStr}`;
+      };
+      slider.addEventListener('input', _updateSliderDisplay);
+      _updateSliderDisplay();
+
+      formEl.querySelector('#form-cancel').addEventListener('click', () => this._closeForm());
+      formEl.querySelector('#form-submit').addEventListener('click', () => {
+        const minutesAgoVal = parseInt(slider.value, 10);
+        const noteVal = formEl.querySelector('#backdate-note').value.trim();
+        const ts = new Date(Date.now() - minutesAgoVal * 60000).toISOString();
+        const updates = { timestamp: ts };
+        if (noteVal) updates.note = noteVal;
+        else updates.note = '';  // clear note if empty
+        this._submitEdit(updates);
+      });
+    }
+
+    this._applyFormOpenState(null);
+  }
+
+  _submitEdit(updates) {
+    const eventId = this._editEventId;
+    if (!eventId) return;
+
+    updateEvent(this._hass, eventId, updates)
+      .then(() => {
+        this._setTimeout(() => {
+          this._closeForm();
+          this._setTimeout(() => { this._lastHash = null; }, 1500);
+        }, 600);
+      })
+      .catch(err => {
+        console.error('[pawsistant-card] update_event failed:', err);
+        this._showFormError('Failed to update event. Please try again.');
+      });
+  }
+
   /* ── Apply visual state when form opens ───────────────────────────── */
   _applyFormOpenState(activeBtn) {
     this.shadowRoot.querySelectorAll('.log-btn').forEach(b => {
@@ -1685,6 +1837,7 @@ class PawsistantCard extends HTMLElement {
     this._activeForm = null;
     this._activeType = null;
     this._activeTriggerBtn = null;
+    this._editEventId = null;
 
     const wrap = this.shadowRoot.getElementById('inline-form-wrap');
     if (wrap) wrap.classList.remove('open');

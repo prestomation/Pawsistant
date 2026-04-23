@@ -67,6 +67,41 @@ delete_event:
       selector:
         text:
 
+update_event:
+  name: Update Event
+  description: >
+    Update a previously logged event's timestamp, note, or value.
+    Only fields you provide are changed — omitted fields are left untouched.
+    The event_type cannot be changed.
+  fields:
+    event_id:
+      name: Event ID
+      description: The UUID of the event to update.
+      required: true
+      selector:
+        text:
+    timestamp:
+      name: Timestamp
+      description: >
+        New ISO 8601 timestamp (e.g. "2026-03-18T10:30:00-04:00").
+        Omit to keep the original timestamp.
+      required: false
+      selector:
+        text:
+    note:
+      name: Note
+      description: New note text. Omit to keep the original note.
+      required: false
+      selector:
+        text:
+    value:
+      name: Value
+      description: New numeric value (e.g. weight in lbs). Omit to keep the original value.
+      required: false
+      selector:
+        number:
+          mode: box
+
 add_dog:
   name: Add Pet
   description: >

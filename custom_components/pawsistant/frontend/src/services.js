@@ -16,6 +16,14 @@ export function deleteEvent(hass, eventId) {
   });
 }
 
+export function updateEvent(hass, eventId, { timestamp, note, value } = {}) {
+  const data = { event_id: eventId };
+  if (timestamp !== undefined) data.timestamp = timestamp;
+  if (note !== undefined) data.note = note;
+  if (value !== undefined) data.value = value;
+  return hass.callService('pawsistant', 'update_event', data);
+}
+
 export function setShownTypes(hass, dog, shownTypes) {
   return hass.callService('pawsistant', 'set_shown_types', {
     dog,
