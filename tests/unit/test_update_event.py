@@ -1,21 +1,80 @@
 """Unit tests for PawsistantStore.update_event()."""
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from __future__ import annotations
+
 import sys
+import types
+import pathlib
+import importlib.util
+from datetime import datetime, timezone, timedelta
+from unittest.mock import AsyncMock, MagicMock
 
-# Ensure HA stubs exist before importing store
-if "homeassistant" not in sys.modules:
-    sys.modules["homeassistant"] = MagicMock()
-    sys.modules["homeassistant.core"] = MagicMock()
-    sys.modules["homeassistant.util"] = MagicMock()
-    sys.modules["homeassistant.util.dt"] = MagicMock()
+# Inject HA stubs
+def _inject_stubs() -> None:
+    if "homeassistant" not in sys.modules:
+        ha_mod = types.ModuleType("homeassistant")
+        sys.modules["homeassistant"] = ha_mod
+    if "homeassistant.core" not in sys.modules:
+        core_mod = types.ModuleType("homeassistant.core")
+        sys.modules["homeassistant.core"] = core_mod
+    if "homeassistant.helpers" not in sys.modules:
+        helpers_mod = types.ModuleType("homeassistant.helpers")
+        sys.modules["homeassistant.helpers"] = helpers_mod
+    if "homeassistant.helpers.storage" not in sys.modules:
+        storage_mod = types.ModuleType("homeassistant.helpers.storage")
+        storage_mod.Store = MagicMock
+        sys.modules["homeassistant.helpers.storage"] = storage_mod
+    if "homeassistant.util" not in sys.modules:
+        util_mod = types.ModuleType("homeassistant.util")
+        sys.modules["homeassistant.util"] = util_mod
+    if "homeassistant.util.dt" not in sys.modules:
+        dt_mod = types.ModuleType("homeassistant.util.dt")
+        # Provide a now() that returns UTC-aware datetime
+        dt_mod.now = lambda tz=None: datetime.now(tz or timezone.utc)
+        dt_util_mod = dt_mod
+        sys.modules["homeassistant.util.dt"] = dt_mod
 
-from custom_components.pawsistant.store import PawsistantStore
+_inject_stubs()
+
+# Remove stale stubs so importlib loads from disk
+for key in list(sys.modules):
+    if key == "custom_components.pawsistant" or key.startswith("custom_components.pawsistant."):
+        del sys.modules[key]
+
+# Load const.py from real source
+_repo_root = pathlib.Path(__file__).parent.parent.parent
+_spec = importlib.util.spec_from_file_location(
+    "custom_components.pawsistant.const",
+    _repo_root / "custom_components" / "pawsistant" / "const.py"
+)
+_const_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_const_mod)
+sys.modules["custom_components.pawsistant.const"] = _const_mod
+
+# Load store.py from real source
+_spec_store = importlib.util.spec_from_file_location(
+    "custom_components.pawsistant.store",
+    _repo_root / "custom_components" / "pawsistant" / "store.py"
+)
+_store_mod = importlib.util.module_from_spec(_spec_store)
+_spec_store.loader.exec_module(_store_mod)
+sys.modules["custom_components.pawsistant.store"] = _store_mod
+
+PawsistantStore = _store_mod.PawsistantStore
 
 
-@pytest.fixture
-def store():
-    """Create a PawsistantStore with in-memory data."""
+def _parse_timestamp(s):
+    """Parse ISO timestamp — mirrors store's internal helper."""
+    if not s:
+        return datetime(2000, 1, 1, tzinfo=timezone.utc)
+    s = s.replace("Z", "+00:00")
+    return datetime.fromisoformat(s)
+
+
+import pytest
+
+
+def _make_store():
+    """Create a PawsistantStore with in-memory data (no HA hass object needed)."""
     s = PawsistantStore.__new__(PawsistantStore)
     s._hass = MagicMock()
     s._meta = {"known_years": [2025, 2026], "event_types": {}, "button_metrics": {}}
@@ -38,8 +97,9 @@ def _add_event(store, year, event_id, timestamp, note="", event_type="walk", dog
 
 
 @pytest.mark.asyncio
-async def test_update_note(store):
+async def test_update_note():
     """Update only the note field."""
+    store = _make_store()
     _add_event(store, 2026, "ev1", "2026-04-22T10:00:00+00:00", note="old note")
 
     store._save_year = AsyncMock()
@@ -55,8 +115,9 @@ async def test_update_note(store):
 
 
 @pytest.mark.asyncio
-async def test_update_timestamp_same_year(store):
+async def test_update_timestamp_same_year():
     """Update timestamp within the same year."""
+    store = _make_store()
     _add_event(store, 2026, "ev2", "2026-04-22T10:00:00+00:00", note="test")
 
     store._save_year = AsyncMock()
@@ -72,8 +133,9 @@ async def test_update_timestamp_same_year(store):
 
 
 @pytest.mark.asyncio
-async def test_update_timestamp_cross_year(store):
+async def test_update_timestamp_cross_year():
     """Move event from 2026 to 2025 by changing timestamp."""
+    store = _make_store()
     _add_event(store, 2026, "ev3", "2026-01-01T10:00:00+00:00", note="cross year")
 
     store._save_year = AsyncMock()
@@ -95,8 +157,9 @@ async def test_update_timestamp_cross_year(store):
 
 
 @pytest.mark.asyncio
-async def test_update_not_found(store):
+async def test_update_not_found():
     """Return None when event_id doesn't exist."""
+    store = _make_store()
     store._save_year = AsyncMock()
     store._ensure_year_loaded = AsyncMock()
 
@@ -105,8 +168,9 @@ async def test_update_not_found(store):
 
 
 @pytest.mark.asyncio
-async def test_update_value(store):
+async def test_update_value():
     """Update the value field (for weight events)."""
+    store = _make_store()
     _add_event(store, 2026, "ev4", "2026-04-22T10:00:00+00:00", event_type="weight", value=45.0)
 
     store._save_year = AsyncMock()
