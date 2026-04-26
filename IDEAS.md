@@ -2,8 +2,13 @@
 
 ## Card
 
+- **Configurable timeline range** — extend the 24h timeline to show last 2, 3, or 7 days, configurable in card options. Useful for reviewing and deleting old events directly from the UI.
 - **Customizable button set** — let users configure which buttons appear, their order, labels, and icons via the card editor. Currently hardcoded to `shown_types` list; should support arbitrary event types and custom buttons.
 - **Multi-dog card UX** — currently one card per dog. Consider: dog switcher dropdown, auto-discover all dogs with tabs, or combined "all dogs" view.
+
+## Data
+
+- **Track who created events** — add `created_by` field storing the HA user ID, so multi-person households can see who logged what.
 
 ## Architecture
 
