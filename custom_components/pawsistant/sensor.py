@@ -285,6 +285,7 @@ class _PawsistantSensorBase(CoordinatorEntity[PawsistantCoordinator], SensorEnti
         and shown_types on every sensor so the card can render dynamic metadata."""
         attrs = {
             "dog": self._dog_name,
+            "dog_id": self._dog_id,
             "species": self._species,
             "event_types": self.coordinator.event_types,
             "button_metrics": self.coordinator.button_metrics,

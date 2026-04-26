@@ -160,6 +160,12 @@ class PawsistantCard extends HTMLElement {
     this._editingEventType = null;      // null = list view; object = editing/adding
     // { event_type: string, name: string, icon: string, color: string, metric: string }
     this._eventTypeFormError = null;    // error message for form
+    // Paginated timeline state
+    this._timelineLimit = 50;
+    this._timelineEvents = [];
+    this._timelineTotal = 0;
+    this._timelineLoading = false;
+    this._timelineFetched = false;
 
   }
 
@@ -187,6 +193,13 @@ class PawsistantCard extends HTMLElement {
       // But DO re-render the gear panel so shown_types updates propagate
       if (!this._activeForm) {
         this._render();
+      }
+    }
+    // Trigger initial timeline fetch once dog_id is available from sensor attributes
+    if (!this._timelineFetched && !this._timelineLoading) {
+      const dogId = this._getDogId();
+      if (dogId) {
+        this._fetchTimeline();
       }
     }
   }
@@ -278,6 +291,47 @@ class PawsistantCard extends HTMLElement {
     return this._registryCache;
   }
 
+  /* ── Dog ID lookup ─────────────────────────────────────────────────── */
+  _getDogId() {
+    if (!this._hass || !this._config.dog) return null;
+    const dogNameLower = this._config.dog.toLowerCase();
+    for (const state of Object.values(this._hass.states)) {
+      const attrs = state.attributes || {};
+      if (attrs.dog && attrs.dog.toLowerCase() === dogNameLower && attrs.dog_id) {
+        return attrs.dog_id;
+      }
+    }
+    return null;
+  }
+
+  /* ── Fetch timeline via WebSocket ──────────────────────────────────── */
+  async _fetchTimeline() {
+    const dogId = this._getDogId();
+    if (!dogId || !this._hass || !this._hass.connection) return;
+
+    this._timelineLoading = true;
+    this._render();
+
+    try {
+      const result = await this._hass.connection.sendMessagePromise({
+        type: 'pawsistant/get_events',
+        dog_id: dogId,
+        offset: 0,
+        limit: this._timelineLimit,
+      });
+      this._timelineEvents = result.events || [];
+      this._timelineTotal = result.total || 0;
+      this._timelineFetched = true;
+    } catch (err) {
+      console.warn('[pawsistant-card] Failed to fetch timeline via WebSocket, using sensor fallback:', err);
+      this._timelineEvents = [];
+      this._timelineFetched = false;
+    } finally {
+      this._timelineLoading = false;
+      this._render();
+    }
+  }
+
   /* ── Render ────────────────────────────────────────────────────────── */
   _render() {
     const hass = this._hass;
@@ -291,15 +345,22 @@ class PawsistantCard extends HTMLElement {
     const peeCount = stateNum(hass, ent.pee_count);
     const poopCount = stateNum(hass, ent.poop_count);
     const medDays = stateNum(hass, ent.medicine_days);
-    const events = stateAttr(hass, ent.timeline, 'events') || [];
+    // Use WS-fetched events if available; fall back to sensor attributes for backward compat
+    const events = this._timelineFetched
+      ? this._timelineEvents
+      : (stateAttr(hass, ent.timeline, 'events') || []);
     const weightUnit = this._weightUnit();
 
     const medDaysText = medDays === null ? '—' : Math.floor(medDays) + 'd';
 
     /* Build timeline HTML */
     let timelineHTML = '';
-    if (events.length === 0) {
-      timelineHTML = '<div class="empty">No events in the last 24 hours</div>';
+    if (this._timelineLoading && events.length === 0) {
+      timelineHTML = '<div class="empty">Loading timeline…</div>';
+    } else if (events.length === 0) {
+      timelineHTML = this._timelineFetched
+        ? '<div class="empty">No events logged yet</div>'
+        : '<div class="empty">No events in the last 24 hours</div>';
     } else {
       let lastDate = null;
       for (const ev of events) {
@@ -330,6 +391,12 @@ class PawsistantCard extends HTMLElement {
           </div>
         `;
       }
+    }
+
+    /* Build load-more button */
+    let loadMoreHTML = '';
+    if (this._timelineFetched && this._timelineTotal > events.length) {
+      loadMoreHTML = `<button class="load-more-btn" id="load-more-btn">Load more (showing ${events.length} of ${this._timelineTotal})</button>`;
     }
 
     /* Build quick-log buttons */
@@ -734,6 +801,22 @@ class PawsistantCard extends HTMLElement {
           .log-btn .btn-label { font-size: 10px; }
         }
 
+        /* ── Load more button ── */
+        .load-more-btn {
+          display: block;
+          width: calc(100% - 32px);
+          margin: 8px 16px 12px;
+          padding: 10px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 8px;
+          background: transparent;
+          color: var(--secondary-text-color);
+          font-size: 13px;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+        .load-more-btn:hover { background: var(--secondary-background-color, #f5f5f5); }
+
         /* ── Event Types Manager Panel ── */
         .event-types-panel {
           padding: 12px 0 0;
@@ -973,7 +1056,7 @@ class PawsistantCard extends HTMLElement {
       <ha-card class="card">
         ${this._eventTypesPanel
           ? this._renderEventTypesPanel(registry, metrics)
-          : this._renderMainContent(dogName, buttonsHTML, buttonsPerRow, timelineHTML)
+          : this._renderMainContent(dogName, buttonsHTML, buttonsPerRow, timelineHTML, loadMoreHTML)
         }
       </ha-card>
     `;
@@ -982,7 +1065,7 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Render main card content ──────────────────────────────────────── */
-  _renderMainContent(dogName, buttonsHTML, buttonsPerRow, timelineHTML) {
+  _renderMainContent(dogName, buttonsHTML, buttonsPerRow, timelineHTML, loadMoreHTML = '') {
     return `
         <div class="card-header">
           <span class="card-title">🐾 ${_escapeHTML(dogName)}</span>
@@ -1004,8 +1087,9 @@ class PawsistantCard extends HTMLElement {
           </div>
         </div>
 
-        <div class="timeline-header">📋 Last 24 hours</div>
+        <div class="timeline-header">📋 Timeline</div>
         <div class="timeline-body" id="timeline-body">${timelineHTML}</div>
+        ${loadMoreHTML}
       `;
   }
 
@@ -1431,6 +1515,15 @@ class PawsistantCard extends HTMLElement {
       });
     });
 
+    /* Load more button */
+    const loadMoreBtn = root.querySelector('#load-more-btn');
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener('click', () => {
+        this._timelineLimit += 50;
+        this._fetchTimeline();
+      });
+    }
+
     /* ── Event Types Manager Panel listeners ── */
 
     // Gear button to open panel
@@ -1586,6 +1679,7 @@ class PawsistantCard extends HTMLElement {
           btn.classList.add('flash');
           btn.addEventListener('animationend', () => btn.classList.remove('flash'), { once: true });
         }
+        this._fetchTimeline();
       })
       .catch(() => {
         if (btn) delete btn.dataset.pending;
@@ -1799,7 +1893,7 @@ class PawsistantCard extends HTMLElement {
       .then(() => {
         this._setTimeout(() => {
           this._closeForm();
-          this._setTimeout(() => { this._lastHash = null; }, 1500);
+          this._fetchTimeline();
         }, 600);
       })
       .catch(err => {
@@ -1870,7 +1964,7 @@ class PawsistantCard extends HTMLElement {
         this._showSuccessFlash(btn);
         this._setTimeout(() => {
           this._closeForm();
-          this._setTimeout(() => { this._lastHash = null; }, 1500);
+          this._fetchTimeline();
         }, 600);
       })
       .catch(err => {
@@ -1887,7 +1981,7 @@ class PawsistantCard extends HTMLElement {
         this._showSuccessFlash(btn);
         this._setTimeout(() => {
           this._closeForm();
-          this._setTimeout(() => { this._lastHash = null; }, 1500);
+          this._fetchTimeline();
         }, 600);
       })
       .catch(err => {
@@ -1918,6 +2012,7 @@ class PawsistantCard extends HTMLElement {
     if (btn) btn.dataset.pending = '1';
     deleteEvent(this._hass, eventId).then(() => {
       if (btn) delete btn.dataset.pending;
+      this._fetchTimeline();
     }).catch(err => {
       console.error('[pawsistant-card] delete_event failed:', err);
       if (btn) {

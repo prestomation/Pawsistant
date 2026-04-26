@@ -73,6 +73,15 @@ def _inject_stubs() -> None:
     comp_mod.http = http_mod
     sys.modules["homeassistant.components.http"] = http_mod
 
+    # homeassistant.components.websocket_api
+    ws_mod = types.ModuleType("homeassistant.components.websocket_api")
+    ws_mod.websocket_command = lambda schema: (lambda f: f)
+    ws_mod.async_response = lambda f: f
+    ws_mod.async_register_command = MagicMock()
+    ws_mod.ActiveConnection = object
+    comp_mod.websocket_api = ws_mod
+    sys.modules["homeassistant.components.websocket_api"] = ws_mod
+
     network_mod = types.ModuleType("homeassistant.components.network")
     comp_mod.network = network_mod
     sys.modules["homeassistant.components.network"] = network_mod
@@ -96,14 +105,20 @@ def _inject_stubs() -> None:
     sys.modules["homeassistant.helpers.config_validation"] = cv_mod
     helpers_mod.config_validation = cv_mod
 
-    # homeassistant.util.logging (needed by pytest-homeassistant-custom-component fixture)
+    # homeassistant.util + homeassistant.util.dt + homeassistant.util.logging
     util_mod = types.ModuleType("homeassistant.util")
     util_logging_mod = types.ModuleType("homeassistant.util.logging")
     util_logging_mod.log_exception = MagicMock()
+    util_dt_mod = types.ModuleType("homeassistant.util.dt")
+    from datetime import datetime, timezone
+    util_dt_mod.now = lambda tz=None: datetime.now(tz or timezone.utc)
+    util_dt_mod.DEFAULT_TIME_ZONE = timezone.utc
     sys.modules["homeassistant.util"] = util_mod
     sys.modules["homeassistant.util.logging"] = util_logging_mod
+    sys.modules["homeassistant.util.dt"] = util_dt_mod
     ha_mod.util = util_mod
     util_mod.logging = util_logging_mod
+    util_mod.dt = util_dt_mod
 
     # voluptuous
     vol_mod = types.ModuleType("voluptuous")
@@ -135,9 +150,11 @@ def _inject_stubs() -> None:
     _coord.PawsistantCoordinator = MagicMock
     sys.modules["custom_components.pawsistant.coordinator"] = _coord
 
+    from datetime import datetime, timezone
     _store = types.ModuleType("custom_components.pawsistant.store")
     _store.PawsistantStore = MagicMock
     _store.VALID_EVENT_TYPES = []
+    _store._parse_timestamp = lambda ts: datetime.min.replace(tzinfo=timezone.utc)
     sys.modules["custom_components.pawsistant.store"] = _store
 
     # Remove any previously loaded version of the module under test so it

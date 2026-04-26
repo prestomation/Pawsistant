@@ -24,9 +24,11 @@ from typing import Any
 
 import voluptuous as vol
 
+from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntry
 
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.util import dt as dt_util
 try:
     from homeassistant.components.http import StaticPathConfig
 except ImportError:
@@ -53,7 +55,7 @@ from .const import (
     DEFAULT_BUTTON_METRICS,
 )
 from .coordinator import PawsistantCoordinator
-from .store import PawsistantStore
+from .store import PawsistantStore, _parse_timestamp
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -268,6 +270,84 @@ async def _ensure_frontend_registered(hass: HomeAssistant) -> None:
     """
     reg = PawsistantCardRegistration(hass)
     await reg.async_register()
+
+
+# ---------------------------------------------------------------------------
+# async_setup — intentionally minimal. Static path + Lovelace resource
+# registration is handled in async_setup_entry to avoid double-registration.
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# WebSocket command: pawsistant/get_events
+# ---------------------------------------------------------------------------
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "pawsistant/get_events",
+        vol.Required("dog_id"): str,
+        vol.Optional("offset", default=0): vol.All(int, vol.Range(min=0)),
+        vol.Optional("limit", default=50): vol.All(int, vol.Range(min=1, max=500)),
+        vol.Optional("event_type"): str,
+    }
+)
+@websocket_api.async_response
+async def _ws_handle_get_events(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Handle pawsistant/get_events WebSocket command.
+
+    Returns a paginated list of events for a dog plus the total count,
+    so the frontend card can implement "Load more" without resending all data.
+    """
+    dog_id: str = msg["dog_id"]
+    offset: int = msg["offset"]
+    limit: int = msg["limit"]
+    event_type: str | None = msg.get("event_type")
+
+    store: PawsistantStore | None = None
+    for cfg_entry in hass.config_entries.async_entries(DOMAIN):
+        coord = getattr(cfg_entry, "runtime_data", None)
+        if isinstance(coord, PawsistantCoordinator):
+            store = coord.store
+            break
+
+    if store is None:
+        connection.send_error(
+            msg["id"],
+            "pawsistant_unavailable",
+            "No active Pawsistant coordinator found",
+        )
+        return
+
+    all_events = await store.get_all_events(dog_id, event_type=event_type)
+    all_events.sort(
+        key=lambda e: _parse_timestamp(e.get("timestamp", "")), reverse=True
+    )
+    total = len(all_events)
+    page = all_events[offset : offset + limit]
+
+    result_events: list[dict[str, Any]] = []
+    for e in page:
+        ts = _parse_timestamp(e.get("timestamp", ""))
+        local_ts = ts.astimezone(dt_util.DEFAULT_TIME_ZONE)
+        entry: dict[str, Any] = {
+            "type": e.get("event_type", ""),
+            "time": local_ts.strftime("%I:%M %p").lstrip("0"),
+            "day": local_ts.strftime("%a"),
+            "date": local_ts.strftime("%m/%d"),
+            "iso": local_ts.isoformat(),
+            "note": e.get("note", ""),
+            "event_id": e.get("id", ""),
+        }
+        if e.get("value") is not None:
+            entry["value"] = e["value"]
+        result_events.append(entry)
+
+    connection.send_result(msg["id"], {"events": result_events, "total": total})
 
 
 # ---------------------------------------------------------------------------
@@ -776,6 +856,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         handle_set_shown_types,
         schema=SET_SHOWN_TYPES_SCHEMA,
     )
+
+    # Register WebSocket command for paginated timeline (safe to re-register on reload)
+    websocket_api.async_register_command(hass, _ws_handle_get_events)
 
     return True
 
