@@ -14,6 +14,8 @@ import { METRIC_LABELS } from './metrics.js';
 import { setupLongPress, withCooldown } from './interactions.js';
 import { logEvent, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services.js';
 import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, toDisplayWeight } from './utils.js';
+import { openBackdateForm, openWeightForm } from './forms.js';
+import './button-card.js';
 
 /* ── Card picker registration ───────────────────────────────────────────── */
 window.customCards = window.customCards || [];
@@ -107,12 +109,18 @@ class PawsistantCardEditor extends HTMLElement {
             <option value="kg" ${weightUnit === 'kg' ? 'selected' : ''}>kg</option>
           </select>
         </div>
-
+        <div>
+          <label class="field-label" style="display: flex; gap: 8px; align-items: center;">
+            <input type="checkbox" id="ed-haptics" name="haptics" aria-describedby="ed-haptics-hint" ${cfg.haptics ? 'checked' : ''} />
+            <span>Enable haptic feedback on long-press</span>
+          </label>
+          <div class="hint" id="ed-haptics-hint">Vibrates briefly when a button is held. Silent on devices that do not support vibration.</div>
+        </div>
       </div>
     `;
 
-    // Attach listeners on text/select inputs
-    this.shadowRoot.querySelectorAll('input[type="text"], input[type="number"], select').forEach(el => {
+    // Attach listeners on text/select/checkbox inputs
+    this.shadowRoot.querySelectorAll('input[type="text"], input[type="number"], input[type="checkbox"], select').forEach(el => {
       el.addEventListener('change', () => this._valueChanged());
     });
 
@@ -128,6 +136,16 @@ class PawsistantCardEditor extends HTMLElement {
       const val = el.value.trim();
       if (val) {
         newConfig[key] = val;
+      } else {
+        delete newConfig[key];
+      }
+    });
+
+    // Checkbox inputs
+    this.shadowRoot.querySelectorAll('input[type="checkbox"]').forEach(el => {
+      const key = el.name;
+      if (el.checked) {
+        newConfig[key] = true;
       } else {
         delete newConfig[key];
       }
@@ -151,6 +169,7 @@ class PawsistantCard extends HTMLElement {
     this._activeForm = null; // null | 'backdate' | 'weight'
     this._activeType = null; // event type for backdate form
     this._activeTriggerBtn = null; // U17 — return focus to trigger btn
+    this._activeFormCleanup = null; // cleanup fn from forms.js submit resolve
     // U5 — track all setTimeout IDs for cleanup
     this._timers = [];
     // U9 — delete confirm state: eventId -> timeout id
@@ -1376,6 +1395,7 @@ class PawsistantCard extends HTMLElement {
               this._openBackdateForm(btn, type);
             }
           },
+          haptics: !!this._config.haptics,
         }, this._timers);
         // Store cleanup for future use if needed
         btn._longPressCleanup = cleanup;
@@ -1592,7 +1612,7 @@ class PawsistantCard extends HTMLElement {
       });
   }, 500);
 
-  /* ── Backdate form ─────────────────────────────────────────────────── */
+  /* Backdate form — delegates to forms.js */
   _openBackdateForm(activeBtn, type) {
     this._activeForm = 'backdate';
     this._activeType = type;
@@ -1601,50 +1621,26 @@ class PawsistantCard extends HTMLElement {
     const { registry } = this._registry();
     const meta = getMeta(type, registry);
     const formEl = this.shadowRoot.getElementById('inline-form');
-    /* U10 — proper <label for> on all inputs */
-    formEl.innerHTML = `
-      <div class="form-title">${meta.emoji} Log ${_escapeHTML(meta.label)}</div>
-      <div class="form-field">
-        <div class="form-label-row">
-          <label class="form-label" for="minutes-slider">Minutes ago</label>
-          <span class="slider-value" id="slider-display">Now</span>
-        </div>
-        <input type="range" id="minutes-slider" min="0" max="480" step="1" value="0" aria-label="Minutes ago" />
-      </div>
-      <div class="form-field">
-        <label class="form-label" for="backdate-note">Note (optional)</label>
-        <input type="text" id="backdate-note" placeholder="Add a note…" />
-      </div>
-      <div class="form-error" id="form-error" role="alert"></div>
-      <div class="form-actions">
-        <button class="btn-cancel" id="form-cancel">Cancel</button>
-        <button class="btn-submit" id="form-submit">Log Event</button>
-      </div>
-    `;
-
-    const slider = formEl.querySelector('#minutes-slider');
-    const display = formEl.querySelector('#slider-display');
-    const _updateSliderDisplay = () => {
-      const v = parseInt(slider.value, 10);
-      const t = new Date(Date.now() - v * 60000);
-      const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      display.textContent = (v === 0 ? 'Now' : v === 1 ? '1 min ago' : `${v} min ago`) + ` · ${timeStr}`;
-    };
-    slider.addEventListener('input', _updateSliderDisplay);
-    _updateSliderDisplay();
-
-    formEl.querySelector('#form-cancel').addEventListener('click', () => this._closeForm());
-    formEl.querySelector('#form-submit').addEventListener('click', () => {
-      const minutesAgo = parseInt(slider.value, 10);
-      const note = formEl.querySelector('#backdate-note').value.trim();
-      const timestamp = new Date(Date.now() - minutesAgo * 60000).toISOString();
-      this._submitBackdate(activeBtn, type, timestamp, note || undefined);
-    });
+    while (formEl.firstChild) formEl.removeChild(formEl.firstChild);
 
     this._applyFormOpenState(activeBtn);
+
+    openBackdateForm({ container: formEl, meta, defaults: {} })
+      .then((result) => {
+        if (result === null) {
+          // forms.js already cleaned up the DOM on cancel
+          this._activeFormCleanup = null;
+          this._closeForm();
+          return;
+        }
+        // Form stays mounted so _showFormError can target #form-error on failure.
+        // _closeForm will invoke this on success or any external close.
+        this._activeFormCleanup = result.cleanup;
+        this._submitBackdate(activeBtn, type, result.timestamp, result.note || undefined);
+      });
   }
 
-  /* ── Weight form ───────────────────────────────────────────────────── */
+  /* Weight form — delegates to forms.js */
   _openWeightForm(activeBtn) {
     this._activeForm = 'weight';
     this._activeType = 'weight';
@@ -1653,43 +1649,26 @@ class PawsistantCard extends HTMLElement {
     const ent = this._entities();
     const unit = this._weightUnit();
     const currentWeight = toDisplayWeight(stateNum(this._hass, ent.weight), unit);
-
+    const { registry } = this._registry();
+    const meta = getMeta('weight', registry);
     const formEl = this.shadowRoot.getElementById('inline-form');
-    /* U10 — <label for>, U21 — inputmode="decimal", U22 — configurable unit */
-    formEl.innerHTML = `
-      <div class="form-title">⚖️ Log Weight</div>
-      <div class="form-field">
-        <label class="form-label" for="weight-input">Weight (${_escapeHTML(unit)})</label>
-        <div class="weight-input-row">
-          <input type="number" id="weight-input" min="1" max="999" step="0.1"
-            inputmode="decimal"
-            value="${currentWeight !== null ? currentWeight : ''}"
-            placeholder="0.0" />
-          <span class="weight-unit">${_escapeHTML(unit)}</span>
-        </div>
-      </div>
-      <div class="form-error" id="form-error" role="alert"></div>
-      <div class="form-actions">
-        <button class="btn-cancel" id="form-cancel">Cancel</button>
-        <button class="btn-submit" id="form-submit">Log Weight</button>
-      </div>
-    `;
-
-    formEl.querySelector('#form-cancel').addEventListener('click', () => this._closeForm());
-    formEl.querySelector('#form-submit').addEventListener('click', () => {
-      const weightInput = formEl.querySelector('#weight-input');
-      const value = parseFloat(weightInput.value);
-      if (isNaN(value) || value < 1 || value > 999) {
-        weightInput.style.outline = '2px solid var(--error-color, #ef5350)';
-        weightInput.focus();
-        return;
-      }
-      /* If unit is kg, convert to lbs before storing (store is always lbs) */
-      const valueLbs = unit === 'kg' ? Math.round(value * 2.20462 * 10) / 10 : value;
-      this._submitWeight(activeBtn, valueLbs);
-    });
+    while (formEl.firstChild) formEl.removeChild(formEl.firstChild);
 
     this._applyFormOpenState(activeBtn);
+
+    openWeightForm({ container: formEl, meta, currentWeight, displayUnit: unit })
+      .then((result) => {
+        if (result === null) {
+          // forms.js already cleaned up the DOM on cancel
+          this._activeFormCleanup = null;
+          this._closeForm();
+          return;
+        }
+        // Form stays mounted so _showFormError can target #form-error on failure.
+        // _closeForm will invoke this on success or any external close.
+        this._activeFormCleanup = result.cleanup;
+        this._submitWeight(activeBtn, result.value);
+      });
   }
 
   /* ── Edit form for existing event ───────────────────────────────────── */
@@ -1838,6 +1817,13 @@ class PawsistantCard extends HTMLElement {
     this._activeType = null;
     this._activeTriggerBtn = null;
     this._editEventId = null;
+
+    // Tear down any form left mounted by a submit-path resolve. Safe no-op
+    // for the cancel path (cleanup already ran and we set this to null).
+    if (this._activeFormCleanup) {
+      try { this._activeFormCleanup(); } catch (_) { /* ignore */ }
+      this._activeFormCleanup = null;
+    }
 
     const wrap = this.shadowRoot.getElementById('inline-form-wrap');
     if (wrap) wrap.classList.remove('open');
