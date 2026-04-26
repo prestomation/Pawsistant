@@ -503,10 +503,7 @@ class PawsistantRecentTimelineSensor(_PawsistantSensorBase):
                 "note": e.get("note", ""),
                 "event_id": e.get("id", ""),
             })
-        # Also expose the very last event ID for undo
-        last_event_id = events[0].get("id", "") if events else ""
         return {
             **super().extra_state_attributes,
             "events": timeline,
-            "last_event_id": last_event_id,
         }
