@@ -1,0 +1,77 @@
+name: Discord Notifications
+
+on:
+  workflow_run:
+    workflows: ["Test", "Integration Tests", "Release"]
+    types: [completed]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  notify-workflow:
+    # Release: always notify. Test/Integration Tests: only on failure.
+    if: >-
+      github.event_name == 'workflow_run' &&
+      (github.event.workflow_run.name == 'Release' ||
+      (github.event.workflow_run.conclusion == 'failure' &&
+      (github.event.workflow_run.name == 'Test' ||
+      github.event.workflow_run.name == 'Integration Tests')))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+          ROLE_ID: "1482439580006354987"
+        run: |
+          if [ "$CONCLUSION" = "success" ]; then
+            EMOJI="✅"
+          elif [ "$CONCLUSION" = "failure" ]; then
+            EMOJI="❌"
+          elif [ "$CONCLUSION" = "cancelled" ]; then
+            EMOJI="⏹️"
+          else
+            EMOJI="⚠️"
+          fi
+
+          SHORT_SHA="${COMMIT_SHA:0:7}"
+          CONTENT="<@&${ROLE_ID}> ${EMOJI} **${WORKFLOW_NAME}** ${CONCLUSION} on \`${BRANCH}\` (\`${SHORT_SHA}\`) — [View run](${RUN_URL})"
+
+          curl -fsSL -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg c "$CONTENT" '{content: $c}')"
+
+  notify-review:
+    if: github.event_name == 'pull_request_review'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord review notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+          REVIEW_URL: ${{ github.event.review.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEWER: ${{ github.event.review.user.login }}
+          ROLE_ID: "1482439580006354987"
+        run: |
+          if [ "$REVIEW_STATE" = "approved" ]; then
+            EMOJI="✅"
+            ACTION="approved"
+          elif [ "$REVIEW_STATE" = "changes_requested" ]; then
+            EMOJI="🔄"
+            ACTION="requested changes on"
+          else
+            EMOJI="💬"
+            ACTION="commented on"
+          fi
+
+          CONTENT="<@&${ROLE_ID}> ${EMOJI} **${REVIEWER}** ${ACTION} [PR #${PR_NUMBER}: ${PR_TITLE}](${REVIEW_URL})"
+
+          curl -fsSL -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg c "$CONTENT" '{content: $c}')"
