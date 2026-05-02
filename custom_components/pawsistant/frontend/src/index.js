@@ -305,9 +305,16 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Fetch timeline via WebSocket ──────────────────────────────────── */
-  async _fetchTimeline() {
+  async _fetchTimeline(append = false) {
     const dogId = this._getDogId();
     if (!dogId || !this._hass || !this._hass.connection) return;
+
+    const offset = append ? this._timelineEvents.length : 0;
+    const limit = append ? 50 : this._timelineLimit;
+
+    // Save scroll position to prevent jump on re-render
+    const scrollContainer = this.shadowRoot?.querySelector('.timeline-body');
+    const savedScroll = scrollContainer ? scrollContainer.scrollTop : 0;
 
     this._timelineLoading = true;
     this._render();
@@ -316,20 +323,47 @@ class PawsistantCard extends HTMLElement {
       const result = await this._hass.connection.sendMessagePromise({
         type: 'pawsistant/get_events',
         dog_id: dogId,
-        offset: 0,
-        limit: this._timelineLimit,
+        offset: offset,
+        limit: limit,
       });
-      this._timelineEvents = result.events || [];
+      if (append) {
+        this._timelineEvents = [...this._timelineEvents, ...(result.events || [])];
+      } else {
+        this._timelineEvents = result.events || [];
+        this._timelineLimit = limit;
+      }
       this._timelineTotal = result.total || 0;
       this._timelineFetched = true;
     } catch (err) {
       console.warn('[pawsistant-card] Failed to fetch timeline via WebSocket, using sensor fallback:', err);
-      this._timelineEvents = [];
+      if (!append) this._timelineEvents = [];
       this._timelineFetched = false;
     } finally {
       this._timelineLoading = false;
       this._render();
+      // Restore scroll position after render
+      if (scrollContainer) {
+        requestAnimationFrame(() => { scrollContainer.scrollTop = savedScroll; });
+      }
+      // Set up IntersectionObserver on load-more button for infinite scroll
+      this._setupLoadMoreObserver();
     }
+  }
+
+  _setupLoadMoreObserver() {
+    // Disconnect existing observer
+    if (this._loadMoreObserver) {
+      this._loadMoreObserver.disconnect();
+      this._loadMoreObserver = null;
+    }
+    const btn = this.shadowRoot?.querySelector('#load-more-btn');
+    if (!btn) return;
+    this._loadMoreObserver = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !this._timelineLoading) {
+        this._fetchTimeline(true);
+      }
+    }, { rootMargin: '100px' });
+    this._loadMoreObserver.observe(btn);
   }
 
   /* ── Render ────────────────────────────────────────────────────────── */
@@ -396,7 +430,10 @@ class PawsistantCard extends HTMLElement {
     /* Build load-more button */
     let loadMoreHTML = '';
     if (this._timelineFetched && this._timelineTotal > events.length) {
-      loadMoreHTML = `<button class="load-more-btn" id="load-more-btn">Load more (showing ${events.length} of ${this._timelineTotal})</button>`;
+      const showingLabel = this._timelineLoading
+        ? 'Loading...'
+        : `Load more (showing ${events.length} of ${this._timelineTotal})`;
+      loadMoreHTML = `<button class="load-more-btn" id="load-more-btn">${showingLabel}</button>`;
     }
 
     /* Build quick-log buttons */
@@ -1515,12 +1552,11 @@ class PawsistantCard extends HTMLElement {
       });
     });
 
-    /* Load more button */
+    /* Load more button — click is fallback, IntersectionObserver auto-triggers */
     const loadMoreBtn = root.querySelector('#load-more-btn');
     if (loadMoreBtn) {
       loadMoreBtn.addEventListener('click', () => {
-        this._timelineLimit += 50;
-        this._fetchTimeline();
+        this._fetchTimeline(true);
       });
     }
 
