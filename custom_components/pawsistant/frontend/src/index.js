@@ -305,6 +305,39 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Fetch timeline via WebSocket ──────────────────────────────────── */
+  /* Generate HTML for a batch of events, including day headers */
+  _buildEventRowsHTML(events, registry, lastDate) {
+    let html = '';
+    let currentDate = lastDate;
+    for (const ev of events) {
+      const meta = getMeta(ev.type, registry);
+      const evDate = ev.date || '';
+      if (evDate !== currentDate) {
+        const label = evDate || ev.day || '';
+        html += `<div class="day-header">${_escapeHTML(label)}</div>`;
+        currentDate = evDate;
+      }
+      const noteHTML = ev.note
+        ? `<span class="event-note" title="${_escapeHTML(ev.note)}">${_escapeHTML(ev.note)}</span>`
+        : '';
+      const delAriaLabel = `Delete ${_escapeHTML(ev.type)} event at ${_escapeHTML(ev.time)}`;
+      const editAriaLabel = `Edit ${_escapeHTML(ev.type)} event at ${_escapeHTML(ev.time)}`;
+      html += `
+          <div class="event-row" data-id="${_escapeHTML(ev.event_id)}" data-type="${_escapeHTML(ev.type)}" data-timestamp="${_escapeHTML(ev.iso || '')}" data-note="${_escapeHTML(ev.note || '')}" data-value="${ev.value !== undefined && ev.value !== null ? ev.value : ''}"  >
+            <span class="event-emoji">${meta.emoji}</span>
+            <span class="event-time">${_escapeHTML(ev.time)}</span>
+            <span class="event-type">${_escapeHTML(meta.label)}</span>
+            ${noteHTML}
+            <button class="edit-btn" data-id="${_escapeHTML(ev.event_id)}"
+              aria-label="${editAriaLabel}" title="Edit event">✏️</button>
+            <button class="delete-btn" data-id="${_escapeHTML(ev.event_id)}"
+              aria-label="${delAriaLabel}" title="Delete event">🗑️</button>
+          </div>
+        `;
+    }
+    return { html, lastDate: currentDate };
+  }
+
   async _fetchTimeline(append = false) {
     const dogId = this._getDogId();
     if (!dogId || !this._hass || !this._hass.connection) return;
@@ -312,10 +345,57 @@ class PawsistantCard extends HTMLElement {
     const offset = append ? this._timelineEvents.length : 0;
     const limit = append ? 50 : this._timelineLimit;
 
-    // Save scroll position to prevent jump on re-render
-    const scrollContainer = this.shadowRoot?.querySelector('.timeline-body');
-    const savedScroll = scrollContainer ? scrollContainer.scrollTop : 0;
+    if (append) {
+      // Append mode: inject rows directly, no full re-render
+      const loadMoreBtn = this.shadowRoot?.querySelector('#load-more-btn');
+      if (loadMoreBtn) loadMoreBtn.textContent = 'Loading...';
+      this._timelineLoading = true;
 
+      try {
+        const result = await this._hass.connection.sendMessagePromise({
+          type: 'pawsistant/get_events',
+          dog_id: dogId,
+          offset: offset,
+          limit: limit,
+        });
+        const newEvents = result.events || [];
+        this._timelineEvents = [...this._timelineEvents, ...newEvents];
+        this._timelineTotal = result.total || 0;
+        this._timelineFetched = true;
+
+        // Inject new rows directly into the DOM
+        const timelineBody = this.shadowRoot?.querySelector('.timeline-body');
+        if (timelineBody && newEvents.length > 0) {
+          const registry = this._getRegistry();
+          // Find last date from existing DOM
+          const existingHeaders = timelineBody.querySelectorAll('.day-header');
+          const lastDate = existingHeaders.length > 0
+            ? existingHeaders[existingHeaders.length - 1].textContent : null;
+          const { html } = this._buildEventRowsHTML(newEvents, registry, lastDate);
+          // Insert before the load-more button
+          const btn = timelineBody.querySelector('#load-more-btn');
+          if (btn) {
+            btn.insertAdjacentHTML('beforebegin', html);
+          } else {
+            timelineBody.insertAdjacentHTML('beforeend', html);
+          }
+          // Update or remove load-more button
+          if (this._timelineTotal <= this._timelineEvents.length) {
+            btn?.remove();
+          } else {
+            if (btn) btn.textContent = `Load more (showing ${this._timelineEvents.length} of ${this._timelineTotal})`;
+          }
+        }
+      } catch (err) {
+        console.warn('[pawsistant-card] Failed to fetch timeline page:', err);
+      } finally {
+        this._timelineLoading = false;
+        this._setupLoadMoreObserver();
+      }
+      return; // No full re-render in append mode
+    }
+
+    // Initial fetch: full render
     this._timelineLoading = true;
     this._render();
 
@@ -323,32 +403,19 @@ class PawsistantCard extends HTMLElement {
       const result = await this._hass.connection.sendMessagePromise({
         type: 'pawsistant/get_events',
         dog_id: dogId,
-        offset: offset,
-        limit: limit,
+        offset: 0,
+        limit: this._timelineLimit,
       });
-      if (append) {
-        this._timelineEvents = [...this._timelineEvents, ...(result.events || [])];
-      } else {
-        this._timelineEvents = result.events || [];
-        this._timelineLimit = limit;
-      }
+      this._timelineEvents = result.events || [];
       this._timelineTotal = result.total || 0;
       this._timelineFetched = true;
     } catch (err) {
       console.warn('[pawsistant-card] Failed to fetch timeline via WebSocket, using sensor fallback:', err);
-      if (!append) this._timelineEvents = [];
+      this._timelineEvents = [];
       this._timelineFetched = false;
     } finally {
       this._timelineLoading = false;
       this._render();
-      // Restore scroll position after render (find new DOM node)
-      if (savedScroll) {
-        requestAnimationFrame(() => {
-          const newScroll = this.shadowRoot?.querySelector('.timeline-body');
-          if (newScroll) newScroll.scrollTop = savedScroll;
-        });
-      }
-      // Set up IntersectionObserver on load-more button for infinite scroll
       this._setupLoadMoreObserver();
     }
   }
@@ -400,35 +467,9 @@ class PawsistantCard extends HTMLElement {
         ? '<div class="empty">No events logged yet</div>'
         : '<div class="empty">No events in the last 24 hours</div>';
     } else {
-      let lastDate = null;
-      for (const ev of events) {
-        const meta = getMeta(ev.type, registry);
-        const evDate = ev.date || '';
-        if (evDate !== lastDate) {
-          const label = evDate || ev.day || '';
-          timelineHTML += `<div class="day-header">${_escapeHTML(label)}</div>`;
-          lastDate = evDate;
-        }
-        /* U14 — add title attr to truncated notes */
-        const noteHTML = ev.note
-          ? `<span class="event-note" title="${_escapeHTML(ev.note)}">${_escapeHTML(ev.note)}</span>`
-          : '';
-        /* U2 — aria-label on delete button */
-        const delAriaLabel = `Delete ${_escapeHTML(ev.type)} event at ${_escapeHTML(ev.time)}`;
-        const editAriaLabel = `Edit ${_escapeHTML(ev.type)} event at ${_escapeHTML(ev.time)}`;
-        timelineHTML += `
-          <div class="event-row" data-id="${_escapeHTML(ev.event_id)}" data-type="${_escapeHTML(ev.type)}" data-timestamp="${_escapeHTML(ev.iso || '')}" data-note="${_escapeHTML(ev.note || '')}" data-value="${ev.value !== undefined && ev.value !== null ? ev.value : ''}"  >
-            <span class="event-emoji">${meta.emoji}</span>
-            <span class="event-time">${_escapeHTML(ev.time)}</span>
-            <span class="event-type">${_escapeHTML(meta.label)}</span>
-            ${noteHTML}
-            <button class="edit-btn" data-id="${_escapeHTML(ev.event_id)}"
-              aria-label="${editAriaLabel}" title="Edit event">✏️</button>
-            <button class="delete-btn" data-id="${_escapeHTML(ev.event_id)}"
-              aria-label="${delAriaLabel}" title="Delete event">🗑️</button>
-          </div>
-        `;
-      }
+      const registry = this._getRegistry();
+      const { html } = this._buildEventRowsHTML(events, registry, null);
+      timelineHTML = html;
     }
 
     /* Build load-more button */
