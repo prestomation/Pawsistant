@@ -366,7 +366,7 @@ class PawsistantCard extends HTMLElement {
         // Inject new rows directly into the DOM
         const timelineBody = this.shadowRoot?.querySelector('.timeline-body');
         if (timelineBody && newEvents.length > 0) {
-          const registry = this._getRegistry();
+          const registry = this._registry().registry;
           // Find last date from existing DOM
           const existingHeaders = timelineBody.querySelectorAll('.day-header');
           const lastDate = existingHeaders.length > 0
@@ -467,7 +467,7 @@ class PawsistantCard extends HTMLElement {
         ? '<div class="empty">No events logged yet</div>'
         : '<div class="empty">No events in the last 24 hours</div>';
     } else {
-      const registry = this._getRegistry();
+      const registry = this._registry().registry;
       const { html } = this._buildEventRowsHTML(events, registry, null);
       timelineHTML = html;
     }

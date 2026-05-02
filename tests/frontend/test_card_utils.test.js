@@ -343,3 +343,43 @@ describe('METRIC_LABELS', () => {
     expect(METRIC_LABELS.hours_since(6)).toBe('6 hours');
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════════
+// CARD METHOD REFERENCE INTEGRITY TEST
+// ════════════════════════════════════════════════════════════════════════════════
+
+const fs = require('fs');
+const path = require('path');
+
+describe('Card source method references', () => {
+  let cardSource;
+
+  beforeAll(() => {
+    const srcPath = path.resolve(__dirname, '../../custom_components/pawsistant/frontend/src/index.js');
+    cardSource = fs.readFileSync(srcPath, 'utf8');
+  });
+
+  // Extract all this._method() calls from the source and verify they're defined
+  test('all this._method() calls in source have corresponding method definitions', () => {
+    // Find all this._foo() calls (invocations via this.)
+    const methodCalls = [...cardSource.matchAll(/this\.(_\w+)\s*\(/g)].map(m => m[1]);
+    const uniqueCalls = [...new Set(methodCalls)];
+
+    // Find method definitions: start of line + optional async + _foo(
+    // Also match class field assignments like _foo = withCooldown(...)
+    const defRegex = /(?:^|\n)\s*(?:async\s+)?(_\w+)\s*\(/g;
+    const fieldRegex = /(?:^|\n)\s+(_\w+)\s*=\s/g;
+    const methodDefs = [...cardSource.matchAll(defRegex)].map(m => m[1]);
+    const fieldDefs = [...cardSource.matchAll(fieldRegex)].map(m => m[1]);
+    const uniqueDefs = [...new Set([...methodDefs, ...fieldDefs])];
+
+    const missing = uniqueCalls.filter(m => !uniqueDefs.includes(m));
+    if (missing.length > 0) {
+      throw new Error(
+        'Methods called but not defined in card source:\n' +
+        missing.map(m => '  this.' + m + '()').join('\n') + '\n' +
+        'Available methods: ' + uniqueDefs.sort().join(', ')
+      );
+    }
+  });
+});
