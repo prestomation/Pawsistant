@@ -4,6 +4,8 @@
  * Long-press detection, cooldown logic, and tap/hold handler setup.
  */
 
+import type { LongPressHandlers } from './types';
+
 /**
  * Set up a long-press / tap handler on a button element.
  *
@@ -13,11 +15,15 @@
  *
  * Returns a cleanup function that removes all listeners.
  */
-export function setupLongPress(btn, { onLongPress, onTap }, timers) {
-  let pressTimer = null;
+export function setupLongPress(
+  btn: HTMLButtonElement,
+  { onLongPress, onTap }: LongPressHandlers,
+  timers: (ReturnType<typeof setTimeout> | number)[]
+): () => void {
+  let pressTimer: ReturnType<typeof setTimeout> | null = null;
   let didLongPress = false;
 
-  const startPress = (e) => {
+  const startPress = (e: PointerEvent): void => {
     didLongPress = false;
     pressTimer = setTimeout(() => {
       didLongPress = true;
@@ -27,7 +33,7 @@ export function setupLongPress(btn, { onLongPress, onTap }, timers) {
     timers.push(pressTimer);
   };
 
-  const endPress = () => {
+  const endPress = (): void => {
     if (pressTimer) {
       clearTimeout(pressTimer);
       const idx = timers.indexOf(pressTimer);
@@ -39,13 +45,13 @@ export function setupLongPress(btn, { onLongPress, onTap }, timers) {
     didLongPress = false;
   };
 
-  const handleClick = () => {
+  const handleClick = (): void => {
     if (!didLongPress) {
       if (onTap) onTap(btn);
     }
   };
 
-  const handleKeydown = (e) => {
+  const handleKeydown = (e: KeyboardEvent): void => {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (onTap) onTap(btn);
@@ -55,7 +61,7 @@ export function setupLongPress(btn, { onLongPress, onTap }, timers) {
     }
   };
 
-  btn.addEventListener('pointerdown', startPress);
+  btn.addEventListener('pointerdown', startPress as EventListener);
   btn.addEventListener('pointerup', endPress);
   btn.addEventListener('pointerleave', endPress);
   btn.addEventListener('pointercancel', endPress);
@@ -63,7 +69,7 @@ export function setupLongPress(btn, { onLongPress, onTap }, timers) {
   btn.addEventListener('keydown', handleKeydown);
 
   return () => {
-    btn.removeEventListener('pointerdown', startPress);
+    btn.removeEventListener('pointerdown', startPress as EventListener);
     btn.removeEventListener('pointerup', endPress);
     btn.removeEventListener('pointerleave', endPress);
     btn.removeEventListener('pointercancel', endPress);
@@ -76,12 +82,12 @@ export function setupLongPress(btn, { onLongPress, onTap }, timers) {
  * Create a cooldown-guarded function.
  * Calls fn immediately, then blocks re-invocation for `delayMs` ms.
  */
-export function withCooldown(fn, delayMs = 500) {
+export function withCooldown<T extends (...args: any[]) => any>(fn: T, delayMs: number = 500): T {
   let active = false;
-  return function (...args) {
-    if (active) return;
+  return function (this: unknown, ...args: Parameters<T>): ReturnType<T> | undefined {
+    if (active) return undefined;
     active = true;
     setTimeout(() => { active = false; }, delayMs);
     return fn.apply(this, args);
-  };
+  } as T;
 }

@@ -4,10 +4,10 @@
  * Fallback metadata, dynamic registry builder, and icon→emoji mapping.
  */
 
-/* Fallback registry — used when WS state hasn't been populated yet.
- * The card reads live registry from sensor attributes; these values are
- * retained as defaults so the card renders before any sensor has reported. */
-export const FALLBACK_EVENT_META = {
+import type { HomeAssistant, EventMeta, EventMetaInput, Registry, RegistryResult } from './types';
+
+/* Fallback registry — used when WS state hasn't been populated yet. */
+export const FALLBACK_EVENT_META: Registry = {
   poop:     { emoji: '💩', label: 'Poop',     color: 'var(--warning-color, #FF8A65)' },
   pee:      { emoji: '💧', label: 'Pee',      color: 'var(--info-color, #4FC3F7)' },
   medicine: { emoji: '💊', label: 'Medicine', color: 'var(--error-color, #EF5350)' },
@@ -27,79 +27,77 @@ export const FALLBACK_EVENT_META = {
 // Alias for backwards compat — old card config YAML may reference EVENT_META
 export const EVENT_META = FALLBACK_EVENT_META;
 
-export const DEFAULT_SHOWN_TYPES = ['poop', 'pee', 'medicine', 'sick', 'weight'];
+export const DEFAULT_SHOWN_TYPES: string[] = ['poop', 'pee', 'medicine', 'sick', 'weight'];
+
+const ICON_EMOJI_MAP: Record<string, string> = {
+  'mdi:walk': '🦮', 'mdi:food-drumstick': '🍖', 'mdi:cookie': '🍪',
+  'mdi:bowl': '🍽️', 'mdi:cup-water': '🥤', 'mdi:water': '💧',
+  'mdi:emoticon-poop': '💩', 'mdi:pill': '💊', 'mdi:scale-bathroom': '⚖️',
+  'mdi:needle': '💉', 'mdi:sleep': '😴', 'mdi:content-cut': '✂️',
+  'mdi:hand-pointing-up': '🎯', 'mdi:toothbrush': '🦷', 'mdi:emoticon-sick': '🤒',
+  'mdi:tag': '🏷️', 'mdi:school': '🎓',
+};
 
 /** Map an MDI icon name (e.g. "mdi:walk") to a fallback emoji. */
-export function iconToEmoji(icon) {
-  if (!icon) return undefined;  // undefined → getMeta uses fallback emoji from registry
-  const map = {
-    'mdi:walk': '🦮', 'mdi:food-drumstick': '🍖', 'mdi:cookie': '🍪',
-    'mdi:bowl': '🍽️', 'mdi:cup-water': '🥤', 'mdi:water': '💧',
-    'mdi:emoticon-poop': '💩', 'mdi:pill': '💊', 'mdi:scale-bathroom': '⚖️',
-    'mdi:needle': '💉', 'mdi:sleep': '😴', 'mdi:content-cut': '✂️',
-    'mdi:hand-pointing-up': '🎯', 'mdi:toothbrush': '🦷', 'mdi:emoticon-sick': '🤒',
-    'mdi:tag': '🏷️', 'mdi:school': '🎓',
-  };
-  return map[icon] || '📝';
+export function iconToEmoji(icon: string | undefined | null): string | undefined {
+  if (!icon) return undefined;
+  return ICON_EMOJI_MAP[icon] || '📝';
 }
 
 /**
  * Build the dynamic event-type registry from sensor attributes.
- * Reads from any Pawsistant sensor's `event_types` attribute (a dict
- * of {key: {name, icon, color}}).  Falls back to FALLBACK_EVENT_META.
- *
- * Also reads `button_metrics` ({key: metric_name}) for button labels.
+ * Reads from any Pawsistant sensor's `event_types` attribute.
+ * Falls back to FALLBACK_EVENT_META when no live data is found.
  */
-export function buildRegistry(hass) {
-  // Deep-copy fallback as the base
-  const fallbackRegistry = {};
+export function buildRegistry(hass: HomeAssistant | null): RegistryResult {
+  const fallbackRegistry: Registry = {};
   for (const [k, v] of Object.entries(FALLBACK_EVENT_META)) {
     fallbackRegistry[k] = { ...v };
   }
-  const metrics = {};
+  const metrics: Record<string, string> = {};
   let foundLiveTypes = false;
-  let liveRegistry = {};
+  let liveRegistry: Registry = {};
 
-  if (hass && hass.states) {
+  if (hass?.states) {
     for (const state of Object.values(hass.states)) {
       const attrs = state.attributes || {};
-      if (attrs.event_types && typeof attrs.event_types === 'object' && !Array.isArray(attrs.event_types) && Object.keys(attrs.event_types).length > 0) {
+      if (
+        attrs.event_types &&
+        typeof attrs.event_types === 'object' &&
+        !Array.isArray(attrs.event_types) &&
+        Object.keys(attrs.event_types as Record<string, unknown>).length > 0
+      ) {
         foundLiveTypes = true;
-        // Build registry from ONLY the live event_types (authoritative source).
-        // This ensures deleted types (tombstones) don't appear — they're not in this dict.
-        for (const [k, v] of Object.entries(attrs.event_types)) {
+        for (const [k, v] of Object.entries(attrs.event_types as Record<string, EventMetaInput>)) {
           if (v && typeof v === 'object') {
-            const fallbackEntry = fallbackRegistry[k] || {};
+            const fallbackEntry = fallbackRegistry[k] || { emoji: '📝', color: '#888' };
             liveRegistry[k] = {
-              // If live icon maps to 📝 (unknown icon), preserve fallback emoji instead of overwriting
-              emoji:    v.icon ? (iconToEmoji(v.icon) !== '📝' ? iconToEmoji(v.icon) : (fallbackEntry.emoji || '📝')) : (fallbackEntry.emoji || '📝'),
-              label:    v.name  || k,
-              color:    v.color || fallbackEntry.color || '#888',
-              icon:     v.icon  || '',
+              emoji: v.icon
+                ? (iconToEmoji(v.icon) !== '📝' ? iconToEmoji(v.icon)! : (fallbackEntry.emoji || '📝'))
+                : (fallbackEntry.emoji || '📝'),
+              label: v.name || k,
+              color: v.color || fallbackEntry.color || '#888',
+              icon: v.icon || '',
             };
           }
         }
       }
       if (attrs.button_metrics && typeof attrs.button_metrics === 'object') {
-        Object.assign(metrics, attrs.button_metrics);
+        Object.assign(metrics, attrs.button_metrics as Record<string, string>);
       }
     }
   }
 
-  // Use live registry if we found one; otherwise fall back to defaults
   const registry = foundLiveTypes ? liveRegistry : fallbackRegistry;
-
   return { registry, metrics };
 }
 
-export function getMeta(type, registry) {
+export function getMeta(type: string, registry: Registry | null): EventMeta {
   if (registry && registry[type]) {
-    // Live registry: {emoji, label, icon, color} — emoji is pre-resolved by buildRegistry
     const entry = registry[type];
-    // Use already-resolved emoji if available; only re-resolve if icon changed (entry.icon set, emoji undefined)
     const resolvedEmoji = (entry.emoji && entry.emoji !== '📝')
       ? entry.emoji
-      : (entry.icon ? iconToEmoji(entry.icon) : (entry.emoji || '📝'));
+      : (entry.icon ? iconToEmoji(entry.icon)! : (entry.emoji || '📝'));
     return {
       emoji: resolvedEmoji,
       label: entry.label || type,

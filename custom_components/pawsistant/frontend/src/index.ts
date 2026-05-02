@@ -9,11 +9,12 @@ import { CARD_VERSION } from 'card-version';
 import {
   FALLBACK_EVENT_META, EVENT_META, DEFAULT_SHOWN_TYPES,
   buildRegistry, getMeta, iconToEmoji
-} from './registry.js';
-import { METRIC_LABELS } from './metrics.js';
-import { setupLongPress, withCooldown } from './interactions.js';
-import { logEvent, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services.js';
-import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, toDisplayWeight } from './utils.js';
+} from './registry';
+import { METRIC_LABELS } from './metrics';
+import { setupLongPress, withCooldown } from './interactions';
+import { logEvent, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services';
+import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, toDisplayWeight } from './utils';
+import type { HomeAssistant, PawsistantCardConfig, DogEntities, Registry, RegistryResult, EventTypeFormState, TimelineEvent, LongPressHandlers } from './types';
 
 /* ── Card picker registration ───────────────────────────────────────────── */
 window.customCards = window.customCards || [];
@@ -25,12 +26,11 @@ window.customCards.push({
 });
 
 class PawsistantCardEditor extends HTMLElement {
-  constructor() {
-    super();
-    this._config = {};
-  }
+  _config: PawsistantCardConfig = { type: 'custom:pawsistant-card', dog: '' };
+  __hass: HomeAssistant | null = null;
+  _lastDogNamesKey: string = '';
 
-  setConfig(config) {
+  setConfig(config: PawsistantCardConfig) {
     this._config = { ...config };
     this._render();
   }
@@ -47,8 +47,7 @@ class PawsistantCardEditor extends HTMLElement {
     }
   }
 
-  /** Extract unique sorted dog names from hass.states via the `dog` attribute. */
-  _dogNamesFromHass(h) {
+  _dogNamesFromHass(h: HomeAssistant | null): string[] {
     if (!h) return [];
     const seen = new Set();
     for (const state of Object.values(h.states || {})) {
@@ -141,48 +140,47 @@ customElements.define('pawsistant-card-editor', PawsistantCardEditor);
 
 /* ── Main card element ──────────────────────────────────────────────────── */
 class PawsistantCard extends HTMLElement {
+  // Typed class fields
+  _config: PawsistantCardConfig = { type: 'custom:pawsistant-card', dog: '' };
+  _hass: HomeAssistant | null = null;
+  _lastHash: string | null = null;
+  _activeForm: string | null = null;          // null | 'backdate' | 'weight'
+  _activeType: string | null = null;         // event type for backdate form
+  _activeTriggerBtn: HTMLButtonElement | null = null;
+  _timers: (ReturnType<typeof setTimeout> | number)[] = [];
+  _deleteConfirmState: Map<string, ReturnType<typeof setTimeout> | number> = new Map();
+  _eventTypesPanel: boolean = false;
+  _editingEventType: EventTypeFormState | null = null;
+  _eventTypeFormError: string | null = null;
+  _registryCache: RegistryResult | null = null;
+  _editEventId: string | null = null;
+  _loadMoreObserver: IntersectionObserver | null = null;
+  _timelineLimit: number = 50;
+  _timelineEvents: TimelineEvent[] = [];
+  _timelineTotal: number = 0;
+  _timelineLoading: boolean = false;
+  _timelineFetched: boolean = false;
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._config = {};
-    this._hass = null;
-    this._lastHash = null;
-    // Inline form state
-    this._activeForm = null; // null | 'backdate' | 'weight'
-    this._activeType = null; // event type for backdate form
-    this._activeTriggerBtn = null; // U17 — return focus to trigger btn
-    // U5 — track all setTimeout IDs for cleanup
-    this._timers = [];
-    // U9 — delete confirm state: eventId -> timeout id
-    this._deleteConfirmState = new Map();
-    // Event Types Manager state
-    this._eventTypesPanel = false;      // true = showing manager panel
-    this._editingEventType = null;      // null = list view; object = editing/adding
-    // { event_type: string, name: string, icon: string, color: string, metric: string }
-    this._eventTypeFormError = null;    // error message for form
-    // Paginated timeline state
-    this._timelineLimit = 50;
-    this._timelineEvents = [];
-    this._timelineTotal = 0;
-    this._timelineLoading = false;
-    this._timelineFetched = false;
 
   }
 
-  static getConfigElement() {
+  static getConfigElement(): HTMLElement {
     return document.createElement('pawsistant-card-editor');
   }
 
-  static getStubConfig() {
+  static getStubConfig(): PawsistantCardConfig {
     return { type: 'custom:pawsistant-card', dog: 'MyDog' };
   }
 
-  setConfig(config) {
+  setConfig(config: PawsistantCardConfig) {
     if (!config.dog) throw new Error('Pawsistant card requires a "dog" config field');
     this._config = { ...config };
   }
 
-  set hass(hass) {
+  set hass(hass: HomeAssistant) {
     this._hass = hass;
     const hash = buildHash(hass, this._config);
     if (hash !== this._lastHash) {

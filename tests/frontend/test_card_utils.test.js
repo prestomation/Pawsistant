@@ -355,7 +355,7 @@ describe('Card source method references', () => {
   let cardSource;
 
   beforeAll(() => {
-    const srcPath = path.resolve(__dirname, '../../custom_components/pawsistant/frontend/src/index.js');
+    const srcPath = path.resolve(__dirname, '../../custom_components/pawsistant/frontend/src/index.ts');
     cardSource = fs.readFileSync(srcPath, 'utf8');
   });
 
