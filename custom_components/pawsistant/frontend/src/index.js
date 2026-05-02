@@ -341,9 +341,12 @@ class PawsistantCard extends HTMLElement {
     } finally {
       this._timelineLoading = false;
       this._render();
-      // Restore scroll position after render
-      if (scrollContainer) {
-        requestAnimationFrame(() => { scrollContainer.scrollTop = savedScroll; });
+      // Restore scroll position after render (find new DOM node)
+      if (savedScroll) {
+        requestAnimationFrame(() => {
+          const newScroll = this.shadowRoot?.querySelector('.timeline-body');
+          if (newScroll) newScroll.scrollTop = savedScroll;
+        });
       }
       // Set up IntersectionObserver on load-more button for infinite scroll
       this._setupLoadMoreObserver();
