@@ -357,12 +357,13 @@ class PawsistantCard extends HTMLElement {
       this._loadMoreObserver = null;
     }
     const btn = this.shadowRoot?.querySelector('#load-more-btn');
+    const scrollRoot = this.shadowRoot?.querySelector('.timeline-body');
     if (!btn) return;
     this._loadMoreObserver = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting && !this._timelineLoading) {
         this._fetchTimeline(true);
       }
-    }, { rootMargin: '100px' });
+    }, { root: scrollRoot, rootMargin: '100px' });
     this._loadMoreObserver.observe(btn);
   }
 
@@ -1125,8 +1126,7 @@ class PawsistantCard extends HTMLElement {
         </div>
 
         <div class="timeline-header">📋 Timeline</div>
-        <div class="timeline-body" id="timeline-body">${timelineHTML}</div>
-        ${loadMoreHTML}
+        <div class="timeline-body" id="timeline-body">${timelineHTML}${loadMoreHTML}</div>
       `;
   }
 
