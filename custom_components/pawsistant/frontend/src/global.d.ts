@@ -12,3 +12,6 @@ interface Window {
     preview?: boolean;
   }>;
 }
+
+declare class HaIconPicker extends HTMLElement { value?: string; }
+declare class HaDialog extends HTMLElement { open?: boolean; heading?: string; }

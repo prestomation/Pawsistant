@@ -15,6 +15,9 @@ import { setupLongPress, withCooldown } from './interactions';
 import { logEvent, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services';
 import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, toDisplayWeight } from './utils';
 import type { HomeAssistant, PawsistantCardConfig, DogEntities, Registry, RegistryResult, EventTypeFormState, TimelineEvent, LongPressHandlers } from './types';
+import { PawsistantCardEditor } from './editor';
+import { openBackdateForm, openWeightForm, openEditForm, closeForm, showFormError } from './forms';
+import { bindEvents } from './bindings';
 
 /* ── Card picker registration ───────────────────────────────────────────── */
 window.customCards = window.customCards || [];
@@ -25,121 +28,10 @@ window.customCards.push({
   preview: true,
 });
 
-class PawsistantCardEditor extends HTMLElement {
-  _config: PawsistantCardConfig = { type: 'custom:pawsistant-card', dog: '' };
-  __hass: HomeAssistant | null = null;
-  _lastDogNamesKey: string = '';
-
-  setConfig(config: PawsistantCardConfig) {
-    this._config = { ...config };
-    this._render();
-  }
-
-  get _hass() { return this.__hass; }
-  set hass(h: HomeAssistant | null) {
-    this.__hass = h;
-    // Re-render only if the available dog list changed (avoids thrashing).
-    const names = this._dogNamesFromHass(h);
-    const key = names.join(',');
-    if (key !== this._lastDogNamesKey) {
-      this._lastDogNamesKey = key;
-      this._render();
-    }
-  }
-
-  _dogNamesFromHass(h: HomeAssistant | null): string[] {
-    if (!h) return [];
-    const seen = new Set<string>();
-    for (const state of Object.values(h.states || {})) {
-      const dog = state.attributes && state.attributes.dog;
-      if (dog) seen.add(dog as string);
-    }
-    return [...seen].sort();
-  }
-
-  _render() {
-    if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
-    const cfg = this._config;
-    const esc = _escapeHTML;
-    const weightUnit = cfg.weight_unit || 'lbs';
-
-    // Discover registered dog names from any sensor's `dog` attribute.
-    // This is rename-safe: doesn't depend on entity ID patterns.
-    const dogNames = this._dogNamesFromHass(this.__hass);
-
-
-
-    this.shadowRoot!.innerHTML = `
-      <style>
-        .form { display: flex; flex-direction: column; gap: 14px; padding: 8px 0; }
-        .field-label { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 4px; display: block; font-weight: 500; }
-        input[type="text"], input[type="number"], select {
-          width: 100%;
-          box-sizing: border-box;
-          padding: 8px 10px;
-          border: 1px solid var(--divider-color);
-          border-radius: 6px;
-          background: var(--card-background-color);
-          color: var(--primary-text-color);
-          font-size: 14px;
-        }
-        input:focus, select:focus { outline: 2px solid var(--primary-color); border-color: transparent; }
-        .hint { font-size: 11px; color: var(--secondary-text-color); margin-top: 3px; }
-
-      </style>
-      <div class="form">
-        <div>
-          <label class="field-label" for="ed-dog">Pet *</label>
-          ${dogNames.length > 0
-            ? `<select id="ed-dog" name="dog">
-                <option value="">— select a pet —</option>
-                ${dogNames.map(n => `<option value="${esc(n)}"${cfg.dog === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}
-              </select>`
-            : `<input id="ed-dog" name="dog" value="${esc(cfg.dog || '')}" placeholder="Sharky" />
-               <div class="hint">No dogs found — enter a name manually or set up dogs via the integration options.</div>`
-          }
-        </div>
-        <div>
-          <label class="field-label" for="ed-weight-unit">Weight unit</label>
-          <select id="ed-weight-unit" name="weight_unit">
-            <option value="lbs" ${weightUnit === 'lbs' ? 'selected' : ''}>lbs</option>
-            <option value="kg" ${weightUnit === 'kg' ? 'selected' : ''}>kg</option>
-          </select>
-        </div>
-
-      </div>
-    `;
-
-    // Attach listeners on text/select inputs
-    this.shadowRoot!.querySelectorAll<HTMLInputElement>('input[type="text"], input[type="number"], select').forEach(el => {
-      el.addEventListener('change', () => this._valueChanged());
-    });
-
-
-  }
-
-  _valueChanged() {
-    const newConfig = { ...this._config } as Record<string, unknown>;
-
-    // Scalar inputs
-    this.shadowRoot!.querySelectorAll<HTMLInputElement>('input[type="text"], input[type="number"], select').forEach(el => {
-      const key = el.name;
-      const val = el.value.trim();
-      if (val) {
-        newConfig[key] = val;
-      } else {
-        delete newConfig[key];
-      }
-    });
-
-    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: newConfig }, bubbles: true, composed: true }));
-  }
-}
-
 customElements.define('pawsistant-card-editor', PawsistantCardEditor);
 
 /* ── Main card element ──────────────────────────────────────────────────── */
-class PawsistantCard extends HTMLElement {
+export class PawsistantCard extends HTMLElement {
   // Typed class fields
   _config: PawsistantCardConfig = { type: 'custom:pawsistant-card', dog: '' };
   _hass: HomeAssistant | null = null;
@@ -440,6 +332,7 @@ class PawsistantCard extends HTMLElement {
     const hass = this._hass;
     if (!hass) return;
 
+    const root = this.shadowRoot!;
     const cfg = this._config;
     const ent = this._entities();
     const dogName = cfg.dog;
@@ -525,7 +418,7 @@ class PawsistantCard extends HTMLElement {
       `;
     }
 
-    this.shadowRoot!.innerHTML = `
+    root.innerHTML = `
       <style>
         :host {
           display: block;
@@ -1141,7 +1034,7 @@ class PawsistantCard extends HTMLElement {
       </ha-card>
     `;
 
-    this._attachListeners();
+    bindEvents(this, root);
   }
 
   /* ── Render main card content ──────────────────────────────────────── */
@@ -1162,7 +1055,7 @@ class PawsistantCard extends HTMLElement {
           <!-- Inline form panel (hidden by default) -->
           <div class="inline-form-wrap" id="inline-form-wrap">
             <div class="inline-form" id="inline-form">
-              <!-- content injected by _openBackdateForm / _openWeightForm -->
+              <!-- content injected by openBackdateForm / openWeightForm -->
             </div>
           </div>
         </div>
@@ -1193,7 +1086,7 @@ class PawsistantCard extends HTMLElement {
     const rows = orderedKeys.map(key => {
       const displayMeta = getMeta(key, allTypes);
       const metric = buttonMetrics[key] || 'daily_count';
-      const metricBadge = (METRIC_LABELS as unknown as Record<string, unknown>)[metric] ? metric.replace(/_/g, ' ') : metric;
+      const metricBadge = (METRIC_LABELS as Record<string, unknown>)[metric] ? metric.replace(/_/g, ' ') : metric;
       const icon = displayMeta.icon ? iconToEmoji(displayMeta.icon) : displayMeta.emoji;
       const isVisible = shownInOrder.includes(key);
       return `
@@ -1474,15 +1367,15 @@ class PawsistantCard extends HTMLElement {
   /* ── Icon picker helper ────────────────────────────────────────────── */
   async _pickIcon(currentIcon: string) {
     // Try HA's built-in ha-icon-picker
-    const picker = document.createElement('ha-icon-picker') as any;
+    const picker = document.createElement('ha-icon-picker') as HaIconPicker;
     if (picker && (typeof picker.value !== 'undefined' || customElements.get('ha-icon-picker'))) {
       return new Promise((resolve) => {
-        const dialog = document.createElement('ha-dialog') as any;
+        const dialog = document.createElement('ha-dialog') as HaDialog;
         dialog.setAttribute('open', '');
         dialog.heading = 'Pick an icon';
         picker.value = currentIcon || '';
-        picker.addEventListener('value-changed', (e: CustomEvent) => {
-          resolve(e.detail.value);
+        picker.addEventListener('value-changed', (e: Event) => {
+          resolve((e as CustomEvent).detail.value);
           dialog.remove();
         });
         dialog.appendChild(picker);
@@ -1494,259 +1387,6 @@ class PawsistantCard extends HTMLElement {
     return val || currentIcon;
   }
 
-  /* ── Attach listeners ──────────────────────────────────────────────── */
-  _attachListeners() {
-    const root = this.shadowRoot!;
-
-    root.querySelectorAll<HTMLButtonElement>('.log-btn').forEach(btn => {
-      const isWeight = btn.dataset.weight === 'true';
-      const hasLongPress = btn.dataset.longpress === 'true';
-
-      if (isWeight) {
-        btn.addEventListener('pointerdown', (e) => { e.preventDefault(); });
-        btn.addEventListener('pointerup', (e) => {
-          e.preventDefault();
-          if (this._activeForm === 'weight') {
-            this._closeForm();
-          } else {
-            this._openWeightForm(btn);
-          }
-        });
-        /* U3 — keyboard: Enter opens form, Space = instant log (weight just opens form) */
-        btn.addEventListener('keydown', (e: KeyboardEvent) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            if (this._activeForm === 'weight') {
-              this._closeForm();
-            } else {
-              this._openWeightForm(btn);
-            }
-          }
-        });
-        return;
-      }
-
-      if (hasLongPress) {
-        const cleanup = setupLongPress(btn, {
-          onLongPress: (btn) => {
-            const type = btn.dataset.type || '';
-            this._instantLog(btn, type);
-          },
-          onTap: (btn) => {
-            const type = btn.dataset.type;
-            if (this._activeForm === 'backdate' && this._activeType === type) {
-              this._closeForm();
-            } else {
-              this._openBackdateForm(btn, type);
-            }
-          },
-        }, this._timers);
-        // Store cleanup for future use if needed
-        (btn as any)._longPressCleanup = cleanup;
-        return;
-      }
-
-      // Fallback: simple click = backdate form
-      btn.addEventListener('click', () => {
-        this._openBackdateForm(btn, btn.dataset.type);
-      });
-    });
-
-    /* U9 — two-tap delete confirmation */
-    root.querySelectorAll<HTMLButtonElement>('.delete-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const eventId = btn.dataset.id;
-        if (!eventId) return;
-
-        if (this._deleteConfirmState.has(eventId)) {
-          // Second tap — confirm and delete
-          clearTimeout(this._deleteConfirmState.get(eventId));
-          this._deleteConfirmState.delete(eventId);
-          btn.classList.remove('confirm-pending');
-          btn.textContent = '🗑️';
-          this._deleteEvent(eventId, btn);
-        } else {
-          // First tap — show confirm state
-          btn.classList.add('confirm-pending');
-          btn.textContent = 'Delete?';
-          const revertId = this._setTimeout(() => {
-            this._deleteConfirmState.delete(eventId);
-            btn.classList.remove('confirm-pending');
-            btn.textContent = '🗑️';
-          }, 3000);
-          this._deleteConfirmState.set(eventId, revertId);
-        }
-      });
-    });
-
-    /* Edit button on event rows */
-    root.querySelectorAll<HTMLButtonElement>('.edit-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const row = btn.closest<HTMLElement>('.event-row');
-        if (!row) return;
-        const eventType = row.dataset.type;
-        const timestamp = row.dataset.timestamp;
-        const note = row.dataset.note;
-        const value = row.dataset.value;
-        const eventId = row.dataset.id;
-        this._openEditForm(eventType, timestamp, note, value, eventId);
-      });
-    });
-
-    /* Load more button — click is fallback, IntersectionObserver auto-triggers */
-    const loadMoreBtn = root.querySelector('#load-more-btn');
-    if (loadMoreBtn) {
-      loadMoreBtn.addEventListener('click', () => {
-        this._fetchTimeline(true);
-      });
-    }
-
-    /* ── Event Types Manager Panel listeners ── */
-
-    // Gear button to open panel
-    const gearBtn = root.querySelector('#et-gear-btn');
-    if (gearBtn) {
-      gearBtn.addEventListener('click', () => this._openEventTypesPanel());
-    }
-
-    // Back button in panel header
-    const backBtn = root.querySelector('#et-back-btn');
-    if (backBtn) {
-      backBtn.addEventListener('click', () => this._closeEventTypesPanel());
-    }
-
-    // Back button in form header (return to list)
-    const formBackBtn = root.querySelector('#et-form-back-btn');
-    if (formBackBtn) {
-      formBackBtn.addEventListener('click', () => {
-        this._editingEventType = null;
-        this._eventTypeFormError = null;
-        this._render();
-      });
-    }
-
-    // Add button
-    const addBtn = root.querySelector('#et-add-btn');
-    if (addBtn) {
-      addBtn.addEventListener('click', () => this._openEventTypeForm('__ADD__'));
-    }
-
-    // Edit buttons on event type rows
-    root.querySelectorAll<HTMLButtonElement>('.et-btn.edit').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const key = btn.dataset.etKey;
-        if (key) this._openEventTypeForm(key);
-      });
-    });
-
-    // Delete buttons on event type rows
-    root.querySelectorAll<HTMLButtonElement>('.et-btn.delete').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const key = btn.dataset.etKey;
-        if (key) this._deleteEventType(key);
-      });
-    });
-
-    // Visibility checkboxes — toggle shown_types
-    root.querySelectorAll<HTMLInputElement>('.et-visible-cb').forEach(cb => {
-      cb.addEventListener('change', () => {
-        const shownTypes = [...this._shownTypes()];
-        const key = cb.dataset.etKey;
-        if (cb.checked) {
-          if (!shownTypes.includes(key!)) shownTypes.push(key!);
-        } else {
-          const idx = shownTypes.indexOf(key!);
-          if (idx !== -1) shownTypes.splice(idx, 1);
-        }
-        this._saveShownTypes(shownTypes);
-      });
-    });
-
-    // Drag-to-reorder on event type rows
-    let _dragKey: string | null = null;
-    root.querySelectorAll<HTMLElement>('.event-type-row[draggable]').forEach(row => {
-      row.addEventListener('dragstart', (e: DragEvent) => {
-        _dragKey = row.dataset.etKey || null;
-        if (e.dataTransfer) {
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', _dragKey || '');
-        }
-        row.classList.add('et-dragging');
-      });
-      row.addEventListener('dragend', () => {
-        row.classList.remove('et-dragging');
-        root.querySelectorAll<HTMLElement>('.event-type-row').forEach(r => r.classList.remove('et-drag-over'));
-        _dragKey = null;
-      });
-      row.addEventListener('dragover', (e: DragEvent) => {
-        e.preventDefault();
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-        root.querySelectorAll<HTMLElement>('.event-type-row').forEach(r => r.classList.remove('et-drag-over'));
-        row.classList.add('et-drag-over');
-      });
-      row.addEventListener('drop', (e: DragEvent) => {
-        e.preventDefault();
-        const fromKey = _dragKey;
-        const toKey = row.dataset.etKey;
-        if (!fromKey || fromKey === toKey) return;
-
-        // Get current full ordered list from DOM
-        const allRows = [...root.querySelectorAll<HTMLElement>('.event-type-row')];
-        const orderedAll = allRows.map(r => r.dataset.etKey as string);
-
-        // Reorder: move fromKey to toKey's position
-        const fromIdx = orderedAll.indexOf(fromKey);
-        const toIdx = orderedAll.indexOf(toKey!);
-        orderedAll.splice(fromIdx, 1);
-        orderedAll.splice(toIdx, 0, fromKey);
-
-        // Only keep keys that were in shown_types (preserve visibility state)
-        const shownTypes = this._shownTypes();
-        const newShown = orderedAll.filter(k => shownTypes.includes(k));
-        this._saveShownTypes(newShown);
-      });
-    });
-
-    // Pick icon button — use the icon picker helper
-    const browseBtn = root.querySelector('#et-browse-btn');
-    if (browseBtn) {
-      browseBtn.addEventListener('click', async () => {
-        const iconInput = root.querySelector<HTMLInputElement>('#et-icon-input');
-        const currentIcon = iconInput ? iconInput.value.trim() : '';
-        const picked = await this._pickIcon(currentIcon);
-        if (picked && iconInput) {
-          iconInput.value = picked as string;
-        }
-      });
-    }
-
-    // Color input — update hex display
-    const colorInput = root.querySelector<HTMLInputElement>('#et-color-input');
-    const colorHex = root.querySelector<HTMLElement>('#et-color-hex');
-    if (colorInput && colorHex) {
-      colorInput.addEventListener('input', () => {
-        colorHex.textContent = colorInput.value;
-      });
-    }
-
-    // Submit form
-    const submitBtn = root.querySelector('#et-form-submit');
-    if (submitBtn) {
-      submitBtn.addEventListener('click', () => this._saveEventTypeForm());
-    }
-
-    // Cancel form
-    const cancelBtn = root.querySelector('#et-form-cancel');
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => {
-        this._editingEventType = null;
-        this._eventTypeFormError = null;
-        this._render();
-      });
-    }
-  }
   _instantLog = withCooldown(function(this: PawsistantCard, btn: HTMLButtonElement, type: string) {
     /* U7 — debounce: set pending, re-enable after service call */
     if (btn && btn.dataset && btn.dataset.pending) return;
@@ -1766,311 +1406,6 @@ class PawsistantCard extends HTMLElement {
         if (btn) delete btn.dataset.pending;
       });
   }, 500);
-
-  /* ── Backdate form ─────────────────────────────────────────────────── */
-  _openBackdateForm(activeBtn: HTMLButtonElement | undefined, type: string | undefined) {
-    this._activeForm = 'backdate';
-    this._activeType = type || null;
-    this._activeTriggerBtn = activeBtn || null;
-
-    const { registry } = this._registry();
-    const meta = getMeta(type || '', registry);
-    const formEl = this.shadowRoot!.getElementById('inline-form')!;
-    /* U10 — proper <label for> on all inputs */
-    formEl.innerHTML = `
-      <div class="form-title">${meta.emoji} Log ${_escapeHTML(meta.label)}</div>
-      <div class="form-field">
-        <div class="form-label-row">
-          <label class="form-label" for="minutes-slider">Minutes ago</label>
-          <span class="slider-value" id="slider-display">Now</span>
-        </div>
-        <input type="range" id="minutes-slider" min="0" max="480" step="1" value="0" aria-label="Minutes ago" />
-      </div>
-      <div class="form-field">
-        <label class="form-label" for="backdate-note">Note (optional)</label>
-        <input type="text" id="backdate-note" placeholder="Add a note…" />
-      </div>
-      <div class="form-error" id="form-error" role="alert"></div>
-      <div class="form-actions">
-        <button class="btn-cancel" id="form-cancel">Cancel</button>
-        <button class="btn-submit" id="form-submit">Log Event</button>
-      </div>
-    `;
-
-    const slider = formEl.querySelector<HTMLInputElement>('#minutes-slider')!;
-    const display = formEl.querySelector<HTMLElement>('#slider-display')!;
-    const _updateSliderDisplay = () => {
-      const v = parseInt(slider.value, 10);
-      const t = new Date(Date.now() - v * 60000);
-      const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      display.textContent = (v === 0 ? 'Now' : v === 1 ? '1 min ago' : `${v} min ago`) + ` · ${timeStr}`;
-    };
-    slider.addEventListener('input', _updateSliderDisplay);
-    _updateSliderDisplay();
-
-    formEl.querySelector('#form-cancel')!.addEventListener('click', () => this._closeForm());
-    formEl.querySelector('#form-submit')!.addEventListener('click', () => {
-      const minutesAgo = parseInt(slider.value, 10);
-      const note = formEl.querySelector<HTMLInputElement>('#backdate-note')!.value.trim();
-      const timestamp = new Date(Date.now() - minutesAgo * 60000).toISOString();
-      this._submitBackdate(activeBtn || null, type || '', timestamp, note || undefined);
-    });
-
-    this._applyFormOpenState(activeBtn || null);
-  }
-
-  /* ── Weight form ───────────────────────────────────────────────────── */
-  _openWeightForm(activeBtn: HTMLButtonElement) {
-    this._activeForm = 'weight';
-    this._activeType = 'weight';
-    this._activeTriggerBtn = activeBtn;
-
-    const ent = this._entities();
-    const unit = this._weightUnit();
-    const currentWeight = toDisplayWeight(stateNum(this._hass!, ent.weight), unit);
-
-    const formEl = this.shadowRoot!.getElementById('inline-form')!;
-    /* U10 — <label for>, U21 — inputmode="decimal", U22 — configurable unit */
-    formEl.innerHTML = `
-      <div class="form-title">⚖️ Log Weight</div>
-      <div class="form-field">
-        <label class="form-label" for="weight-input">Weight (${_escapeHTML(unit)})</label>
-        <div class="weight-input-row">
-          <input type="number" id="weight-input" min="1" max="999" step="0.1"
-            inputmode="decimal"
-            value="${currentWeight !== null ? currentWeight : ''}"
-            placeholder="0.0" />
-          <span class="weight-unit">${_escapeHTML(unit)}</span>
-        </div>
-      </div>
-      <div class="form-error" id="form-error" role="alert"></div>
-      <div class="form-actions">
-        <button class="btn-cancel" id="form-cancel">Cancel</button>
-        <button class="btn-submit" id="form-submit">Log Weight</button>
-      </div>
-    `;
-
-    formEl.querySelector('#form-cancel')!.addEventListener('click', () => this._closeForm());
-    formEl.querySelector('#form-submit')!.addEventListener('click', () => {
-      const weightInput = formEl.querySelector<HTMLInputElement>('#weight-input')!;
-      const value = parseFloat(weightInput.value);
-      if (isNaN(value) || value < 1 || value > 999) {
-        weightInput.style.outline = '2px solid var(--error-color, #ef5350)';
-        weightInput.focus();
-        return;
-      }
-      /* If unit is kg, convert to lbs before storing (store is always lbs) */
-      const valueLbs = unit === 'kg' ? Math.round(value * 2.20462 * 10) / 10 : value;
-      this._submitWeight(activeBtn, valueLbs);
-    });
-
-    this._applyFormOpenState(activeBtn);
-  }
-
-  /* ── Edit form for existing event ───────────────────────────────────── */
-  _openEditForm(eventType: string | undefined, timestamp: string | undefined, note: string | undefined, value: string | undefined, eventId: string | undefined) {
-    this._activeForm = 'edit';
-    this._activeType = eventType || null;
-    this._editEventId = eventId || null;
-
-    const { registry } = this._registry();
-    const meta = getMeta(eventType || '', registry);
-    const isWeight = eventType === 'weight';
-    const unit = this._weightUnit();
-
-    // Calculate minutes ago from timestamp
-    let minutesAgo = 0;
-    if (timestamp) {
-      const diff = Date.now() - new Date(timestamp).getTime();
-      minutesAgo = Math.max(0, Math.round(diff / 60000));
-    }
-
-    const formEl = this.shadowRoot!.getElementById('inline-form')!;
-
-    if (isWeight) {
-      const displayVal = value ? (unit === 'kg' ? Math.round(Number(value) / 2.20462 * 10) / 10 : value) : '';
-      formEl.innerHTML = `
-        <div class="form-title">⚖️ Edit Weight</div>
-        <div class="form-field">
-          <label class="form-label" for="weight-input">Weight (${_escapeHTML(unit)})</label>
-          <div class="weight-input-row">
-            <input type="number" id="weight-input" min="1" max="999" step="0.1"
-              inputmode="decimal"
-              value="${displayVal}"
-              placeholder="0.0" />
-            <span class="weight-unit">${_escapeHTML(unit)}</span>
-          </div>
-        </div>
-        <div class="form-error" id="form-error" role="alert"></div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="form-cancel">Cancel</button>
-          <button class="btn-submit" id="form-submit">Update Weight</button>
-        </div>
-      `;
-      formEl.querySelector('#form-cancel')!.addEventListener('click', () => this._closeForm());
-      formEl.querySelector('#form-submit')!.addEventListener('click', () => {
-        const wInput = formEl.querySelector<HTMLInputElement>('#weight-input')!;
-        const w = parseFloat(wInput.value);
-        if (isNaN(w) || w < 1 || w > 999) {
-          wInput.style.outline = '2px solid var(--error-color, #ef5350)';
-          wInput.focus();
-          return;
-        }
-        const valueLbs = unit === 'kg' ? Math.round(w * 2.20462 * 10) / 10 : w;
-        this._submitEdit({ value: valueLbs });
-      });
-    } else {
-      formEl.innerHTML = `
-        <div class="form-title">${meta.emoji} Edit ${_escapeHTML(meta.label)}</div>
-        <div class="form-field">
-          <div class="form-label-row">
-            <label class="form-label" for="minutes-slider">Minutes ago</label>
-            <span class="slider-value" id="slider-display">Now</span>
-          </div>
-          <input type="range" id="minutes-slider" min="0" max="480" step="1" value="${minutesAgo}" aria-label="Minutes ago" />
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="backdate-note">Note (optional)</label>
-          <input type="text" id="backdate-note" placeholder="Add a note…" value="${_escapeHTML(note || '')}" />
-        </div>
-        <div class="form-error" id="form-error" role="alert"></div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="form-cancel">Cancel</button>
-          <button class="btn-submit" id="form-submit">Update Event</button>
-        </div>
-      `;
-
-      const slider = formEl.querySelector<HTMLInputElement>('#minutes-slider')!;
-      const display = formEl.querySelector<HTMLElement>('#slider-display')!;
-      const _updateSliderDisplay = () => {
-        const v = parseInt(slider.value, 10);
-        const t = new Date(Date.now() - v * 60000);
-        const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-        display.textContent = (v === 0 ? 'Now' : v === 1 ? '1 min ago' : `${v} min ago`) + ` · ${timeStr}`;
-      };
-      slider.addEventListener('input', _updateSliderDisplay);
-      _updateSliderDisplay();
-
-      formEl.querySelector('#form-cancel')!.addEventListener('click', () => this._closeForm());
-      formEl.querySelector('#form-submit')!.addEventListener('click', () => {
-        const minutesAgoVal = parseInt(slider.value, 10);
-        const noteVal = formEl.querySelector<HTMLInputElement>('#backdate-note')!.value.trim();
-        const ts = new Date(Date.now() - minutesAgoVal * 60000).toISOString();
-        const updates: Record<string, unknown> = { timestamp: ts };
-        if (noteVal) updates['note'] = noteVal;
-        else updates['note'] = '';  // clear note if empty
-        this._submitEdit(updates);
-      });
-    }
-
-    this._applyFormOpenState(null);
-  }
-
-  _submitEdit(updates: Record<string, unknown>) {
-    const eventId = this._editEventId;
-    if (!eventId) return;
-
-    updateEvent(this._hass!, eventId, updates)
-      .then(() => {
-        this._setTimeout(() => {
-          this._closeForm();
-          this._fetchTimeline();
-        }, 600);
-      })
-      .catch(err => {
-        console.error('[pawsistant-card] update_event failed:', err);
-        this._showFormError('Failed to update event. Please try again.');
-      });
-  }
-
-  /* ── Apply visual state when form opens ───────────────────────────── */
-  _applyFormOpenState(activeBtn: HTMLButtonElement | null) {
-    this.shadowRoot!.querySelectorAll<HTMLButtonElement>('.log-btn').forEach(b => {
-      if (b === activeBtn) {
-        b.classList.add('active-btn');
-        b.classList.remove('dimmed');
-      } else {
-        b.classList.add('dimmed');
-        b.classList.remove('active-btn');
-      }
-    });
-
-    const wrap = this.shadowRoot!.getElementById('inline-form-wrap') as HTMLElement;
-    void wrap.offsetWidth;
-    wrap.classList.add('open');
-
-    // Focus first input after animation
-    this._setTimeout(() => {
-      const first = this.shadowRoot!.querySelector<HTMLElement>('#inline-form input');
-      if (first) first.focus();
-    }, 300);
-  }
-
-  /* ── Close form ────────────────────────────────────────────────────── */
-  _closeForm() {
-    const triggerBtn = this._activeTriggerBtn;
-    this._activeForm = null;
-    this._activeType = null;
-    this._activeTriggerBtn = null;
-    this._editEventId = null;
-
-    const wrap = this.shadowRoot!.getElementById('inline-form-wrap');
-    if (wrap) wrap.classList.remove('open');
-
-    this.shadowRoot!.querySelectorAll('.log-btn').forEach(b => {
-      b.classList.remove('dimmed', 'active-btn');
-    });
-
-    /* U17 — return focus to trigger button */
-    if (triggerBtn) {
-      this._setTimeout(() => triggerBtn.focus(), 50);
-    }
-  }
-
-  /* ── Show form error ───────────────────────────────────────────────── */
-  _showFormError(msg: string) {
-    const el = this.shadowRoot!.querySelector<HTMLElement>('#form-error');
-    if (!el) return;
-    el.textContent = msg;
-    el.classList.add('visible');
-  }
-
-  /* ── Submit backdate ───────────────────────────────────────────────── */
-  _submitBackdate(btn: HTMLButtonElement | null, type: string, timestamp: string, note: string | undefined) {
-    const extra: Record<string, unknown> = { timestamp };
-    if (note) extra['note'] = note;
-
-    logEvent(this._hass!, this._config.dog, type, extra)
-      .then(() => {
-        if (btn) this._showSuccessFlash(btn);
-        this._setTimeout(() => {
-          this._closeForm();
-          this._fetchTimeline();
-        }, 600);
-      })
-      .catch(err => {
-        /* U11 — show error in form instead of just console.error */
-        console.error('[pawsistant-card] log_event (backdate) failed:', err);
-        this._showFormError('Failed to log event. Please try again.');
-      });
-  }
-
-  /* ── Submit weight ─────────────────────────────────────────────────── */
-  _submitWeight(btn: HTMLButtonElement, value: number) {
-    logEvent(this._hass!, this._config.dog, 'weight', { value })
-      .then(() => {
-        this._showSuccessFlash(btn);
-        this._setTimeout(() => {
-          this._closeForm();
-          this._fetchTimeline();
-        }, 600);
-      })
-      .catch(err => {
-        /* U11 — show error in form */
-        console.error('[pawsistant-card] log_event (weight) failed:', err);
-        this._showFormError('Failed to log weight. Please try again.');
-      });
-  }
 
   /* ── Success flash ─────────────────────────────────────────────────── */
   _showSuccessFlash(btn: HTMLButtonElement) {

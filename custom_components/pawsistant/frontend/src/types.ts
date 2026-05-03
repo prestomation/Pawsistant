@@ -114,6 +114,7 @@ export interface EventTypeFormState {
 /* ── Metric label formatters ───────────────────────────────────────── */
 
 export interface MetricLabels {
+  [key: string]: unknown;
   daily_count: (n: number) => string;
   days_since: (n: number) => string;
   last_value: (v: number, unit?: string) => string;
