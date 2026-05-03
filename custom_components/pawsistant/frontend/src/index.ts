@@ -36,7 +36,7 @@ class PawsistantCardEditor extends HTMLElement {
   }
 
   get _hass() { return this.__hass; }
-  set hass(h) {
+  set hass(h: HomeAssistant | null) {
     this.__hass = h;
     // Re-render only if the available dog list changed (avoids thrashing).
     const names = this._dogNamesFromHass(h);
@@ -49,10 +49,10 @@ class PawsistantCardEditor extends HTMLElement {
 
   _dogNamesFromHass(h: HomeAssistant | null): string[] {
     if (!h) return [];
-    const seen = new Set();
+    const seen = new Set<string>();
     for (const state of Object.values(h.states || {})) {
       const dog = state.attributes && state.attributes.dog;
-      if (dog) seen.add(dog);
+      if (dog) seen.add(dog as string);
     }
     return [...seen].sort();
   }
@@ -69,7 +69,7 @@ class PawsistantCardEditor extends HTMLElement {
 
 
 
-    this.shadowRoot.innerHTML = `
+    this.shadowRoot!.innerHTML = `
       <style>
         .form { display: flex; flex-direction: column; gap: 14px; padding: 8px 0; }
         .field-label { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 4px; display: block; font-weight: 500; }
@@ -111,7 +111,7 @@ class PawsistantCardEditor extends HTMLElement {
     `;
 
     // Attach listeners on text/select inputs
-    this.shadowRoot.querySelectorAll('input[type="text"], input[type="number"], select').forEach(el => {
+    this.shadowRoot!.querySelectorAll<HTMLInputElement>('input[type="text"], input[type="number"], select').forEach(el => {
       el.addEventListener('change', () => this._valueChanged());
     });
 
@@ -119,10 +119,10 @@ class PawsistantCardEditor extends HTMLElement {
   }
 
   _valueChanged() {
-    const newConfig = { ...this._config };
+    const newConfig = { ...this._config } as Record<string, unknown>;
 
     // Scalar inputs
-    this.shadowRoot.querySelectorAll('input[type="text"], input[type="number"], select').forEach(el => {
+    this.shadowRoot!.querySelectorAll<HTMLInputElement>('input[type="text"], input[type="number"], select').forEach(el => {
       const key = el.name;
       const val = el.value.trim();
       if (val) {
@@ -150,7 +150,7 @@ class PawsistantCard extends HTMLElement {
   _timers: (ReturnType<typeof setTimeout> | number)[] = [];
   _deleteConfirmState: Map<string, ReturnType<typeof setTimeout> | number> = new Map();
   _eventTypesPanel: boolean = false;
-  _editingEventType: EventTypeFormState | null = null;
+  _editingEventType: EventTypeFormState | '__ADD__' | null = null;
   _eventTypeFormError: string | null = null;
   _registryCache: RegistryResult | null = null;
   _editEventId: string | null = null;
@@ -215,7 +215,7 @@ class PawsistantCard extends HTMLElement {
   }
 
   /** Schedule a timeout and track its ID for cleanup */
-  _setTimeout(fn, delay) {
+  _setTimeout(fn: () => void, delay: number) {
     const id = setTimeout(() => {
       this._timers = this._timers.filter(t => t !== id);
       fn();
@@ -304,7 +304,7 @@ class PawsistantCard extends HTMLElement {
 
   /* ── Fetch timeline via WebSocket ──────────────────────────────────── */
   /* Generate HTML for a batch of events, including day headers */
-  _buildEventRowsHTML(events, registry, lastDate) {
+  _buildEventRowsHTML(events: TimelineEvent[], registry: Registry, lastDate: string | null) {
     let html = '';
     let currentDate = lastDate;
     for (const ev of events) {
@@ -355,7 +355,7 @@ class PawsistantCard extends HTMLElement {
           dog_id: dogId,
           offset: offset,
           limit: limit,
-        });
+        }) as { events: TimelineEvent[]; total: number };
         const newEvents = result.events || [];
         this._timelineEvents = [...this._timelineEvents, ...newEvents];
         this._timelineTotal = result.total || 0;
@@ -403,7 +403,7 @@ class PawsistantCard extends HTMLElement {
         dog_id: dogId,
         offset: 0,
         limit: this._timelineLimit,
-      });
+      }) as { events: TimelineEvent[]; total: number };
       this._timelineEvents = result.events || [];
       this._timelineTotal = result.total || 0;
       this._timelineFetched = true;
@@ -449,9 +449,9 @@ class PawsistantCard extends HTMLElement {
     const poopCount = stateNum(hass, ent.poop_count);
     const medDays = stateNum(hass, ent.medicine_days);
     // Use WS-fetched events if available; fall back to sensor attributes for backward compat
-    const events = this._timelineFetched
+    const events: TimelineEvent[] = this._timelineFetched
       ? this._timelineEvents
-      : (stateAttr(hass, ent.timeline, 'events') || []);
+      : ((stateAttr(hass, ent.timeline, 'events') as TimelineEvent[]) || []);
     const weightUnit = this._weightUnit();
 
     const medDaysText = medDays === null ? '—' : Math.floor(medDays) + 'd';
@@ -503,7 +503,7 @@ class PawsistantCard extends HTMLElement {
         if (w !== null) countSuffix = ` (${w} ${weightUnit})`;
       } else if (metric === 'hours_since') {
         // Show hours since most recent of this type
-        const lastTs = stateAttr(hass, ent.timeline, 'last_' + type + '_ts');
+        const lastTs = stateAttr(hass, ent.timeline, 'last_' + type + '_ts') as string | null;
         if (lastTs) {
           const hrs = Math.floor((Date.now() - new Date(lastTs).getTime()) / 3600000);
           if (hrs >= 0) countSuffix = ` (${hrs}h)`;
@@ -525,7 +525,7 @@ class PawsistantCard extends HTMLElement {
       `;
     }
 
-    this.shadowRoot.innerHTML = `
+    this.shadowRoot!.innerHTML = `
       <style>
         :host {
           display: block;
@@ -1145,7 +1145,7 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Render main card content ──────────────────────────────────────── */
-  _renderMainContent(dogName, buttonsHTML, buttonsPerRow, timelineHTML, loadMoreHTML = '') {
+  _renderMainContent(dogName: string, buttonsHTML: string, buttonsPerRow: number | null, timelineHTML: string, loadMoreHTML = '') {
     return `
         <div class="card-header">
           <span class="card-title">🐾 ${_escapeHTML(dogName)}</span>
@@ -1173,7 +1173,7 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Render Event Types Manager Panel ──────────────────────────────── */
-  _renderEventTypesPanel(registry, metrics) {
+  _renderEventTypesPanel(registry: Registry, metrics: Record<string, string>) {
     const esc = _escapeHTML;
     const { registry: allTypes, metrics: buttonMetrics } = this._registry();
 
@@ -1193,7 +1193,7 @@ class PawsistantCard extends HTMLElement {
     const rows = orderedKeys.map(key => {
       const displayMeta = getMeta(key, allTypes);
       const metric = buttonMetrics[key] || 'daily_count';
-      const metricBadge = METRIC_LABELS[metric] ? metric.replace(/_/g, ' ') : metric;
+      const metricBadge = (METRIC_LABELS as unknown as Record<string, unknown>)[metric] ? metric.replace(/_/g, ' ') : metric;
       const icon = displayMeta.icon ? iconToEmoji(displayMeta.icon) : displayMeta.emoji;
       const isVisible = shownInOrder.includes(key);
       return `
@@ -1232,7 +1232,7 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Render Event Type Edit/Add Form ──────────────────────────────── */
-  _renderEventTypeForm(editing) {
+  _renderEventTypeForm(editing: EventTypeFormState | '__ADD__') {
     // editing = null means ADD mode; otherwise it's {event_type, name, icon, color, metric}
     const isAdd = editing === '__ADD__';
     const isEdit = !isAdd && editing !== null;
@@ -1242,13 +1242,14 @@ class PawsistantCard extends HTMLElement {
     let formTitle = 'Add Event Type';
 
     if (isEdit) {
-      const meta = getMeta(editing.event_type, this._registry().registry) || {};
+      const editingState = editing as EventTypeFormState;
+      const meta = getMeta(editingState.event_type, this._registry().registry) || {};
       const { metrics } = this._registry();
-      keyVal = editing.event_type;
-      nameVal = editing.name || meta.label || editing.event_type;
-      iconVal = editing.icon || meta.icon || '';
-      colorVal = editing.color || meta.color || '#4CAF50';
-      metricVal = editing.metric || metrics[editing.event_type] || 'daily_count';
+      keyVal = editingState.event_type;
+      nameVal = editingState.name || meta.label || editingState.event_type;
+      iconVal = editingState.icon || meta.icon || '';
+      colorVal = editingState.color || meta.color || '#4CAF50';
+      metricVal = editingState.metric || metrics[editingState.event_type] || 'daily_count';
       formTitle = 'Edit Event Type';
     }
 
@@ -1348,7 +1349,7 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Open Edit/Add Form ───────────────────────────────────────────── */
-  _openEventTypeForm(key) {
+  _openEventTypeForm(key: string) {
     // key = event_type key to edit, or '__ADD__' for new
     if (key === '__ADD__') {
       this._editingEventType = '__ADD__';
@@ -1371,20 +1372,20 @@ class PawsistantCard extends HTMLElement {
   /* ── Save Event Type Form ─────────────────────────────────────────── */
   _saveEventTypeForm() {
     const isAdd = this._editingEventType === '__ADD__';
-    const formEl = this.shadowRoot.getElementById('et-form');
+    const formEl = this.shadowRoot!.getElementById('et-form');
     if (!formEl) return;
 
     // Collect values
-    const name = (formEl.querySelector('#et-name-input') || {}).value || '';
-    const icon = (formEl.querySelector('#et-icon-input') || {}).value || '';
-    const color = (formEl.querySelector('#et-color-input') || {}).value || '';
-    const metric = (formEl.querySelector('#et-metric-select') || {}).value || 'daily_count';
+    const name = formEl.querySelector<HTMLInputElement>('#et-name-input')?.value || '';
+    const icon = formEl.querySelector<HTMLInputElement>('#et-icon-input')?.value || '';
+    const color = formEl.querySelector<HTMLInputElement>('#et-color-input')?.value || '';
+    const metric = formEl.querySelector<HTMLSelectElement>('#et-metric-select')?.value || 'daily_count';
 
-    let eventType;
+    let eventType: string;
     if (isAdd) {
-      eventType = (formEl.querySelector('#et-key-input') || {}).value || '';
+      eventType = formEl.querySelector<HTMLInputElement>('#et-key-input')?.value || '';
     } else {
-      eventType = this._editingEventType.event_type;
+      eventType = (this._editingEventType as EventTypeFormState).event_type;
     }
 
     // Basic client-side validation before calling service
@@ -1419,7 +1420,7 @@ class PawsistantCard extends HTMLElement {
     };
 
     const callFn = isAdd ? addEventType : updateEventType;
-    callFn(this._hass, payload)
+    callFn(this._hass!, payload)
       .then(() => {
         this._closeEventTypesPanel();
         // Force refresh the card to pick up new registry
@@ -1434,10 +1435,10 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Save shown_types (order + visibility) ────────────────────────── */
-  _saveShownTypes(orderedShownKeys) {
+  _saveShownTypes(orderedShownKeys: string[]) {
     // Call server-side service to persist shown_types per dog
     const dogName = this._config.dog;
-    setShownTypes(this._hass, dogName, orderedShownKeys)
+    setShownTypes(this._hass!, dogName, orderedShownKeys)
       .then(() => {
         // Force re-render after server updates sensor attribute
         this._setTimeout(() => { this._lastHash = null; this._render(); }, 300);
@@ -1451,9 +1452,9 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Delete Event Type ─────────────────────────────────────────────── */
-  _deleteEventType(key) {
+  _deleteEventType(key: string) {
     if (!confirm(`Delete event type '${key}'? Events logged with this type will be preserved.`)) return;
-    deleteEventType(this._hass, key)
+    deleteEventType(this._hass!, key)
       .then(() => {
         // Optimistically remove the type from the cached registry immediately,
         // without waiting for HA to push updated sensor state.
@@ -1471,16 +1472,16 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Icon picker helper ────────────────────────────────────────────── */
-  async _pickIcon(currentIcon) {
+  async _pickIcon(currentIcon: string) {
     // Try HA's built-in ha-icon-picker
-    const picker = document.createElement('ha-icon-picker');
+    const picker = document.createElement('ha-icon-picker') as any;
     if (picker && (typeof picker.value !== 'undefined' || customElements.get('ha-icon-picker'))) {
       return new Promise((resolve) => {
-        const dialog = document.createElement('ha-dialog');
+        const dialog = document.createElement('ha-dialog') as any;
         dialog.setAttribute('open', '');
         dialog.heading = 'Pick an icon';
         picker.value = currentIcon || '';
-        picker.addEventListener('value-changed', (e) => {
+        picker.addEventListener('value-changed', (e: CustomEvent) => {
           resolve(e.detail.value);
           dialog.remove();
         });
@@ -1495,9 +1496,9 @@ class PawsistantCard extends HTMLElement {
 
   /* ── Attach listeners ──────────────────────────────────────────────── */
   _attachListeners() {
-    const root = this.shadowRoot;
+    const root = this.shadowRoot!;
 
-    root.querySelectorAll('.log-btn').forEach(btn => {
+    root.querySelectorAll<HTMLButtonElement>('.log-btn').forEach(btn => {
       const isWeight = btn.dataset.weight === 'true';
       const hasLongPress = btn.dataset.longpress === 'true';
 
@@ -1512,7 +1513,7 @@ class PawsistantCard extends HTMLElement {
           }
         });
         /* U3 — keyboard: Enter opens form, Space = instant log (weight just opens form) */
-        btn.addEventListener('keydown', (e) => {
+        btn.addEventListener('keydown', (e: KeyboardEvent) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             if (this._activeForm === 'weight') {
@@ -1528,7 +1529,7 @@ class PawsistantCard extends HTMLElement {
       if (hasLongPress) {
         const cleanup = setupLongPress(btn, {
           onLongPress: (btn) => {
-            const type = btn.dataset.type;
+            const type = btn.dataset.type || '';
             this._instantLog(btn, type);
           },
           onTap: (btn) => {
@@ -1541,7 +1542,7 @@ class PawsistantCard extends HTMLElement {
           },
         }, this._timers);
         // Store cleanup for future use if needed
-        btn._longPressCleanup = cleanup;
+        (btn as any)._longPressCleanup = cleanup;
         return;
       }
 
@@ -1552,7 +1553,7 @@ class PawsistantCard extends HTMLElement {
     });
 
     /* U9 — two-tap delete confirmation */
-    root.querySelectorAll('.delete-btn').forEach(btn => {
+    root.querySelectorAll<HTMLButtonElement>('.delete-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const eventId = btn.dataset.id;
@@ -1580,10 +1581,10 @@ class PawsistantCard extends HTMLElement {
     });
 
     /* Edit button on event rows */
-    root.querySelectorAll('.edit-btn').forEach(btn => {
+    root.querySelectorAll<HTMLButtonElement>('.edit-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const row = btn.closest('.event-row');
+        const row = btn.closest<HTMLElement>('.event-row');
         if (!row) return;
         const eventType = row.dataset.type;
         const timestamp = row.dataset.timestamp;
@@ -1633,7 +1634,7 @@ class PawsistantCard extends HTMLElement {
     }
 
     // Edit buttons on event type rows
-    root.querySelectorAll('.et-btn.edit').forEach(btn => {
+    root.querySelectorAll<HTMLButtonElement>('.et-btn.edit').forEach(btn => {
       btn.addEventListener('click', () => {
         const key = btn.dataset.etKey;
         if (key) this._openEventTypeForm(key);
@@ -1641,7 +1642,7 @@ class PawsistantCard extends HTMLElement {
     });
 
     // Delete buttons on event type rows
-    root.querySelectorAll('.et-btn.delete').forEach(btn => {
+    root.querySelectorAll<HTMLButtonElement>('.et-btn.delete').forEach(btn => {
       btn.addEventListener('click', () => {
         const key = btn.dataset.etKey;
         if (key) this._deleteEventType(key);
@@ -1649,14 +1650,14 @@ class PawsistantCard extends HTMLElement {
     });
 
     // Visibility checkboxes — toggle shown_types
-    root.querySelectorAll('.et-visible-cb').forEach(cb => {
+    root.querySelectorAll<HTMLInputElement>('.et-visible-cb').forEach(cb => {
       cb.addEventListener('change', () => {
         const shownTypes = [...this._shownTypes()];
         const key = cb.dataset.etKey;
         if (cb.checked) {
-          if (!shownTypes.includes(key)) shownTypes.push(key);
+          if (!shownTypes.includes(key!)) shownTypes.push(key!);
         } else {
-          const idx = shownTypes.indexOf(key);
+          const idx = shownTypes.indexOf(key!);
           if (idx !== -1) shownTypes.splice(idx, 1);
         }
         this._saveShownTypes(shownTypes);
@@ -1664,38 +1665,40 @@ class PawsistantCard extends HTMLElement {
     });
 
     // Drag-to-reorder on event type rows
-    let _dragKey = null;
-    root.querySelectorAll('.event-type-row[draggable]').forEach(row => {
-      row.addEventListener('dragstart', (e) => {
-        _dragKey = row.dataset.etKey;
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', _dragKey);
+    let _dragKey: string | null = null;
+    root.querySelectorAll<HTMLElement>('.event-type-row[draggable]').forEach(row => {
+      row.addEventListener('dragstart', (e: DragEvent) => {
+        _dragKey = row.dataset.etKey || null;
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', _dragKey || '');
+        }
         row.classList.add('et-dragging');
       });
       row.addEventListener('dragend', () => {
         row.classList.remove('et-dragging');
-        root.querySelectorAll('.event-type-row').forEach(r => r.classList.remove('et-drag-over'));
+        root.querySelectorAll<HTMLElement>('.event-type-row').forEach(r => r.classList.remove('et-drag-over'));
         _dragKey = null;
       });
-      row.addEventListener('dragover', (e) => {
+      row.addEventListener('dragover', (e: DragEvent) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        root.querySelectorAll('.event-type-row').forEach(r => r.classList.remove('et-drag-over'));
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        root.querySelectorAll<HTMLElement>('.event-type-row').forEach(r => r.classList.remove('et-drag-over'));
         row.classList.add('et-drag-over');
       });
-      row.addEventListener('drop', (e) => {
+      row.addEventListener('drop', (e: DragEvent) => {
         e.preventDefault();
         const fromKey = _dragKey;
         const toKey = row.dataset.etKey;
         if (!fromKey || fromKey === toKey) return;
 
         // Get current full ordered list from DOM
-        const allRows = [...root.querySelectorAll('.event-type-row')];
-        const orderedAll = allRows.map(r => r.dataset.etKey);
+        const allRows = [...root.querySelectorAll<HTMLElement>('.event-type-row')];
+        const orderedAll = allRows.map(r => r.dataset.etKey as string);
 
         // Reorder: move fromKey to toKey's position
         const fromIdx = orderedAll.indexOf(fromKey);
-        const toIdx = orderedAll.indexOf(toKey);
+        const toIdx = orderedAll.indexOf(toKey!);
         orderedAll.splice(fromIdx, 1);
         orderedAll.splice(toIdx, 0, fromKey);
 
@@ -1710,18 +1713,18 @@ class PawsistantCard extends HTMLElement {
     const browseBtn = root.querySelector('#et-browse-btn');
     if (browseBtn) {
       browseBtn.addEventListener('click', async () => {
-        const iconInput = root.querySelector('#et-icon-input');
+        const iconInput = root.querySelector<HTMLInputElement>('#et-icon-input');
         const currentIcon = iconInput ? iconInput.value.trim() : '';
         const picked = await this._pickIcon(currentIcon);
         if (picked && iconInput) {
-          iconInput.value = picked;
+          iconInput.value = picked as string;
         }
       });
     }
 
     // Color input — update hex display
-    const colorInput = root.querySelector('#et-color-input');
-    const colorHex = root.querySelector('#et-color-hex');
+    const colorInput = root.querySelector<HTMLInputElement>('#et-color-input');
+    const colorHex = root.querySelector<HTMLElement>('#et-color-hex');
     if (colorInput && colorHex) {
       colorInput.addEventListener('input', () => {
         colorHex.textContent = colorInput.value;
@@ -1744,7 +1747,7 @@ class PawsistantCard extends HTMLElement {
       });
     }
   }
-  _instantLog = withCooldown(function(btn, type) {
+  _instantLog = withCooldown(function(this: PawsistantCard, btn: HTMLButtonElement, type: string) {
     /* U7 — debounce: set pending, re-enable after service call */
     if (btn && btn.dataset && btn.dataset.pending) return;
     if (btn) btn.dataset.pending = '1';
@@ -1765,14 +1768,14 @@ class PawsistantCard extends HTMLElement {
   }, 500);
 
   /* ── Backdate form ─────────────────────────────────────────────────── */
-  _openBackdateForm(activeBtn, type) {
+  _openBackdateForm(activeBtn: HTMLButtonElement | undefined, type: string | undefined) {
     this._activeForm = 'backdate';
-    this._activeType = type;
-    this._activeTriggerBtn = activeBtn;
+    this._activeType = type || null;
+    this._activeTriggerBtn = activeBtn || null;
 
     const { registry } = this._registry();
-    const meta = getMeta(type, registry);
-    const formEl = this.shadowRoot.getElementById('inline-form');
+    const meta = getMeta(type || '', registry);
+    const formEl = this.shadowRoot!.getElementById('inline-form')!;
     /* U10 — proper <label for> on all inputs */
     formEl.innerHTML = `
       <div class="form-title">${meta.emoji} Log ${_escapeHTML(meta.label)}</div>
@@ -1794,8 +1797,8 @@ class PawsistantCard extends HTMLElement {
       </div>
     `;
 
-    const slider = formEl.querySelector('#minutes-slider');
-    const display = formEl.querySelector('#slider-display');
+    const slider = formEl.querySelector<HTMLInputElement>('#minutes-slider')!;
+    const display = formEl.querySelector<HTMLElement>('#slider-display')!;
     const _updateSliderDisplay = () => {
       const v = parseInt(slider.value, 10);
       const t = new Date(Date.now() - v * 60000);
@@ -1805,28 +1808,28 @@ class PawsistantCard extends HTMLElement {
     slider.addEventListener('input', _updateSliderDisplay);
     _updateSliderDisplay();
 
-    formEl.querySelector('#form-cancel').addEventListener('click', () => this._closeForm());
-    formEl.querySelector('#form-submit').addEventListener('click', () => {
+    formEl.querySelector('#form-cancel')!.addEventListener('click', () => this._closeForm());
+    formEl.querySelector('#form-submit')!.addEventListener('click', () => {
       const minutesAgo = parseInt(slider.value, 10);
-      const note = formEl.querySelector('#backdate-note').value.trim();
+      const note = formEl.querySelector<HTMLInputElement>('#backdate-note')!.value.trim();
       const timestamp = new Date(Date.now() - minutesAgo * 60000).toISOString();
-      this._submitBackdate(activeBtn, type, timestamp, note || undefined);
+      this._submitBackdate(activeBtn || null, type || '', timestamp, note || undefined);
     });
 
-    this._applyFormOpenState(activeBtn);
+    this._applyFormOpenState(activeBtn || null);
   }
 
   /* ── Weight form ───────────────────────────────────────────────────── */
-  _openWeightForm(activeBtn) {
+  _openWeightForm(activeBtn: HTMLButtonElement) {
     this._activeForm = 'weight';
     this._activeType = 'weight';
     this._activeTriggerBtn = activeBtn;
 
     const ent = this._entities();
     const unit = this._weightUnit();
-    const currentWeight = toDisplayWeight(stateNum(this._hass, ent.weight), unit);
+    const currentWeight = toDisplayWeight(stateNum(this._hass!, ent.weight), unit);
 
-    const formEl = this.shadowRoot.getElementById('inline-form');
+    const formEl = this.shadowRoot!.getElementById('inline-form')!;
     /* U10 — <label for>, U21 — inputmode="decimal", U22 — configurable unit */
     formEl.innerHTML = `
       <div class="form-title">⚖️ Log Weight</div>
@@ -1847,9 +1850,9 @@ class PawsistantCard extends HTMLElement {
       </div>
     `;
 
-    formEl.querySelector('#form-cancel').addEventListener('click', () => this._closeForm());
-    formEl.querySelector('#form-submit').addEventListener('click', () => {
-      const weightInput = formEl.querySelector('#weight-input');
+    formEl.querySelector('#form-cancel')!.addEventListener('click', () => this._closeForm());
+    formEl.querySelector('#form-submit')!.addEventListener('click', () => {
+      const weightInput = formEl.querySelector<HTMLInputElement>('#weight-input')!;
       const value = parseFloat(weightInput.value);
       if (isNaN(value) || value < 1 || value > 999) {
         weightInput.style.outline = '2px solid var(--error-color, #ef5350)';
@@ -1865,13 +1868,13 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Edit form for existing event ───────────────────────────────────── */
-  _openEditForm(eventType, timestamp, note, value, eventId) {
+  _openEditForm(eventType: string | undefined, timestamp: string | undefined, note: string | undefined, value: string | undefined, eventId: string | undefined) {
     this._activeForm = 'edit';
-    this._activeType = eventType;
-    this._editEventId = eventId;
+    this._activeType = eventType || null;
+    this._editEventId = eventId || null;
 
     const { registry } = this._registry();
-    const meta = getMeta(eventType, registry);
+    const meta = getMeta(eventType || '', registry);
     const isWeight = eventType === 'weight';
     const unit = this._weightUnit();
 
@@ -1882,10 +1885,10 @@ class PawsistantCard extends HTMLElement {
       minutesAgo = Math.max(0, Math.round(diff / 60000));
     }
 
-    const formEl = this.shadowRoot.getElementById('inline-form');
+    const formEl = this.shadowRoot!.getElementById('inline-form')!;
 
     if (isWeight) {
-      const displayVal = value ? (unit === 'kg' ? Math.round(value / 2.20462 * 10) / 10 : value) : '';
+      const displayVal = value ? (unit === 'kg' ? Math.round(Number(value) / 2.20462 * 10) / 10 : value) : '';
       formEl.innerHTML = `
         <div class="form-title">⚖️ Edit Weight</div>
         <div class="form-field">
@@ -1904,9 +1907,9 @@ class PawsistantCard extends HTMLElement {
           <button class="btn-submit" id="form-submit">Update Weight</button>
         </div>
       `;
-      formEl.querySelector('#form-cancel').addEventListener('click', () => this._closeForm());
-      formEl.querySelector('#form-submit').addEventListener('click', () => {
-        const wInput = formEl.querySelector('#weight-input');
+      formEl.querySelector('#form-cancel')!.addEventListener('click', () => this._closeForm());
+      formEl.querySelector('#form-submit')!.addEventListener('click', () => {
+        const wInput = formEl.querySelector<HTMLInputElement>('#weight-input')!;
         const w = parseFloat(wInput.value);
         if (isNaN(w) || w < 1 || w > 999) {
           wInput.style.outline = '2px solid var(--error-color, #ef5350)';
@@ -1937,8 +1940,8 @@ class PawsistantCard extends HTMLElement {
         </div>
       `;
 
-      const slider = formEl.querySelector('#minutes-slider');
-      const display = formEl.querySelector('#slider-display');
+      const slider = formEl.querySelector<HTMLInputElement>('#minutes-slider')!;
+      const display = formEl.querySelector<HTMLElement>('#slider-display')!;
       const _updateSliderDisplay = () => {
         const v = parseInt(slider.value, 10);
         const t = new Date(Date.now() - v * 60000);
@@ -1948,14 +1951,14 @@ class PawsistantCard extends HTMLElement {
       slider.addEventListener('input', _updateSliderDisplay);
       _updateSliderDisplay();
 
-      formEl.querySelector('#form-cancel').addEventListener('click', () => this._closeForm());
-      formEl.querySelector('#form-submit').addEventListener('click', () => {
+      formEl.querySelector('#form-cancel')!.addEventListener('click', () => this._closeForm());
+      formEl.querySelector('#form-submit')!.addEventListener('click', () => {
         const minutesAgoVal = parseInt(slider.value, 10);
-        const noteVal = formEl.querySelector('#backdate-note').value.trim();
+        const noteVal = formEl.querySelector<HTMLInputElement>('#backdate-note')!.value.trim();
         const ts = new Date(Date.now() - minutesAgoVal * 60000).toISOString();
-        const updates = { timestamp: ts };
-        if (noteVal) updates.note = noteVal;
-        else updates.note = '';  // clear note if empty
+        const updates: Record<string, unknown> = { timestamp: ts };
+        if (noteVal) updates['note'] = noteVal;
+        else updates['note'] = '';  // clear note if empty
         this._submitEdit(updates);
       });
     }
@@ -1963,11 +1966,11 @@ class PawsistantCard extends HTMLElement {
     this._applyFormOpenState(null);
   }
 
-  _submitEdit(updates) {
+  _submitEdit(updates: Record<string, unknown>) {
     const eventId = this._editEventId;
     if (!eventId) return;
 
-    updateEvent(this._hass, eventId, updates)
+    updateEvent(this._hass!, eventId, updates)
       .then(() => {
         this._setTimeout(() => {
           this._closeForm();
@@ -1981,8 +1984,8 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Apply visual state when form opens ───────────────────────────── */
-  _applyFormOpenState(activeBtn) {
-    this.shadowRoot.querySelectorAll('.log-btn').forEach(b => {
+  _applyFormOpenState(activeBtn: HTMLButtonElement | null) {
+    this.shadowRoot!.querySelectorAll<HTMLButtonElement>('.log-btn').forEach(b => {
       if (b === activeBtn) {
         b.classList.add('active-btn');
         b.classList.remove('dimmed');
@@ -1992,13 +1995,13 @@ class PawsistantCard extends HTMLElement {
       }
     });
 
-    const wrap = this.shadowRoot.getElementById('inline-form-wrap');
+    const wrap = this.shadowRoot!.getElementById('inline-form-wrap') as HTMLElement;
     void wrap.offsetWidth;
     wrap.classList.add('open');
 
     // Focus first input after animation
     this._setTimeout(() => {
-      const first = this.shadowRoot.querySelector('#inline-form input');
+      const first = this.shadowRoot!.querySelector<HTMLElement>('#inline-form input');
       if (first) first.focus();
     }, 300);
   }
@@ -2011,10 +2014,10 @@ class PawsistantCard extends HTMLElement {
     this._activeTriggerBtn = null;
     this._editEventId = null;
 
-    const wrap = this.shadowRoot.getElementById('inline-form-wrap');
+    const wrap = this.shadowRoot!.getElementById('inline-form-wrap');
     if (wrap) wrap.classList.remove('open');
 
-    this.shadowRoot.querySelectorAll('.log-btn').forEach(b => {
+    this.shadowRoot!.querySelectorAll('.log-btn').forEach(b => {
       b.classList.remove('dimmed', 'active-btn');
     });
 
@@ -2025,21 +2028,21 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Show form error ───────────────────────────────────────────────── */
-  _showFormError(msg) {
-    const el = this.shadowRoot.querySelector('#form-error');
+  _showFormError(msg: string) {
+    const el = this.shadowRoot!.querySelector<HTMLElement>('#form-error');
     if (!el) return;
     el.textContent = msg;
     el.classList.add('visible');
   }
 
   /* ── Submit backdate ───────────────────────────────────────────────── */
-  _submitBackdate(btn, type, timestamp, note) {
-    const extra = { timestamp };
-    if (note) extra.note = note;
+  _submitBackdate(btn: HTMLButtonElement | null, type: string, timestamp: string, note: string | undefined) {
+    const extra: Record<string, unknown> = { timestamp };
+    if (note) extra['note'] = note;
 
-    logEvent(this._hass, this._config.dog, type, extra)
+    logEvent(this._hass!, this._config.dog, type, extra)
       .then(() => {
-        this._showSuccessFlash(btn);
+        if (btn) this._showSuccessFlash(btn);
         this._setTimeout(() => {
           this._closeForm();
           this._fetchTimeline();
@@ -2053,8 +2056,8 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Submit weight ─────────────────────────────────────────────────── */
-  _submitWeight(btn, value) {
-    logEvent(this._hass, this._config.dog, 'weight', { value })
+  _submitWeight(btn: HTMLButtonElement, value: number) {
+    logEvent(this._hass!, this._config.dog, 'weight', { value })
       .then(() => {
         this._showSuccessFlash(btn);
         this._setTimeout(() => {
@@ -2070,7 +2073,7 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Success flash ─────────────────────────────────────────────────── */
-  _showSuccessFlash(btn) {
+  _showSuccessFlash(btn: HTMLButtonElement) {
     const originalHTML = btn.innerHTML;
     btn.innerHTML = `<span class="btn-emoji" aria-hidden="true">✓</span>`;
     btn.classList.add('success-flash');
@@ -2081,14 +2084,14 @@ class PawsistantCard extends HTMLElement {
   }
 
   /* ── Service calls ─────────────────────────────────────────────────── */
-  _logEvent(eventType, extra = {}) {
-    return logEvent(this._hass, this._config.dog, eventType, extra);
+  _logEvent(eventType: string, extra: Record<string, unknown> = {}) {
+    return logEvent(this._hass!, this._config.dog, eventType, extra);
   }
 
-  _deleteEvent(eventId, btn) {
+  _deleteEvent(eventId: string, btn: HTMLButtonElement) {
     /* U7 — debounce via pending attr */
     if (btn) btn.dataset.pending = '1';
-    deleteEvent(this._hass, eventId).then(() => {
+    deleteEvent(this._hass!, eventId).then(() => {
       if (btn) delete btn.dataset.pending;
       this._fetchTimeline();
     }).catch(err => {
@@ -2096,7 +2099,7 @@ class PawsistantCard extends HTMLElement {
       if (btn) {
         delete btn.dataset.pending;
         /* U11 — flash error on delete failure */
-        const row = btn.closest('.event-row');
+        const row = btn.closest<HTMLElement>('.event-row');
         if (row) {
           row.style.background = 'color-mix(in srgb, var(--error-color, #ef5350) 15%, transparent)';
           this._setTimeout(() => { row.style.background = ''; }, 2000);
