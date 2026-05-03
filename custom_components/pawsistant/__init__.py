@@ -688,10 +688,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if "metric" in call.data and call.data["metric"]:
             metrics = store.get_button_metrics()
             metrics[event_type] = call.data["metric"].strip()
-            store.save_button_metrics(
-                {k: v for k, v in metrics.items()
-                 if k in DEFAULT_BUTTON_METRICS or k == event_type}
-            )
+            # Save the full resolved metrics map (defaults + all overrides).
+            # The previous filter (`k in DEFAULT_BUTTON_METRICS or k == event_type`)
+            # dropped metric overrides for custom event types that weren't the
+            # one being updated — e.g. updating "teeth_cleaning" would lose a
+            # prior override on "sick" because "sick" is not in DEFAULT_BUTTON_METRICS.
+            store.save_button_metrics(metrics)
             store.sync_save_meta()
 
         _LOGGER.info(
