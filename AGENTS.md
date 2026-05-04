@@ -10,13 +10,14 @@
 - Install test deps: `pip install pytest pytest-homeassistant-custom-component`
 - Run: `pytest tests/ -v`
 - Only push when all tests pass.
+- **Update RELEASE.md and AGENTS.md** whenever there are architectural or workflow changes (new CI steps, build process changes, branch protection updates, etc.). These docs must stay accurate.
 
 ## Project Structure
 
 - **Domain:** `pawsistant` (renamed from `doglog` in March 2026)
 - **Display name:** Pawsistant
 - **Storage:** Local only, year-partitioned in `.storage/pawsistant_events_YYYY`
-- **Frontend:** Bundled card at `custom_components/pawsistant/frontend/pawsistant-card.js` — vanilla JS, no build step
+- **Frontend:** TypeScript + Rollup build at `custom_components/pawsistant/frontend/`. Source in `src/*.ts`, builds to `pawsistant-card.js` (gitignored, built by CI). See `ci/build-card.sh`.
 - **Tests:** Use `pytest-homeassistant-custom-component` for proper HA test fixtures. No hand-rolled HA mocks.
 
 ## Conventions
@@ -42,8 +43,11 @@ When adding new sensors: always include `"dog": self._dog_name` in `extra_state_
 
 ## CI
 
-- `.github/workflows/lint.yml` — compile check, pytest, hassfest
-- `.github/workflows/hacs.yml` — HACS validation
+- `.github/workflows/test.yml` — lint, pytest, HACS validation, hassfest, frontend tests
 - `.github/workflows/integration.yml` — Docker-based integration tests (CI only, not local)
-- `.github/workflows/release.yml` — auto-creates GitHub release from CHANGELOG.md on tag push
+- `.github/workflows/release.yml` — tag-triggered release: tests, version bump via PR, build zip, create GitHub release
 - Uses `pytest-homeassistant-custom-component` (not raw `homeassistant` package)
+
+## Release Process
+
+See [RELEASE.md](RELEASE.md) for the full release process, including tag workflow, CI pipeline, and troubleshooting.

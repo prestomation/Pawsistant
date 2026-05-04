@@ -29,7 +29,7 @@ A local-only dog activity tracker for Home Assistant. Log walks, bathroom breaks
 - **Daily count sensors** — today's counts for common event types (resets at local midnight)
 - **Days-since-medicine sensor** — track medication intervals for automation reminders
 - **Weight sensor** — track your dog's weight over time
-- **Pawsistant Card** — built-in Lovelace card auto-registers on install; log events, view the 24-hour timeline, and track stats without leaving the dashboard
+- **Pawsistant Card** — built-in Lovelace card auto-registers on install; log events, view the full event timeline with infinite scroll, and track stats without leaving the dashboard
 - **Multi-dog support** — add and remove dogs via services at any time
 - **Timezone-aware** — daily counts use your HA instance's local timezone
 
@@ -72,7 +72,7 @@ dog: Sharky
 **Card features:**
 - Quick-log buttons (tap to log now, hold to backdate)
 - Weight logging form with configurable unit (lbs/kg)
-- 24-hour event timeline with inline delete
+- Full event timeline with infinite scroll, inline edit and delete
 - Stats row: pee count, poop count, days since medicine
 
 **Card config options:**
