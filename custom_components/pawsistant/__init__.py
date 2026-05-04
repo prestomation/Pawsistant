@@ -139,6 +139,7 @@ ADD_EVENT_TYPE_SCHEMA = vol.Schema(
 DELETE_EVENT_TYPE_SCHEMA = vol.Schema(
     {
         vol.Required("event_type"): cv.string,
+        vol.Optional("delete_events", default=False): cv.boolean,
     }
 )
 
@@ -824,6 +825,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         metrics = store.get_stored_button_metric_overrides()
         metrics.pop(event_type, None)
         store.save_button_metrics(metrics)
+
+        # Remove deleted event type from every dog's shown_types so
+        # ghost buttons don't linger on the card.
+        dogs = store.get_dogs()
+        for _dog_id, dog_info in dogs.items():
+            shown = store.get_shown_types(dog_info["name"])
+            if shown and event_type in shown:
+                filtered = [t for t in shown if t != event_type]
+                await store.set_shown_types(dog_info["name"], filtered)
+                _LOGGER.debug(
+                    "Removed '%s' from shown_types for dog '%s'",
+                    event_type,
+                    dog_info["name"],
+                )
+
+        # Optionally bulk-delete all historic events of this type
+        delete_events: bool = call.data.get("delete_events", False)
+        if delete_events:
+            total_removed = 0
+            for dog_id, dog_info in dogs.items():
+                # Ensure all year files are loaded for thorough cleanup
+                for year in store._meta.get("known_years", []):
+                    await store._ensure_year_loaded(year)
+                for year in list(store._loaded_years):
+                    before = len(store._year_events.get(year, []))
+                    store._year_events[year] = [
+                        e
+                        for e in store._year_events.get(year, [])
+                        if e.get("event_type") != event_type
+                    ]
+                    removed = before - len(store._year_events[year])
+                    if removed:
+                        total_removed += removed
+                        await store._save_year(year)
+            if total_removed:
+                await store._save_meta()
+                _LOGGER.info(
+                    "Deleted %d historic '%s' events", total_removed, event_type
+                )
 
         store.sync_save_meta()
         _LOGGER.info("Deleted event type '%s'", event_type)
