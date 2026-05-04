@@ -285,6 +285,7 @@ class _PawsistantSensorBase(CoordinatorEntity[PawsistantCoordinator], SensorEnti
         and shown_types on every sensor so the card can render dynamic metadata."""
         attrs = {
             "dog": self._dog_name,
+            "dog_id": self._dog_id,
             "species": self._species,
             "event_types": self.coordinator.event_types,
             "button_metrics": self.coordinator.button_metrics,
@@ -502,10 +503,7 @@ class PawsistantRecentTimelineSensor(_PawsistantSensorBase):
                 "note": e.get("note", ""),
                 "event_id": e.get("id", ""),
             })
-        # Also expose the very last event ID for undo
-        last_event_id = events[0].get("id", "") if events else ""
         return {
             **super().extra_state_attributes,
             "events": timeline,
-            "last_event_id": last_event_id,
         }

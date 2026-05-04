@@ -1,3 +1,4 @@
+import typescript from '@rollup/plugin-typescript';
 import virtual from '@rollup/plugin-virtual';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
@@ -20,7 +21,7 @@ try {
 }
 
 export default {
-  input: 'src/index.js',
+  input: 'src/index.ts',
   output: {
     file: 'pawsistant-card.js',
     format: 'iife',
@@ -29,6 +30,9 @@ export default {
     banner: `/**\n * Pawsistant Card — All-in-one pet activity dashboard for Home Assistant\n * Bundled with the Pawsistant integration — no manual setup required.\n * Version: ${CARD_VERSION}\n * Built: ${new Date().toISOString().split('T')[0]}\n */`,
   },
   plugins: [
+    typescript({
+      tsconfig: './tsconfig.json',
+    }),
     virtual({
       // Inject version from const.py at build time
       'card-version': `export const CARD_VERSION = '${CARD_VERSION}';`,

@@ -593,6 +593,21 @@ class PawsistantStore:
                 result.append(event)
         return result
 
+    async def get_all_events(
+        self,
+        dog_id: str,
+        event_type: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return all events for a dog across every known year file.
+
+        Unlike ``get_events``, this method ensures every known year file is
+        loaded before searching so no historical events are missed.
+        Results are newest-first.
+        """
+        for year in self._meta.get("known_years", []):
+            await self._ensure_year_loaded(year)
+        return await self.get_events(dog_id, event_type=event_type)
+
     async def import_events(self, events: list[dict[str, Any]]) -> int:
         """Bulk-import events, partitioning them by year.
 
