@@ -2,6 +2,15 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.15.0] - 2026-05-04
+
+### Added
+- **Paginated timeline via WebSocket** — Load historical events beyond the 24-hour limit with "Load more" pagination
+- **Infinite scroll** — Auto-loads more events when you scroll to the bottom, with click fallback
+
+### Fixed
+- Updating one custom event type's metric (e.g. "sick" → "days_since") no longer resets other custom event type metrics back to "daily_count"
+
 ## [2.14.0] - 2026-04-23
 
 ### Added
