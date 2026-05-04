@@ -135,8 +135,7 @@ jobs:
               --base main \
               --head "$BRANCH" \
               --title "Bump version to ${VERSION}" \
-              --body "Automated version bump for release v${VERSION}." \
-              --label "automated"
+              --body "Automated version bump for release v${VERSION}."
             echo "Waiting for CI checks on PR..."
             gh pr checks --watch
             gh pr merge --squash --admin
