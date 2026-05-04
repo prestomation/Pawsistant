@@ -323,10 +323,18 @@ async def _ws_handle_get_events(
         )
         return
 
+    # Validate dog_id against known dogs
+    dogs = store.get_dogs()
+    if dog_id not in dogs:
+        connection.send_error(
+            msg["id"],
+            "pawsistant_invalid_dog_id",
+            f"Unknown dog_id: {dog_id}. Known dogs: {list(dogs.keys())}",
+        )
+        return
+
+    # get_all_events returns newest-first; no additional sort needed
     all_events = await store.get_all_events(dog_id, event_type=event_type)
-    all_events.sort(
-        key=lambda e: _parse_timestamp(e.get("timestamp", "")), reverse=True
-    )
     total = len(all_events)
     page = all_events[offset : offset + limit]
 
