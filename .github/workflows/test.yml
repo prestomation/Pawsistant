@@ -36,6 +36,9 @@ jobs:
       - name: Run Python unit tests
         run: bash ci/test-python-unit.sh
 
+      - name: Clean node_modules before validation
+        run: rm -rf custom_components/pawsistant/frontend/node_modules
+
       - name: HACS validation
         uses: hacs/action@main
         with:
