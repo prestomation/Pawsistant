@@ -78,10 +78,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
@@ -114,19 +114,37 @@ jobs:
       - name: Build card JS (version injected from const.py)
         run: bash ci/build-card.sh
 
-      - name: Commit version bump
+      - name: Commit version bump via PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${{ steps.version.outputs.version }}
+          BRANCH="bump/v${VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
           git add custom_components/pawsistant/manifest.json custom_components/pawsistant/const.py
-          # Only commit if there are changes
+          # Only create PR if there are changes
           if git diff --cached --quiet; then
             echo "Version already up to date"
           else
-            git commit -m "Bump version to ${VERSION} [skip ci]"
-            git push origin main
+            git commit -m "Bump version to ${VERSION}"
+            git push origin "$BRANCH"
+            # Create PR and wait for checks, then merge with admin
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "Bump version to ${VERSION}" \
+              --body "Automated version bump for release v${VERSION}." \
+              --label "automated"
+            echo "Waiting for CI checks on PR..."
+            gh pr checks --watch
+            gh pr merge --squash --admin
+            echo "Version bump PR merged"
           fi
+          # Switch back to main (with the merged bump) for remaining steps
+          git checkout main
+          git pull origin main
 
       - name: Extract changelog for this version
         id: changelog
