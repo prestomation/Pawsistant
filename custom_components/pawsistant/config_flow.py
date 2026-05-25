@@ -25,6 +25,7 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
+from homeassistant.helpers.selector import IconSelector
 
 from .const import CONF_SPECIES, DEFAULT_SPECIES, DOMAIN, CONF_EVENT_TYPES, CONF_BUTTON_METRICS, DEFAULT_EVENT_TYPES, DEFAULT_BUTTON_METRICS
 
@@ -48,8 +49,7 @@ ACTION_EDIT_EVENT_TYPES = "edit_event_types"
 # Allowed button metric values
 VALID_BUTTON_METRICS = ["daily_count", "days_since", "last_value", "hours_since"]
 
-# MDI icon validation pattern
-MDI_ICON_RE = re.compile(r"^(mdi|hass):")
+
 
 # Human-readable labels for button metrics
 METRIC_LABELS = {
@@ -58,6 +58,21 @@ METRIC_LABELS = {
     "last_value": "shows last value",
     "hours_since": "shows hours since",
 }
+
+
+def _slugify_event_key(name: str) -> str:
+    """Derive a lowercase underscore-separated key from a human-readable name.
+
+    Examples:
+        "Vet Visit" → "vet_visit"
+        "Morning Walk" → "morning_walk"
+        "already_valid" → "already_valid"
+    """
+    key = name.lower().strip()
+    key = re.sub(r"[^a-z0-9]+", "_", key)
+    key = re.sub(r"_+", "_", key)
+    key = key.strip("_")
+    return key
 
 
 class PawsistantConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -419,9 +434,10 @@ class PawsistantOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            key = (
-                user_input.get("event_type_key") or existing_key
-            ).strip()
+            if is_edit:
+                key = existing_key
+            else:
+                key = _slugify_event_key(user_input.get("name", ""))
             name = (user_input.get("name", "")).strip()
             icon = (user_input.get("icon", "")).strip()
             color = (user_input.get("color", "")).strip()
@@ -444,11 +460,9 @@ class PawsistantOptionsFlow(OptionsFlow):
             if not name:
                 errors["name"] = "required"
 
-            # Validate icon
+            # Validate icon (IconSelector handles format, but still check required)
             if not icon:
                 errors["icon"] = "required"
-            elif not MDI_ICON_RE.match(icon):
-                errors["icon"] = "invalid_icon_format"
 
             # Validate color
             if not color:
@@ -490,27 +504,33 @@ class PawsistantOptionsFlow(OptionsFlow):
 
                 return self.async_create_entry(title="", data={})
 
-        # Build form schema
+        # Build form schema — when errors exist, use user_input as defaults
+        # so the form preserves submitted values instead of clearing.
         if is_edit:
             current = store.get_event_types().get(existing_key, {})
+            if errors:
+                defaults = {**current, **(user_input or {})}
+            else:
+                defaults = current
             schema_dict = {
                 vol.Optional("event_type_key", default=existing_key): str,
-                vol.Optional("name", default=current.get("name", "")): str,
-                vol.Optional("icon", default=current.get("icon", "")): str,
-                vol.Optional("color", default=current.get("color", "")): str,
+                vol.Optional("name", default=defaults.get("name", "")): str,
+                vol.Optional("icon", default=defaults.get("icon", "mdi:tag")): IconSelector(),
+                vol.Optional("color", default=defaults.get("color", "#4CAF50")): str,
                 vol.Optional(
                     "metric",
-                    default=store.get_button_metrics().get(existing_key, "daily_count"),
+                    default=defaults.get("metric", store.get_button_metrics().get(existing_key, "daily_count")),
                 ): vol.In({k: k for k in VALID_BUTTON_METRICS}),
             }
         else:
+            defaults = user_input or {}
             schema_dict = {
-                vol.Optional("event_type_key", default=""): str,
-                vol.Optional("name", default=""): str,
-                vol.Optional("icon", default="mdi:tag"): str,
-                vol.Optional("color", default="#4CAF50"): str,
+                vol.Optional("name", default=defaults.get("name", "")): str,
+                vol.Optional("icon", default=defaults.get("icon", "mdi:tag")): IconSelector(),
+                # ColorRGBSelector returns RGB tuples, not hex strings — keep as text
+                vol.Optional("color", default=defaults.get("color", "#4CAF50")): str,
                 vol.Optional(
-                    "metric", default="daily_count"
+                    "metric", default=defaults.get("metric", "daily_count")
                 ): vol.In({k: k for k in VALID_BUTTON_METRICS}),
             }
 
