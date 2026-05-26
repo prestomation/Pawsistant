@@ -128,6 +128,12 @@ def _inject_stubs() -> None:
         cv_mod.string = str
         sys.modules["homeassistant.helpers.config_validation"] = cv_mod
 
+    # homeassistant.helpers.selector — stub IconSelector so config_flow can import it
+    # Always stub since the tests don't need the real selector rendering.
+    selector_mod = types.ModuleType("homeassistant.helpers.selector")
+    selector_mod.IconSelector = lambda config=None: ("IconSelector", config)
+    sys.modules["homeassistant.helpers.selector"] = selector_mod
+
     # re module (needed by config_flow.py)
     import re
     sys.modules["re"] = re
@@ -221,6 +227,7 @@ _cf_mod = _load_config_flow()
 PawsistantOptionsFlow = _cf_mod.PawsistantOptionsFlow
 ACTION_ADD_DOG = _cf_mod.ACTION_ADD_DOG
 ACTION_REMOVE_DOG = _cf_mod.ACTION_REMOVE_DOG
+_slugify_event_key = _cf_mod._slugify_event_key
 ACTION_DONE = _cf_mod.ACTION_DONE
 
 

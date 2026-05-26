@@ -101,6 +101,7 @@ def _inject_stubs() -> None:
     helpers_mod = types.ModuleType("homeassistant.helpers")
     cv_mod = types.ModuleType("homeassistant.helpers.config_validation")
     cv_mod.string = str
+    cv_mod.boolean = bool
     sys.modules["homeassistant.helpers"] = helpers_mod
     sys.modules["homeassistant.helpers.config_validation"] = cv_mod
     helpers_mod.config_validation = cv_mod

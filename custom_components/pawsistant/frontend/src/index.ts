@@ -14,6 +14,15 @@ import { METRIC_LABELS } from './metrics';
 import { setupLongPress, withCooldown } from './interactions';
 import { logEvent, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services';
 import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, toDisplayWeight } from './utils';
+
+/* ── Slugify helper for auto-generating event type keys ─────────────── */
+function slugifyEventKey(name: string): string {
+  return name.toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .substring(0, 30);
+}
 import type { HomeAssistant, PawsistantCardConfig, DogEntities, Registry, RegistryResult, EventTypeFormState, TimelineEvent, LongPressHandlers } from './types';
 import { PawsistantCardEditor } from './editor';
 import { openBackdateForm, openWeightForm, openEditForm, closeForm, showFormError } from './forms';
@@ -44,6 +53,7 @@ export class PawsistantCard extends HTMLElement {
   _eventTypesPanel: boolean = false;
   _editingEventType: EventTypeFormState | '__ADD__' | null = null;
   _eventTypeFormError: string | null = null;
+  _eventTypeFormDraft: EventTypeFormState | null = null;
   _registryCache: RegistryResult | null = null;
   _editEventId: string | null = null;
   _loadMoreObserver: IntersectionObserver | null = null;
@@ -135,10 +145,17 @@ export class PawsistantCard extends HTMLElement {
   }
 
   _shownTypes() {
+    // Build the set of valid event types from the registry for belt-and-suspenders
+    // filtering — if a type was deleted on the backend but shown_types wasn't
+    // cleaned up yet (e.g. during a brief HA restart window), stale entries
+    // are silently dropped so no ghost buttons render.
+    const { registry } = this._registry();
+    const validTypes = new Set(Object.keys(registry));
+
     // First, check if server-side shown_types exists for this dog
     const serverShown = this._getServerShownTypes();
     if (serverShown !== null && Array.isArray(serverShown) && serverShown.length > 0) {
-      let types = serverShown;
+      let types = serverShown.filter((t: string) => validTypes.has(t));
       if (types.length > 12) {
         console.warn('[pawsistant-card] shown_types has more than 12 entries; trimming to 12. Maximum is 12 buttons.');
         types = types.slice(0, 12);
@@ -148,6 +165,7 @@ export class PawsistantCard extends HTMLElement {
     // Fallback to card config
     const t = this._config.shown_types;
     let types = (Array.isArray(t) && t.length > 0) ? t : DEFAULT_SHOWN_TYPES;
+    types = types.filter((et: string) => validTypes.has(et));
     // Maximum of 12 buttons total
     if (types.length > 12) {
       console.warn('[pawsistant-card] shown_types has more than 12 entries; trimming to 12. Maximum is 12 buttons.');
@@ -388,9 +406,18 @@ export class PawsistantCard extends HTMLElement {
       if (metric === 'daily_count') {
         if (type === 'pee' && peeCount !== null) countSuffix = ` (${peeCount})`;
         else if (type === 'poop' && poopCount !== null) countSuffix = ` (${poopCount})`;
-        else if (type === 'medicine' && medDays !== null) countSuffix = ` (${medDaysText})`;
-      } else if (metric === 'days_since' && medDays !== null) {
-        countSuffix = ` (${Math.floor(medDays)}d)`;
+      } else if (metric === 'days_since') {
+        // Look up the days_since sensor for this specific event type
+        const daysLabel = `days since ${meta.label.toLowerCase()}`;
+        let daysVal: number | null = null;
+        for (const [eid, st] of Object.entries(hass.states)) {
+          if (st.attributes?.dog?.toLowerCase() === cfg.dog?.toLowerCase() &&
+              st.attributes?.friendly_name?.toLowerCase().endsWith(daysLabel)) {
+            daysVal = parseFloat(st.state);
+            if (!isNaN(daysVal)) break;
+          }
+        }
+        if (daysVal !== null && !isNaN(daysVal)) countSuffix = ` (${Math.floor(daysVal)}d)`;
       } else if (metric === 'last_value') {
         const w = toDisplayWeight(stateNum(hass, ent.weight), weightUnit);
         if (w !== null) countSuffix = ` (${w} ${weightUnit})`;
@@ -1146,25 +1173,27 @@ export class PawsistantCard extends HTMLElement {
       formTitle = 'Edit Event Type';
     }
 
+    // Restore draft values on validation error re-render
+    if (this._eventTypeFormDraft) {
+      if (isAdd) {
+        nameVal = this._eventTypeFormDraft.name || nameVal;
+        iconVal = this._eventTypeFormDraft.icon || iconVal;
+        colorVal = this._eventTypeFormDraft.color || colorVal;
+        metricVal = this._eventTypeFormDraft.metric || metricVal;
+      } else {
+        nameVal = this._eventTypeFormDraft.name || nameVal;
+        iconVal = this._eventTypeFormDraft.icon || iconVal;
+        colorVal = this._eventTypeFormDraft.color || colorVal;
+        metricVal = this._eventTypeFormDraft.metric || metricVal;
+      }
+    }
+
     const metricOptions = ['daily_count', 'days_since', 'last_value', 'hours_since']
       .map(m => `<option value="${m}"${metricVal === m ? ' selected' : ''}>${m.replace(/_/g, ' ')}</option>`)
       .join('');
 
-    // Show key field only in ADD mode
-    const keyField = isAdd
-      ? `<div class="et-form-field">
-           <label class="et-form-label" for="et-key-input">Event type key</label>
-           <input type="text" id="et-key-input" value="${esc(keyVal)}"
-             placeholder="e.g. outdoor_walk" maxlength="30"
-             style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font-size:15px;" />
-           <div class="hint" style="font-size:11px;color:var(--secondary-text-color);margin-top:3px;">
-             Lowercase letters, numbers, underscores only. Max 30 chars.
-           </div>
-         </div>`
-      : `<div class="et-form-field">
-           <label class="et-form-label">Event type key</label>
-           <div style="font-size:14px;color:var(--secondary-text-color);padding:4px 0;font-family:monospace;">${esc(keyVal)}</div>
-         </div>`;
+    // In add mode: key is auto-generated from name; in edit mode: show as read-only
+    const keyPreview = isAdd ? slugifyEventKey(nameVal) : keyVal;
 
     const errorHTML = this._eventTypeFormError
       ? `<div class="et-form-error visible" role="alert">${_escapeHTML(this._eventTypeFormError)}</div>`
@@ -1177,24 +1206,23 @@ export class PawsistantCard extends HTMLElement {
             <span class="event-types-panel-title">${esc(formTitle)}</span>
           </div>
           <div class="et-form" id="et-form">
-            ${isAdd ? keyField : ''}
             <div class="et-form-field">
               <label class="et-form-label" for="et-name-input">Display name</label>
               <input type="text" id="et-name-input" value="${esc(nameVal)}"
                 placeholder="e.g. Morning Walk"
                 style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font-size:15px;" />
+              ${isAdd ? `<div class="hint" style="font-size:11px;color:var(--secondary-text-color);margin-top:3px;">
+                Key: <code id="et-key-preview">${esc(keyPreview) || '—'}</code>
+              </div>` : ''}
             </div>
+            ${!isAdd ? `<div class="et-form-field">
+              <label class="et-form-label">Event type key</label>
+              <div style="font-size:14px;color:var(--secondary-text-color);padding:4px 0;font-family:monospace;">${esc(keyVal)}</div>
+            </div>` : ''}
             <div class="et-form-field">
-              <label class="et-form-label" for="et-icon-input">Icon (mdi: format)</label>
-              <div class="et-form-row">
-                <input type="text" id="et-icon-input" value="${esc(iconVal)}"
-                  placeholder="mdi:walk"
-                  style="flex:1;box-sizing:border-box;padding:10px 12px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font-size:15px;" />
-                <button class="et-browse-btn" id="et-browse-btn" type="button"
-                  title="Pick icon from HA's built-in icon picker">
-                  🎨 Pick
-                </button>
-              </div>
+              <label class="et-form-label" for="et-icon-input">Icon</label>
+              <ha-icon-picker id="et-icon-input" value="${esc(iconVal)}" label="Icon"
+                style="width:100%;"></ha-icon-picker>
             </div>
             <div class="et-form-field">
               <label class="et-form-label" for="et-color-input">Color</label>
@@ -1244,6 +1272,7 @@ export class PawsistantCard extends HTMLElement {
   /* ── Open Edit/Add Form ───────────────────────────────────────────── */
   _openEventTypeForm(key: string) {
     // key = event_type key to edit, or '__ADD__' for new
+    this._eventTypeFormDraft = null;
     if (key === '__ADD__') {
       this._editingEventType = '__ADD__';
     } else {
@@ -1270,20 +1299,35 @@ export class PawsistantCard extends HTMLElement {
 
     // Collect values
     const name = formEl.querySelector<HTMLInputElement>('#et-name-input')?.value || '';
-    const icon = formEl.querySelector<HTMLInputElement>('#et-icon-input')?.value || '';
+    const iconEl = formEl.querySelector('#et-icon-input') as any;
+    const icon = iconEl?.value || '';
     const color = formEl.querySelector<HTMLInputElement>('#et-color-input')?.value || '';
     const metric = formEl.querySelector<HTMLSelectElement>('#et-metric-select')?.value || 'daily_count';
 
     let eventType: string;
     if (isAdd) {
-      eventType = formEl.querySelector<HTMLInputElement>('#et-key-input')?.value || '';
+      eventType = slugifyEventKey(name);
     } else {
       eventType = (this._editingEventType as EventTypeFormState).event_type;
     }
 
+    // Auto-prepend mdi: if user typed just "walk"
+    const normalizedIcon = icon.trim().startsWith('mdi:') || icon.trim().startsWith('hass:')
+      ? icon.trim()
+      : 'mdi:' + icon.trim();
+
+    // Save draft before any re-render so form values are preserved on error
+    this._eventTypeFormDraft = {
+      event_type: eventType,
+      name: name.trim(),
+      icon: normalizedIcon,
+      color: color.trim(),
+      metric,
+    };
+
     // Basic client-side validation before calling service
-    if (isAdd && !eventType.trim()) {
-      this._eventTypeFormError = "Event type key is required.";
+    if (isAdd && !eventType) {
+      this._eventTypeFormError = "Display name must contain letters or numbers.";
       this._render();
       return;
     }
@@ -1298,11 +1342,6 @@ export class PawsistantCard extends HTMLElement {
       return;
     }
 
-    // Auto-prepend mdi: if user typed just "walk"
-    const normalizedIcon = icon.trim().startsWith('mdi:') || icon.trim().startsWith('hass:')
-      ? icon.trim()
-      : 'mdi:' + icon.trim();
-
     // Build service call
     const payload = {
       event_type: eventType,
@@ -1315,6 +1354,7 @@ export class PawsistantCard extends HTMLElement {
     const callFn = isAdd ? addEventType : updateEventType;
     callFn(this._hass!, payload)
       .then(() => {
+        this._eventTypeFormDraft = null;
         this._closeEventTypesPanel();
         // Force refresh the card to pick up new registry
         this._setTimeout(() => { this._lastHash = null; this._render(); }, 300);
@@ -1364,28 +1404,7 @@ export class PawsistantCard extends HTMLElement {
       });
   }
 
-  /* ── Icon picker helper ────────────────────────────────────────────── */
-  async _pickIcon(currentIcon: string) {
-    // Try HA's built-in ha-icon-picker
-    const picker = document.createElement('ha-icon-picker') as HaIconPicker;
-    if (picker && (typeof picker.value !== 'undefined' || customElements.get('ha-icon-picker'))) {
-      return new Promise((resolve) => {
-        const dialog = document.createElement('ha-dialog') as HaDialog;
-        dialog.setAttribute('open', '');
-        dialog.heading = 'Pick an icon';
-        picker.value = currentIcon || '';
-        picker.addEventListener('value-changed', (e: Event) => {
-          resolve((e as CustomEvent).detail.value);
-          dialog.remove();
-        });
-        dialog.appendChild(picker);
-        document.body.appendChild(dialog);
-      });
-    }
-    // Fallback
-    const val = window.prompt('Enter MDI icon name (e.g. mdi:dog):', currentIcon || '');
-    return val || currentIcon;
-  }
+
 
   _instantLog = withCooldown(function(this: PawsistantCard, btn: HTMLButtonElement, type: string) {
     /* U7 — debounce: set pending, re-enable after service call */

@@ -237,9 +237,17 @@ async def async_setup_entry(
         entities.append(PawsistantWeightSensor(coordinator, dog_id, dog_name, species))
 
         # ------------------------------------------------------------------
-        # Days since last medicine sensor
+        # Days-since sensors for all event types with metric=days_since
         # ------------------------------------------------------------------
-        entities.append(PawsistantDaysSinceMedicineSensor(coordinator, dog_id, dog_name, species))
+        button_metrics = coordinator.store.get_button_metrics()
+        event_type_names = coordinator.store.get_event_types()
+        for et, metric in button_metrics.items():
+            if metric == "days_since":
+                et_info = event_type_names.get(et, {})
+                et_name = et_info.get("name", et.replace("_", " ").title())
+                entities.append(
+                    PawsistantDaysSinceSensor(coordinator, dog_id, dog_name, et, et_name, species)
+                )
 
         # ------------------------------------------------------------------
         # Recent timeline sensor (last 24h events for dashboard)
@@ -406,44 +414,54 @@ class PawsistantWeightSensor(_PawsistantSensorBase):
         return float(val) if val is not None else None
 
 
-class PawsistantDaysSinceMedicineSensor(_PawsistantSensorBase):
-    """Sensor: days since the last medicine event was logged.
+class PawsistantDaysSinceSensor(_PawsistantSensorBase):
+    """Sensor: days since the last event of a given type was logged.
 
-    Useful for reminder automations: if this value exceeds the expected
-    dosing interval the automation can fire a notification.
+    Generic version — works for any event_type (medicine, teeth, vaccine, etc.).
+    Used for reminder automations: if this value exceeds the expected
+    interval the automation can fire a notification.
     """
 
     _attr_native_unit_of_measurement = UnitOfTime.DAYS
     _attr_device_class = SensorDeviceClass.DURATION
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:pill"
 
     def __init__(
         self,
         coordinator: PawsistantCoordinator,
         dog_id: str,
         dog_name: str,
+        event_type: str,
+        event_type_name: str,
         species: str = DEFAULT_SPECIES,
     ) -> None:
-        """Initialise the sensor."""
+        """Initialise the sensor.
+
+        Args:
+            event_type: The event_type key (e.g. 'medicine', 'teeth').
+            event_type_name: Human-readable name (e.g. 'Medicine', 'Teeth').
+        """
         super().__init__(coordinator, dog_id, dog_name, species)
-        self._attr_unique_id = f"pawsistant_{dog_id}_days_since_medicine"
-        self._attr_name = "Days Since Medicine"
+        self._event_type = event_type
+        self._event_type_name = event_type_name
+        self._attr_unique_id = f"pawsistant_{dog_id}_days_since_{event_type}"
+        self._attr_name = f"Days Since {event_type_name}"
+        self._attr_icon = EVENT_TYPE_ICONS.get(event_type, "mdi:clock-outline")
 
     @property
     def native_value(self) -> float | None:
-        """Return decimal days since the last medicine event, or None."""
-        return _days_since(self._dog_events(), "medicine")
+        """Return decimal days since the last event of this type, or None."""
+        return _days_since(self._dog_events(), self._event_type)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the last medicine event note as an attribute."""
+        """Return the last event note as an attribute."""
         attrs: dict[str, Any] = {**super().extra_state_attributes}
-        event = _get_most_recent_event(self._dog_events(), "medicine")
+        event = _get_most_recent_event(self._dog_events(), self._event_type)
         if event is None:
             return attrs
         if event.get("note"):
-            attrs["medicine_name"] = event["note"]
+            attrs["note"] = event["note"]
         if event.get("id"):
             attrs["event_id"] = event["id"]
         return attrs
