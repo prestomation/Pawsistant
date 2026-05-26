@@ -237,17 +237,12 @@ async def async_setup_entry(
         entities.append(PawsistantWeightSensor(coordinator, dog_id, dog_name, species))
 
         # ------------------------------------------------------------------
-        # Days since last medicine sensor (backward compat)
-        # ------------------------------------------------------------------
-        entities.append(PawsistantDaysSinceMedicineSensor(coordinator, dog_id, dog_name, species))
-
-        # ------------------------------------------------------------------
-        # Days-since sensors for other event types with metric=days_since
+        # Days-since sensors for all event types with metric=days_since
         # ------------------------------------------------------------------
         button_metrics = coordinator.store.get_button_metrics()
         event_type_names = coordinator.store.get_event_types()
         for et, metric in button_metrics.items():
-            if metric == "days_since" and et != "medicine":
+            if metric == "days_since":
                 et_info = event_type_names.get(et, {})
                 et_name = et_info.get("name", et.replace("_", " ").title())
                 entities.append(
@@ -470,26 +465,6 @@ class PawsistantDaysSinceSensor(_PawsistantSensorBase):
         if event.get("id"):
             attrs["event_id"] = event["id"]
         return attrs
-
-
-class PawsistantDaysSinceMedicineSensor(PawsistantDaysSinceSensor):
-    """Backward-compatible subclass for the medicine days-since sensor.
-
-    Preserves the original entity_id pattern (sensor.<slug>_days_since_medicine)
-    and friendly_name ("Days Since Medicine").
-    """
-
-    _attr_icon = "mdi:pill"
-
-    def __init__(
-        self,
-        coordinator: PawsistantCoordinator,
-        dog_id: str,
-        dog_name: str,
-        species: str = DEFAULT_SPECIES,
-    ) -> None:
-        """Initialise the medicine-specific days-since sensor."""
-        super().__init__(coordinator, dog_id, dog_name, "medicine", "Medicine", species)
 
 
 class PawsistantRecentTimelineSensor(_PawsistantSensorBase):
