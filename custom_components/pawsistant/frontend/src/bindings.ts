@@ -226,16 +226,17 @@ export function bindEvents(card: PawsistantCard, root: ShadowRoot): void {
     });
   });
 
-  // Pick icon button — use the icon picker helper
-  const browseBtn = root.querySelector('#et-browse-btn');
-  if (browseBtn) {
-    browseBtn.addEventListener('click', async () => {
-      const iconInput = root.querySelector<HTMLInputElement>('#et-icon-input');
-      const currentIcon = iconInput ? iconInput.value.trim() : '';
-      const picked = await card._pickIcon(currentIcon);
-      if (picked && iconInput) {
-        iconInput.value = picked as string;
-      }
+  // Live-update key preview when name input changes (add mode)
+  const nameInput = root.querySelector<HTMLInputElement>('#et-name-input');
+  const keyPreview = root.querySelector<HTMLElement>('#et-key-preview');
+  if (nameInput && keyPreview) {
+    nameInput.addEventListener('input', () => {
+      const slug = nameInput.value.toLowerCase().trim()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 30);
+      keyPreview.textContent = slug || '—';
     });
   }
 
