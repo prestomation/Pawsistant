@@ -2,6 +2,17 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.17.0] - 2026-05-26
+
+### Added
+- **Add event type dialog** — the key is now auto-generated from the display name as you type (e.g. "Vet Visit" → `vet_visit`). No more guessing what format to use
+- **Icon picker** — event type icons now use HA's built-in icon browser instead of a plain text field
+- **Delete event type cleanup** — removing an event type no longer leaves ghost buttons on the card
+
+### Fixed
+- **Days-since sensors now work for all event types** — teeth brushing, vaccines, and other days-since types now show their own independent count instead of sharing medicine's count
+- **Form values preserved on validation error** — adding or editing an event type no longer clears all fields if something is wrong
+
 ## [2.15.0] - 2026-05-04
 
 ### Added
