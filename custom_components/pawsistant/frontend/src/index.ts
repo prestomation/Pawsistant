@@ -135,10 +135,17 @@ export class PawsistantCard extends HTMLElement {
   }
 
   _shownTypes() {
+    // Build the set of valid event types from the registry for belt-and-suspenders
+    // filtering — if a type was deleted on the backend but shown_types wasn't
+    // cleaned up yet (e.g. during a brief HA restart window), stale entries
+    // are silently dropped so no ghost buttons render.
+    const { registry } = this._registry();
+    const validTypes = new Set(Object.keys(registry));
+
     // First, check if server-side shown_types exists for this dog
     const serverShown = this._getServerShownTypes();
     if (serverShown !== null && Array.isArray(serverShown) && serverShown.length > 0) {
-      let types = serverShown;
+      let types = serverShown.filter((t: string) => validTypes.has(t));
       if (types.length > 12) {
         console.warn('[pawsistant-card] shown_types has more than 12 entries; trimming to 12. Maximum is 12 buttons.');
         types = types.slice(0, 12);
@@ -148,6 +155,7 @@ export class PawsistantCard extends HTMLElement {
     // Fallback to card config
     const t = this._config.shown_types;
     let types = (Array.isArray(t) && t.length > 0) ? t : DEFAULT_SHOWN_TYPES;
+    types = types.filter((et: string) => validTypes.has(et));
     // Maximum of 12 buttons total
     if (types.length > 12) {
       console.warn('[pawsistant-card] shown_types has more than 12 entries; trimming to 12. Maximum is 12 buttons.');
@@ -388,9 +396,18 @@ export class PawsistantCard extends HTMLElement {
       if (metric === 'daily_count') {
         if (type === 'pee' && peeCount !== null) countSuffix = ` (${peeCount})`;
         else if (type === 'poop' && poopCount !== null) countSuffix = ` (${poopCount})`;
-        else if (type === 'medicine' && medDays !== null) countSuffix = ` (${medDaysText})`;
-      } else if (metric === 'days_since' && medDays !== null) {
-        countSuffix = ` (${Math.floor(medDays)}d)`;
+      } else if (metric === 'days_since') {
+        // Look up the days_since sensor for this specific event type
+        const daysLabel = `days since ${meta.label.toLowerCase()}`;
+        let daysVal: number | null = null;
+        for (const [eid, st] of Object.entries(hass.states)) {
+          if (st.attributes?.dog?.toLowerCase() === cfg.dog?.toLowerCase() &&
+              st.attributes?.friendly_name?.toLowerCase().endsWith(daysLabel)) {
+            daysVal = parseFloat(st.state);
+            if (!isNaN(daysVal)) break;
+          }
+        }
+        if (daysVal !== null && !isNaN(daysVal)) countSuffix = ` (${Math.floor(daysVal)}d)`;
       } else if (metric === 'last_value') {
         const w = toDisplayWeight(stateNum(hass, ent.weight), weightUnit);
         if (w !== null) countSuffix = ` (${w} ${weightUnit})`;

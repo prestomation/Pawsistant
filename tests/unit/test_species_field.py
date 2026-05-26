@@ -94,6 +94,11 @@ def _inject_stubs() -> None:
         cv_mod.string = str
         sys.modules["homeassistant.helpers.config_validation"] = cv_mod
 
+    # homeassistant.helpers.selector — stub IconSelector so config_flow can import it
+    selector_mod = types.ModuleType("homeassistant.helpers.selector")
+    selector_mod.IconSelector = lambda config=None: ("IconSelector", config)
+    sys.modules["homeassistant.helpers.selector"] = selector_mod
+
     vol_mod = types.ModuleType("voluptuous")
     vol_mod.Schema = lambda s, **kw: s
     vol_mod.Required = lambda k, **kw: k
