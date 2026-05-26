@@ -396,7 +396,6 @@ export class PawsistantCard extends HTMLElement {
       if (metric === 'daily_count') {
         if (type === 'pee' && peeCount !== null) countSuffix = ` (${peeCount})`;
         else if (type === 'poop' && poopCount !== null) countSuffix = ` (${poopCount})`;
-        else if (type === 'medicine' && medDays !== null) countSuffix = ` (${medDaysText})`;
       } else if (metric === 'days_since') {
         // Look up the days_since sensor for this specific event type
         const daysLabel = `days since ${meta.label.toLowerCase()}`;

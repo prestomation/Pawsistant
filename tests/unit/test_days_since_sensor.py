@@ -1,11 +1,10 @@
-"""Unit tests for PawsistantDaysSinceSensor and PawsistantDaysSinceMedicineSensor.
+"""Unit tests for PawsistantDaysSinceSensor.
 
 Tests:
 1. _days_since and _get_most_recent_event utility functions
 2. PawsistantDaysSinceSensor creates with correct unique_id and name
 3. PawsistantDaysSinceSensor returns correct native_value
-4. PawsistantDaysSinceMedicineSensor still works (backward compat)
-5. async_setup_entry creates days_since sensors for all types with metric=days_since
+4. async_setup_entry creates days_since sensors for all types with metric=days_since
 
 We avoid importing the full sensor module (which requires HA infrastructure)
 by testing the pure utility functions directly and testing sensor class
@@ -33,64 +32,74 @@ class _HAMeta(type):
 
 
 def _inject_stubs() -> None:
-    if "homeassistant" not in sys.modules:
-        ha_mod = types.ModuleType("homeassistant")
-        sys.modules["homeassistant"] = ha_mod
+    """Inject lightweight HA module stubs into sys.modules.
 
-    if "homeassistant.core" not in sys.modules:
-        core_mod = types.ModuleType("homeassistant.core")
-        core_mod.Callback = lambda *a, **kw: (lambda f: f)
-        sys.modules["homeassistant.core"] = core_mod
+    Must force-override the sensor and update_coordinator modules because our
+    _HAMeta metaclass is required for the generic CoordinatorEntity[...]
+    syntax used by sensor.py.  Other modules are supplemented rather than
+    replaced so we don't lose attributes that real HA provides (e.g.
+    homeassistant.core.callback) when pytest-homeassistant-custom-component
+    has already loaded the real modules.
+    """
+    # Core / top-level: ensure they exist, add missing attrs
+    if "homeassistant" not in sys.modules:
+        sys.modules["homeassistant"] = types.ModuleType("homeassistant")
+
+    core_mod = sys.modules.get("homeassistant.core") or types.ModuleType("homeassistant.core")
+    core_mod.Callback = core_mod.Callback if hasattr(core_mod, 'Callback') else (lambda *a, **kw: (lambda f: f))
+    core_mod.HomeAssistant = core_mod.HomeAssistant if hasattr(core_mod, 'HomeAssistant') else type("HomeAssistant", (), {})
+    # Preserve 'callback' if real HA already provided it
+    sys.modules["homeassistant.core"] = core_mod
 
     if "homeassistant.components" not in sys.modules:
-        comp_mod = types.ModuleType("homeassistant.components")
-        sys.modules["homeassistant.components"] = comp_mod
+        sys.modules["homeassistant.components"] = types.ModuleType("homeassistant.components")
 
-    if "homeassistant.components.sensor" not in sys.modules:
-        sensor_mod = types.ModuleType("homeassistant.components.sensor")
-        sensor_mod.SensorDeviceClass = type("SensorDeviceClass", (), {
-            "TIMESTAMP": "timestamp",
-            "DURATION": "duration",
-            "WEIGHT": "weight",
-        })
-        sensor_mod.SensorEntity = _HAMeta("SensorEntity", (), {"__init__": lambda self: None})
-        sensor_mod.SensorEntityDescription = type("SensorEntityDescription", (), {
-            "__init__": lambda self, **kw: None,
-        })
-        sensor_mod.SensorStateClass = type("SensorStateClass", (), {
-            "TOTAL": "total",
-            "MEASUREMENT": "measurement",
-        })
-        sys.modules["homeassistant.components.sensor"] = sensor_mod
+    # These MUST use our _HAMeta for generic class syntax to work.
+    # Force-override regardless of what pytest plugins loaded.
+    sensor_mod = types.ModuleType("homeassistant.components.sensor")
+    sensor_mod.SensorDeviceClass = type("SensorDeviceClass", (), {
+        "TIMESTAMP": "timestamp",
+        "DURATION": "duration",
+        "WEIGHT": "weight",
+    })
+    sensor_mod.SensorEntity = _HAMeta("SensorEntity", (), {"__init__": lambda self: None})
+    sensor_mod.SensorEntityDescription = type("SensorEntityDescription", (), {
+        "__init__": lambda self, **kw: None,
+    })
+    sensor_mod.SensorStateClass = type("SensorStateClass", (), {
+        "TOTAL": "total",
+        "MEASUREMENT": "measurement",
+    })
+    sys.modules["homeassistant.components.sensor"] = sensor_mod
 
-    if "homeassistant.config_entries" not in sys.modules:
-        ce_mod = types.ModuleType("homeassistant.config_entries")
+    ce_mod = sys.modules.get("homeassistant.config_entries") or types.ModuleType("homeassistant.config_entries")
+    if not hasattr(ce_mod, 'ConfigEntry'):
         ce_mod.ConfigEntry = type("ConfigEntry", (), {})
-        sys.modules["homeassistant.config_entries"] = ce_mod
+    sys.modules["homeassistant.config_entries"] = ce_mod
 
-    if "homeassistant.const" not in sys.modules:
-        const_mod = types.ModuleType("homeassistant.const")
+    const_mod = sys.modules.get("homeassistant.const") or types.ModuleType("homeassistant.const")
+    if not hasattr(const_mod, 'UnitOfMass'):
         const_mod.UnitOfMass = type("UnitOfMass", (), {"POUNDS": "lb"})
+    if not hasattr(const_mod, 'UnitOfTime'):
         const_mod.UnitOfTime = type("UnitOfTime", (), {"DAYS": "d"})
-        sys.modules["homeassistant.const"] = const_mod
+    sys.modules["homeassistant.const"] = const_mod
 
     if "homeassistant.helpers" not in sys.modules:
-        helpers_mod = types.ModuleType("homeassistant.helpers")
-        sys.modules["homeassistant.helpers"] = helpers_mod
+        sys.modules["homeassistant.helpers"] = types.ModuleType("homeassistant.helpers")
 
     if "homeassistant.helpers.entity_platform" not in sys.modules:
         ep_mod = types.ModuleType("homeassistant.helpers.entity_platform")
         ep_mod.AddEntitiesCallback = type("AddEntitiesCallback", (), {})
         sys.modules["homeassistant.helpers.entity_platform"] = ep_mod
 
-    if "homeassistant.helpers.update_coordinator" not in sys.modules:
-        uc_mod = types.ModuleType("homeassistant.helpers.update_coordinator")
-        uc_mod.CoordinatorEntity = _HAMeta("CoordinatorEntity", (), {
-            "__init__": lambda self, coordinator: setattr(self, 'coordinator', coordinator),
-        })
-        uc_mod.UpdateFailed = type("UpdateFailed", (Exception,), {})
-        uc_mod.DataUpdateCoordinator = type("DataUpdateCoordinator", (), {})
-        sys.modules["homeassistant.helpers.update_coordinator"] = uc_mod
+    # Must use our _HAMeta for CoordinatorEntity[PawsistantCoordinator] syntax
+    uc_mod = types.ModuleType("homeassistant.helpers.update_coordinator")
+    uc_mod.CoordinatorEntity = _HAMeta("CoordinatorEntity", (), {
+        "__init__": lambda self, coordinator: setattr(self, 'coordinator', coordinator),
+    })
+    uc_mod.UpdateFailed = type("UpdateFailed", (Exception,), {})
+    uc_mod.DataUpdateCoordinator = type("DataUpdateCoordinator", (), {})
+    sys.modules["homeassistant.helpers.update_coordinator"] = uc_mod
 
     if "homeassistant.helpers.device_registry" not in sys.modules:
         dr_mod = types.ModuleType("homeassistant.helpers.device_registry")
@@ -100,8 +109,7 @@ def _inject_stubs() -> None:
         sys.modules["homeassistant.helpers.device_registry"] = dr_mod
 
     if "homeassistant.util" not in sys.modules:
-        util_mod = types.ModuleType("homeassistant.util")
-        sys.modules["homeassistant.util"] = util_mod
+        sys.modules["homeassistant.util"] = types.ModuleType("homeassistant.util")
 
     if "homeassistant.util.dt" not in sys.modules:
         dt_mod = types.ModuleType("homeassistant.util.dt")
@@ -149,7 +157,6 @@ _sensor_mod = _load_module(
 
 # Grab classes and functions under test
 PawsistantDaysSinceSensor = _sensor_mod.PawsistantDaysSinceSensor
-PawsistantDaysSinceMedicineSensor = _sensor_mod.PawsistantDaysSinceMedicineSensor
 _days_since = _sensor_mod._days_since
 _get_most_recent_event = _sensor_mod._get_most_recent_event
 _slug = _sensor_mod._slug
@@ -312,139 +319,60 @@ class TestPawsistantDaysSinceSensor:
         assert "medicine_name" not in attrs
 
 
-class TestPawsistantDaysSinceMedicineSensor:
-    """Backward compatibility: PawsistantDaysSinceMedicineSensor still works."""
 
-    def test_backward_compat_unique_id(self):
-        """Medicine sensor should keep the original unique_id pattern."""
-        coordinator = _make_coordinator()
-        sensor = PawsistantDaysSinceMedicineSensor(
-            coordinator, "dog1", "Fido", "Dog"
-        )
-        assert sensor._attr_unique_id == "pawsistant_dog1_days_since_medicine"
-        assert sensor._attr_name == "Days Since Medicine"
-        assert sensor._attr_icon == "mdi:pill"
-
-    def test_backward_compat_native_value(self):
-        """Medicine sensor should return days since the last medicine event."""
-        now = datetime.now(timezone.utc)
-        coordinator = _make_coordinator(events={
-            "dog1": [
-                {"event_type": "medicine", "timestamp": (now - timedelta(days=2)).isoformat(), "id": "m1"},
-            ]
-        })
-        sensor = PawsistantDaysSinceMedicineSensor(
-            coordinator, "dog1", "Fido", "Dog"
-        )
-        val = sensor.native_value
-        assert val is not None
-        assert abs(val - 2.0) < 0.2
-
-    def test_backward_compat_is_subclass(self):
-        """Medicine sensor should be a subclass of PawsistantDaysSinceSensor."""
-        assert issubclass(PawsistantDaysSinceMedicineSensor, PawsistantDaysSinceSensor)
-
-    def test_backward_compat_medicine_note_attribute(self):
-        """Medicine sensor should use the generic 'note' attribute from the parent class."""
-        now = datetime.now(timezone.utc)
-        coordinator = _make_coordinator(events={
-            "dog1": [
-                {"event_type": "medicine", "timestamp": now.isoformat(), "id": "m1", "note": "Apoquel"},
-            ]
-        })
-        sensor = PawsistantDaysSinceMedicineSensor(
-            coordinator, "dog1", "Fido", "Dog"
-        )
-        attrs = sensor.extra_state_attributes
-        # The generic parent uses "note" as the attribute key
-        assert attrs.get("note") == "Apoquel"
 
 
 class TestSetupEntryLogic:
     """Test the sensor creation logic that async_setup_entry uses for days_since sensors."""
 
-    def test_creates_days_since_sensors_for_non_medicine_types(self):
-        """async_setup_entry should create a PawsistantDaysSinceSensor for each
-        event type with metric=days_since (except medicine, which has its own class)."""
-        coordinator = _make_coordinator()
+    def _build_days_since_entities(self, coordinator):
+        """Mirror the actual async_setup_entry logic for days_since sensors."""
         entities = []
-
         dogs = coordinator.store.get_dogs()
         for dog_id, dog_info in dogs.items():
             dog_name = dog_info["name"]
             species = dog_info.get("species", "Dog") or "Dog"
 
-            # Medicine days_since sensor
-            entities.append(PawsistantDaysSinceMedicineSensor(coordinator, dog_id, dog_name, species))
-
-            # Generic days_since sensors
             button_metrics = coordinator.store.get_button_metrics()
             event_type_names = coordinator.store.get_event_types()
             for et, metric in button_metrics.items():
-                if metric == "days_since" and et != "medicine":
+                if metric == "days_since":
                     et_info = event_type_names.get(et, {})
                     et_name = et_info.get("name", et.replace("_", " ").title())
                     entities.append(
                         PawsistantDaysSinceSensor(coordinator, dog_id, dog_name, et, et_name, species)
                     )
+        return entities
 
-        # Check that we have: medicine (specific) + vaccine + teeth = 3 days_since sensors
+    def test_creates_days_since_sensors_for_all_types(self):
+        """async_setup_entry should create a PawsistantDaysSinceSensor for each
+        event type with metric=days_since, including medicine."""
+        coordinator = _make_coordinator()
+        entities = self._build_days_since_entities(coordinator)
+
+        # Check that we have: medicine + vaccine + teeth = 3 days_since sensors
         days_since_entities = [e for e in entities if isinstance(e, PawsistantDaysSinceSensor)]
         assert len(days_since_entities) == 3, f"Expected 3 days_since sensors, got {len(days_since_entities)}"
 
-        # Verify types
+        # Verify types — all are PawsistantDaysSinceSensor
         etypes = {e._event_type for e in days_since_entities}
         assert etypes == {"medicine", "vaccine", "teeth"}
 
     def test_no_duplicate_medicine_sensor(self):
-        """Medicine should only appear once (as PawsistantDaysSinceMedicineSensor),
-        not also as a generic PawsistantDaysSinceSensor."""
+        """Medicine should only appear once as PawsistantDaysSinceSensor
+        with _event_type == 'medicine', not duplicated."""
         coordinator = _make_coordinator()
-        entities = []
-
-        dogs = coordinator.store.get_dogs()
-        for dog_id, dog_info in dogs.items():
-            dog_name = dog_info["name"]
-            species = dog_info.get("species", "Dog") or "Dog"
-
-            entities.append(PawsistantDaysSinceMedicineSensor(coordinator, dog_id, dog_name, species))
-
-            button_metrics = coordinator.store.get_button_metrics()
-            event_type_names = coordinator.store.get_event_types()
-            for et, metric in button_metrics.items():
-                if metric == "days_since" and et != "medicine":
-                    et_info = event_type_names.get(et, {})
-                    et_name = et_info.get("name", et.replace("_", " ").title())
-                    entities.append(
-                        PawsistantDaysSinceSensor(coordinator, dog_id, dog_name, et, et_name, species)
-                    )
+        entities = self._build_days_since_entities(coordinator)
 
         # Only one sensor should have event_type="medicine"
         medicine_sensors = [e for e in entities if e._event_type == "medicine"]
         assert len(medicine_sensors) == 1, "Medicine should only have one sensor"
-        assert isinstance(medicine_sensors[0], PawsistantDaysSinceMedicineSensor)
+        assert isinstance(medicine_sensors[0], PawsistantDaysSinceSensor)
 
     def test_unique_ids_are_unique(self):
         """All days_since sensor unique_ids should be unique."""
         coordinator = _make_coordinator()
-        entities = []
-
-        dogs = coordinator.store.get_dogs()
-        for dog_id, dog_info in dogs.items():
-            dog_name = dog_info["name"]
-            species = dog_info.get("species", "Dog") or "Dog"
-
-            entities.append(PawsistantDaysSinceMedicineSensor(coordinator, dog_id, dog_name, species))
-
-            button_metrics = coordinator.store.get_button_metrics()
-            event_type_names = coordinator.store.get_event_types()
-            for et, metric in button_metrics.items():
-                if metric == "days_since" and et != "medicine":
-                    et_info = event_type_names.get(et, {})
-                    et_name = et_info.get("name", et.replace("_", " ").title())
-                    entities.append(
-                        PawsistantDaysSinceSensor(coordinator, dog_id, dog_name, et, et_name, species)
-                    )
+        entities = self._build_days_since_entities(coordinator)
 
         unique_ids = [e._attr_unique_id for e in entities]
         assert len(unique_ids) == len(set(unique_ids)), f"Duplicate unique_ids: {unique_ids}"
@@ -452,24 +380,7 @@ class TestSetupEntryLogic:
     def test_entity_id_pattern_matches_expectation(self):
         """Unique IDs should follow pawsistant_{dog_id}_days_since_{event_type} pattern."""
         coordinator = _make_coordinator()
-
-        entities = []
-        dogs = coordinator.store.get_dogs()
-        for dog_id, dog_info in dogs.items():
-            dog_name = dog_info["name"]
-            species = dog_info.get("species", "Dog") or "Dog"
-
-            entities.append(PawsistantDaysSinceMedicineSensor(coordinator, dog_id, dog_name, species))
-
-            button_metrics = coordinator.store.get_button_metrics()
-            event_type_names = coordinator.store.get_event_types()
-            for et, metric in button_metrics.items():
-                if metric == "days_since" and et != "medicine":
-                    et_info = event_type_names.get(et, {})
-                    et_name = et_info.get("name", et.replace("_", " ").title())
-                    entities.append(
-                        PawsistantDaysSinceSensor(coordinator, dog_id, dog_name, et, et_name, species)
-                    )
+        entities = self._build_days_since_entities(coordinator)
 
         expected_unique_ids = {
             "pawsistant_dog1_days_since_medicine",
@@ -482,24 +393,7 @@ class TestSetupEntryLogic:
     def test_friendly_name_pattern_for_frontend(self):
         """Friendly names should end with 'Days Since {type_name}' for frontend lookup."""
         coordinator = _make_coordinator()
-        entities = []
-
-        dogs = coordinator.store.get_dogs()
-        for dog_id, dog_info in dogs.items():
-            dog_name = dog_info["name"]
-            species = dog_info.get("species", "Dog") or "Dog"
-
-            entities.append(PawsistantDaysSinceMedicineSensor(coordinator, dog_id, dog_name, species))
-
-            button_metrics = coordinator.store.get_button_metrics()
-            event_type_names = coordinator.store.get_event_types()
-            for et, metric in button_metrics.items():
-                if metric == "days_since" and et != "medicine":
-                    et_info = event_type_names.get(et, {})
-                    et_name = et_info.get("name", et.replace("_", " ").title())
-                    entities.append(
-                        PawsistantDaysSinceSensor(coordinator, dog_id, dog_name, et, et_name, species)
-                    )
+        entities = self._build_days_since_entities(coordinator)
 
         names = {e._attr_name for e in entities}
         assert names == {"Days Since Medicine", "Days Since Vaccine", "Days Since Teeth"}

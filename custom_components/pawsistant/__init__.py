@@ -844,21 +844,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         delete_events: bool = call.data.get("delete_events", False)
         if delete_events:
             total_removed = 0
-            for dog_id, dog_info in dogs.items():
-                # Ensure all year files are loaded for thorough cleanup
-                for year in store._meta.get("known_years", []):
-                    await store._ensure_year_loaded(year)
-                for year in list(store._loaded_years):
-                    before = len(store._year_events.get(year, []))
-                    store._year_events[year] = [
-                        e
-                        for e in store._year_events.get(year, [])
-                        if e.get("event_type") != event_type
-                    ]
-                    removed = before - len(store._year_events[year])
-                    if removed:
-                        total_removed += removed
-                        await store._save_year(year)
+            # Ensure all year files are loaded for thorough cleanup
+            for year in store._meta.get("known_years", []):
+                await store._ensure_year_loaded(year)
+            for year in list(store._loaded_years):
+                before = len(store._year_events.get(year, []))
+                store._year_events[year] = [
+                    e
+                    for e in store._year_events.get(year, [])
+                    if e.get("event_type") != event_type
+                ]
+                removed = before - len(store._year_events[year])
+                if removed:
+                    total_removed += removed
+                    await store._save_year(year)
             if total_removed:
                 await store._save_meta()
                 _LOGGER.info(

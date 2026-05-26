@@ -462,6 +462,9 @@ class PawsistantDaysSinceSensor(_PawsistantSensorBase):
             return attrs
         if event.get("note"):
             attrs["note"] = event["note"]
+            # Backward compat: automations may read medicine_name
+            if self._event_type == "medicine":
+                attrs["medicine_name"] = event["note"]
         if event.get("id"):
             attrs["event_id"] = event["id"]
         return attrs
