@@ -397,8 +397,18 @@ export class PawsistantCard extends HTMLElement {
         if (type === 'pee' && peeCount !== null) countSuffix = ` (${peeCount})`;
         else if (type === 'poop' && poopCount !== null) countSuffix = ` (${poopCount})`;
         else if (type === 'medicine' && medDays !== null) countSuffix = ` (${medDaysText})`;
-      } else if (metric === 'days_since' && medDays !== null) {
-        countSuffix = ` (${Math.floor(medDays)}d)`;
+      } else if (metric === 'days_since') {
+        // Look up the days_since sensor for this specific event type
+        const daysLabel = `days since ${meta.label.toLowerCase()}`;
+        let daysVal: number | null = null;
+        for (const [eid, st] of Object.entries(hass.states)) {
+          if (st.attributes?.dog?.toLowerCase() === cfg.dog?.toLowerCase() &&
+              st.attributes?.friendly_name?.toLowerCase().endsWith(daysLabel)) {
+            daysVal = parseFloat(st.state);
+            if (!isNaN(daysVal)) break;
+          }
+        }
+        if (daysVal !== null && !isNaN(daysVal)) countSuffix = ` (${Math.floor(daysVal)}d)`;
       } else if (metric === 'last_value') {
         const w = toDisplayWeight(stateNum(hass, ent.weight), weightUnit);
         if (w !== null) countSuffix = ` (${w} ${weightUnit})`;
