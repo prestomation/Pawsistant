@@ -2,53 +2,53 @@
 
 ## Overview
 
-Releases are triggered by pushing a `vX.Y.Z` git tag to main. The CI workflow handles version bumping, building, and publishing automatically.
+Releases are produced by merging a single "release" PR to `main`. The PR bumps the version and adds a changelog entry. After merge, CI tags the commit and publishes the GitHub release automatically. No manual `git tag` step. No commits back to `main` from CI.
 
 ## Prerequisites
 
-- All changes merged to main via PR (main branch is protected)
-- CHANGELOG.md has an entry for the version being released
-- All CI checks pass on main
+- All feature work merged to `main` via PRs (main is branch-protected)
+- All CI checks green on `main`
 
 ## Steps
 
-1. **Add changelog entry** — Edit `CHANGELOG.md` with a `## [X.Y.Z] - YYYY-MM-DD` section summarizing user-facing changes. Push via PR.
+1. **Open a release PR** that contains exactly these changes:
+   - `custom_components/pawsistant/manifest.json` — bump `version` to `X.Y.Z`
+   - `custom_components/pawsistant/const.py` — bump `CARD_VERSION` to `"X.Y.Z"`
+   - `CHANGELOG.md` — add a `## [X.Y.Z] - YYYY-MM-DD` section summarizing user-facing changes
 
-2. **Tag the release** — Once the changelog PR is merged to main:
-   ```bash
-   git fetch origin main
-   git checkout main
-   git pull origin main  # or: git reset --hard origin/main
-   git tag vX.Y.Z
-   git push origin vX.Y.Z
-   ```
+   The two version values must match. The release workflow refuses to ship if they don't.
 
-3. **CI takes over** — The `release.yml` workflow runs:
-   - **Test job**: lint, unit tests, integration tests, HACS validation, hassfest
-   - **Release job** (only on tag push):
-     1. Bumps version in `manifest.json` and `const.py` (CARD_VERSION)
-     2. Builds `pawsistant-card.js` from TypeScript source via Rollup
-     3. Creates a `bump/vX.Y.Z` branch, opens a PR, waits for CI, merges with `--admin`
-     4. Pulls merged main with version bump
-     5. Extracts changelog section for release notes
-     6. Builds `pawsistant.zip` (HACS asset)
-     7. Creates GitHub Release with changelog body + zip attachment
+2. **Merge the PR.** That's it. On the merge commit to `main`, `release.yml` will:
+   1. Read the version from `manifest.json`.
+   2. Verify a matching `## [X.Y.Z]` entry exists in `CHANGELOG.md` and that `CARD_VERSION` matches. If either check fails, the workflow fails loudly.
+   3. Skip silently if tag `vX.Y.Z` already exists (no-op on non-release pushes to main).
+   4. Build `pawsistant-card.js` from TypeScript via Rollup.
+   5. Build `pawsistant.zip` (HACS asset).
+   6. Push tag `vX.Y.Z` to `main`.
+   7. Create the GitHub Release with the changelog section as the body and `pawsistant.zip` attached.
 
-4. **HACS picks it up** — HACS reads `hacs.json` (`zip_release: true`) and downloads `pawsistant.zip` from the GitHub release assets.
+3. **HACS picks it up.** HACS reads `hacs.json` (`zip_release: true`) and downloads `pawsistant.zip` from the release assets.
+
+## Why this design
+
+- **Single source of truth for version**: `manifest.json`. The tag name is derived from it, not typed by hand.
+- **No CI writes to `main`**: the workflow only pushes tags (which aren't branch-protected). Branch protection on `main` stays fully enforced.
+- **Self-validating**: mismatched versions or a missing changelog entry fail the workflow with a clear error instead of producing a broken release.
+- **Idempotent**: pushing the same `main` commit twice (e.g., re-running the workflow) is a no-op once the tag exists.
 
 ## Constraints
 
-- **Never push directly to main.** All changes (including changelog entries) go through PRs.
-- **Never create GitHub releases manually.** The release workflow handles everything.
+- **Never push directly to `main`.** All changes, including the release PR, go through PRs.
+- **Never create GitHub releases manually.** The release workflow handles tag, zip build, and release creation.
 - **The `pawsistant-card.js` file is gitignored.** It's built by CI from TypeScript source. Do not commit it.
 - **`hacs.json` must have `zip_release: true`** with `filename: pawsistant.zip` — HACS installs from the zip asset, not source.
-- **CHANGELOG.md must have an entry for the version** or the release workflow fails with an error.
 
 ## Troubleshooting
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| Release workflow fails at "Commit version bump" | Main branch protection blocks direct push | Fixed: workflow now uses PR + `--admin` merge |
-| HACS install fails / "No valid version found" | Missing `pawsistant.zip` asset on release | Check that `hacs.json` has `zip_release: true` and release has zip asset |
-| `pawsistant-card.js` not found in CI | Build step must run before card JS is needed | `ci/build-card.sh` step must precede any step that needs it |
-| hassfest fails on `node_modules` JSON | npm installs `tsconfig.json` files with JSON5 comments | `rm -rf custom_components/pawsistant/frontend/node_modules` before hassfest step |
+| Workflow fails: "manifest.json is at X.Y.Z but CHANGELOG.md has no '## [X.Y.Z]' section" | Forgot to add the changelog entry in the release PR | Open a follow-up PR adding the entry; merge to retrigger |
+| Workflow fails: "manifest.json version does not match const.py CARD_VERSION" | Bumped one but not the other | Open a follow-up PR aligning both values |
+| Workflow runs but exits with "Tag vX.Y.Z already exists" | Manifest version wasn't bumped (or matches a previously released version) | Bump the version in a new PR |
+| HACS install fails / "No valid version found" | Missing `pawsistant.zip` asset on release | Check that `hacs.json` has `zip_release: true` and the release has the zip asset |
+| Need to re-run the release workflow for a `main` commit | e.g., transient network failure during zip upload | Use the **Run workflow** button on the Release workflow page (workflow_dispatch) |
