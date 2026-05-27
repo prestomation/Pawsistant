@@ -52,6 +52,10 @@ jobs:
             found && /^## \[/ { exit }
             found { print }
           ' CHANGELOG.md > release_notes.txt
+          if [ ! -s release_notes.txt ]; then
+            echo "::error::Failed to extract changelog section for $VERSION (awk pattern matched zero lines)."
+            exit 1
+          fi
           {
             echo 'notes<<RELEASE_NOTES_EOF'
             cat release_notes.txt
