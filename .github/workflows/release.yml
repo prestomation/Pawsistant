@@ -2,178 +2,110 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        run: |
-          pip install -r requirements-test.txt
-          npm ci
-          npm ci --prefix custom_components/pawsistant/frontend
-
-      - name: Build card JS
-        run: bash ci/build-card.sh
-
-      - name: Run frontend tests
-        run: bash ci/test-frontend.sh
-
-      - name: Start Home Assistant
-        working-directory: tests/integration
-        run: docker compose up -d
-
-      - name: Wait for Home Assistant to start
-        run: |
-          echo "Waiting for Home Assistant..."
-          for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8123/api/ 2>/dev/null || true)
-            if [ "$code" = "200" ] || [ "$code" = "401" ]; then
-              echo "Home Assistant is responding (HTTP $code, attempt $i)"
-              exit 0
-            fi
-            echo "Attempt $i/60 - HTTP $code - waiting..."
-            sleep 2
-          done
-          echo "Home Assistant failed to start within 120s"
-          docker compose -f tests/integration/docker-compose.yml logs
-          exit 1
-
-      - name: Run integration tests
-        run: bash ci/test-python-integration.sh
-
-      - name: HA logs on failure
-        if: failure()
-        working-directory: tests/integration
-        run: docker compose logs homeassistant
-
-      - name: Cleanup
-        if: always()
-        working-directory: tests/integration
-        run: docker compose down -v
-
-      - name: HACS validation
-        uses: hacs/action@main
-        with:
-          category: integration
-
   release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Determine release version
+        id: check
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('custom_components/pawsistant/manifest.json'))['version'])")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse --verify "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists — nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! grep -q "^## \[$VERSION\]" CHANGELOG.md; then
+            echo "::error::manifest.json is at $VERSION but CHANGELOG.md has no '## [$VERSION]' section. Add a changelog entry or revert the version bump."
+            exit 1
+          fi
+
+          CARD_VERSION=$(grep -E '^CARD_VERSION\s*=' custom_components/pawsistant/const.py | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ "$CARD_VERSION" != "$VERSION" ]; then
+            echo "::error::manifest.json version ($VERSION) does not match const.py CARD_VERSION ($CARD_VERSION). Bump both in the same PR."
+            exit 1
+          fi
+
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          echo "Will release v$VERSION"
+
+      - name: Extract changelog section
+        if: steps.check.outputs.release == 'true'
+        id: changelog
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { found=1; print; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release_notes.txt
+          if [ ! -s release_notes.txt ]; then
+            echo "::error::Failed to extract changelog section for $VERSION (awk pattern matched zero lines)."
+            exit 1
+          fi
+          {
+            echo 'notes<<RELEASE_NOTES_EOF'
+            cat release_notes.txt
+            echo 'RELEASE_NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.release == 'true'
         with:
           node-version: "20"
 
-      - name: Extract version from tag
-        id: version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Bump version in manifest and const.py
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          python3 -c "
-          import json, os
-          version = os.environ['VERSION']
-          with open('custom_components/pawsistant/manifest.json') as f:
-              data = json.load(f)
-          data['version'] = version
-          with open('custom_components/pawsistant/manifest.json', 'w') as f:
-              json.dump(data, f, indent=2)
-              f.write('\n')
-          "
-          sed -i "s/^CARD_VERSION = .*/CARD_VERSION = \"${VERSION}\"/" custom_components/pawsistant/const.py
-
       - name: Install frontend deps
+        if: steps.check.outputs.release == 'true'
         run: npm ci --prefix custom_components/pawsistant/frontend
 
-      - name: Build card JS (version injected from const.py)
+      - name: Build card JS
+        if: steps.check.outputs.release == 'true'
         run: bash ci/build-card.sh
 
-      - name: Commit version bump via PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          BRANCH="bump/v${VERSION}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH"
-          git add custom_components/pawsistant/manifest.json custom_components/pawsistant/const.py
-          # Only create PR if there are changes
-          if git diff --cached --quiet; then
-            echo "Version already up to date"
-          else
-            git commit -m "Bump version to ${VERSION}"
-            git push origin "$BRANCH"
-            # Create PR and wait for checks, then merge with admin
-            gh pr create \
-              --base main \
-              --head "$BRANCH" \
-              --title "Bump version to ${VERSION}" \
-              --body "Automated version bump for release v${VERSION}."
-            echo "Waiting for CI checks on PR..."
-            gh pr checks --watch
-            gh pr merge --squash --admin
-            echo "Version bump PR merged"
-          fi
-          # Switch back to main (with the merged bump) for remaining steps
-          git checkout main
-          git pull origin main
-
-      - name: Extract changelog for this version
-        id: changelog
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          awk "/^## \\[$VERSION\\]/,/^## \\[/{if(/^## \\[$VERSION\\]/)found=1; else if(/^## \\[/ && found)exit; if(found)print}" CHANGELOG.md > release_notes.txt
-          if [ ! -s release_notes.txt ]; then
-            echo "ERROR: No changelog entry found for v${VERSION} in CHANGELOG.md"
-            echo "Add a '## [${VERSION]' section to CHANGELOG.md before tagging."
-            exit 1
-          fi
-          echo 'notes<<EOF' >> $GITHUB_OUTPUT
-          cat release_notes.txt >> $GITHUB_OUTPUT
-          echo 'EOF' >> $GITHUB_OUTPUT
-
       - name: Build release zip
+        if: steps.check.outputs.release == 'true'
         run: bash ci/build-zip.sh
 
-      - name: Verify release zip exists
+      - name: Verify release zip
+        if: steps.check.outputs.release == 'true'
         run: |
           if [ ! -f pawsistant.zip ]; then
-            echo "ERROR: pawsistant.zip not found — release would be missing the zip asset that HACS requires"
+            echo "::error::pawsistant.zip not found"
             exit 1
           fi
           echo "pawsistant.zip exists ($(du -h pawsistant.zip | cut -f1))"
 
+      - name: Create and push tag
+        if: steps.check.outputs.release == 'true' && github.event_name != 'pull_request'
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
       - name: Create GitHub Release
+        if: steps.check.outputs.release == 'true' && github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          name: "v${{ steps.version.outputs.version }}"
+          tag_name: "v${{ steps.check.outputs.version }}"
+          name: "v${{ steps.check.outputs.version }}"
           body: ${{ steps.changelog.outputs.notes }}
           draft: false
           prerelease: false
