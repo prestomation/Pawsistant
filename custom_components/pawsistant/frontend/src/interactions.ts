@@ -7,6 +7,18 @@
 import type { LongPressHandlers } from './types';
 
 /**
+ * Dispatch a haptic feedback event. Bubbles up to Home Assistant's
+ * haptic listener — no-op in browsers without one.
+ */
+export function fireHaptic(node: Node, type: string = 'medium'): void {
+  node.dispatchEvent(new CustomEvent('haptic', {
+    bubbles: true,
+    composed: true,
+    detail: { haptic: type },
+  }));
+}
+
+/**
  * Set up a long-press / tap handler on a button element.
  *
  * - Long press (hold ≥ 500ms): triggers onLongPress, fires immediately on timeout.
@@ -29,6 +41,7 @@ export function setupLongPress(
       didLongPress = true;
       e.preventDefault();
       if (onLongPress) onLongPress(btn);
+      fireHaptic(btn, 'medium');
     }, 500);
     timers.push(pressTimer);
   };
@@ -42,7 +55,9 @@ export function setupLongPress(
       }
       pressTimer = null;
     }
-    didLongPress = false;
+    // NOTE: do NOT reset didLongPress here — startPress() resets it on next
+    // press. Resetting here would let the browser's synthesized `click` event
+    // after a long-press also fire onTap.
   };
 
   const handleClick = (): void => {

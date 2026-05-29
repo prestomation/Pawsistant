@@ -2,6 +2,15 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **Pawsistant Button Card** — new `custom:pawsistant-button-card` Lovelace card for placing individual quick-log buttons on any dashboard. Supports multiple buttons per card with configurable grid layout (2–6 per row), add/remove/reorder in the visual editor. Tap opens backdate/weight form, long-press logs instantly with haptic feedback.
+- **Haptic feedback** — long-press now fires a `haptic` CustomEvent on all cards (main + button). Works natively in HA Companion apps (Taptic Engine on iOS, system haptics on Android). No config needed — no-op in browsers.
+- **Click-through fix** — long-press no longer also triggers the tap handler. The browser's synthesized `click` event after a pointerup is now correctly suppressed.
+- **Shared form modules** — extracted `standalone-forms.ts` (Promise-based backdate/weight forms) and `button.ts` (shared button renderer) for reuse across both cards.
+- **`dogNamesFromHass()`** — extracted to `utils.ts` for shared use by both card editors.
+
 ## [2.17.0] - 2026-05-26
 
 ### Added

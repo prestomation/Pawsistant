@@ -121,6 +121,36 @@ export interface MetricLabels {
   hours_since: (n: number) => string;
 }
 
+/* ── Button card config ───────────────────────────────────────────── */
+
+export interface ButtonConfig {
+  event_type: string;
+}
+
+export interface PawsistantButtonCardConfig {
+  type: string;
+  dog: string;
+  buttons: ButtonConfig[];
+  show_title?: boolean;
+  weight_unit?: string;
+  buttons_per_row?: number;
+  /** @deprecated — use buttons[] instead; kept for backward compat migration */
+  event_type?: string;
+}
+
+/* ── Standalone form results ─────────────────────────────────────── */
+
+export interface BackdateFormResult {
+  timestamp: string;
+  note?: string;
+  cleanup: () => void;
+}
+
+export interface WeightFormResult {
+  value: number;
+  cleanup: () => void;
+}
+
 /* ── Interaction types ─────────────────────────────────────────────── */
 
 export interface LongPressHandlers {
