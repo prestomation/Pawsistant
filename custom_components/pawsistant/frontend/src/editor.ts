@@ -3,7 +3,7 @@
  */
 
 import type { HomeAssistant, PawsistantCardConfig } from './types';
-import { _escapeHTML } from './utils';
+import { _escapeHTML, dogNamesFromHass } from './utils';
 
 export class PawsistantCardEditor extends HTMLElement {
   _config: PawsistantCardConfig = { type: 'custom:pawsistant-card', dog: '' };
@@ -28,13 +28,7 @@ export class PawsistantCardEditor extends HTMLElement {
   }
 
   _dogNamesFromHass(h: HomeAssistant | null): string[] {
-    if (!h) return [];
-    const seen = new Set<string>();
-    for (const state of Object.values(h.states || {})) {
-      const dog = state.attributes && state.attributes.dog;
-      if (dog) seen.add(dog as string);
-    }
-    return [...seen].sort();
+    return dogNamesFromHass(h);
   }
 
   _render() {

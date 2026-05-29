@@ -1466,3 +1466,6 @@ export class PawsistantCard extends HTMLElement {
 }
 
 customElements.define('pawsistant-card', PawsistantCard);
+
+/* ── Button card (single-button variant) ─────────────────────────────── */
+import './button-card';

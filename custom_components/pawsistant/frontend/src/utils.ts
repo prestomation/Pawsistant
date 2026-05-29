@@ -99,6 +99,17 @@ export function toDisplayWeight(lbs: number | null | undefined, unit: string): n
   return lbs;
 }
 
+/** Extract unique dog names from hass entity attributes. */
+export function dogNamesFromHass(hass: HomeAssistant | null): string[] {
+  if (!hass) return [];
+  const seen = new Set<string>();
+  for (const state of Object.values(hass.states || {})) {
+    const dog = state.attributes && state.attributes.dog;
+    if (dog) seen.add(dog as string);
+  }
+  return [...seen].sort();
+}
+
 /** Shared escape helper (XSS prevention) */
 export function _escapeHTML(str: string): string {
   return String(str)
