@@ -30,6 +30,8 @@ A local-only dog activity tracker for Home Assistant. Log walks, bathroom breaks
 - **Days-since-medicine sensor** — track medication intervals for automation reminders
 - **Weight sensor** — track your dog's weight over time
 - **Pawsistant Card** — built-in Lovelace card auto-registers on install; log events, view the full event timeline with infinite scroll, and track stats without leaving the dashboard
+- **Pawsistant Button Card** — separate card for placing quick-log buttons anywhere on your dashboard. Multiple buttons per card, configurable grid (2–6 per row), add/remove/reorder in the visual editor. Tap opens backdate form, long-press logs instantly with haptic feedback
+- **Haptic feedback** — long-press on any Pawsistant card triggers native haptics in HA Companion (Taptic Engine on iOS, system haptics on Android)
 - **Multi-dog support** — add and remove dogs via services at any time
 - **Timezone-aware** — daily counts use your HA instance's local timezone
 
