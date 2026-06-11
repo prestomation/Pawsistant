@@ -66,3 +66,32 @@ export function tPlural(
     baseKey;
   return interpolate(raw, { n, ...vars });
 }
+
+/* ── Ambient active-language helpers ──────────────────────────────────────
+ * The card renders synchronously and reads the language from `hass`. To avoid
+ * threading `lang` through every render helper and standalone form function,
+ * the card sets the active language once per hass update (see set hass), and
+ * call sites use the ambient T()/TP() wrappers. The explicit t()/tPlural()
+ * API above remains the source of truth (and is what the unit tests exercise).
+ */
+let _activeLang: string | null = FALLBACK_LANG;
+
+/** Set the language used by the ambient T()/TP() helpers. */
+export function setLang(lang: string | null | undefined): void {
+  _activeLang = lang ?? FALLBACK_LANG;
+}
+
+/** The currently active ambient language. */
+export function getLang(): string | null {
+  return _activeLang;
+}
+
+/** Translate `key` in the active language (ambient wrapper around t()). */
+export function T(key: TranslationKey, vars?: Record<string, unknown>): string {
+  return t(_activeLang, key, vars);
+}
+
+/** Plural-aware translate in the active language (ambient wrapper around tPlural()). */
+export function TP(baseKey: string, n: number, vars?: Record<string, unknown>): string {
+  return tPlural(_activeLang, baseKey, n, vars);
+}

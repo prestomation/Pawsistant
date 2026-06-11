@@ -78,6 +78,7 @@ export function buildHash(hass: HomeAssistant, cfg: PawsistantCardConfig): strin
   const poopEnt = cfg.poop_count_entity || entities.poop_count;
   const medEnt = cfg.medicine_days_entity || entities.medicine_days;
   const parts: string[] = [
+    hass.language || '',
     stateStr(hass, tEnt) || '',
     stateStr(hass, peeEnt) || '',
     stateStr(hass, poopEnt) || '',
