@@ -58,8 +58,24 @@
           "action": "选择一个操作"
         }
       },
+      "add_event_type": {
+        "title": "添加事件类型",
+        "description": "为此事件类型设置显示名称、图标（MDI）、颜色和按钮指标。",
+        "data": {
+          "event_type_key": "事件类型 ID",
+          "name": "显示名称",
+          "icon": "MDI 图标",
+          "color": "颜色（十六进制）",
+          "metric": "按钮指标"
+        },
+        "data_description": {
+          "event_type_key": "仅限小写字母、数字和下划线。最多 30 个字符。创建后无法更改。",
+          "icon": "必须以 mdi: 或 hass: 开头（例如 mdi:walk）",
+          "metric": "传感器按钮上显示的内容。daily_count = \"今日 3 次\"，days_since = \"2 天前\"，last_value = \"28.5 lbs\"，hours_since = \"5 小时前\""
+        }
+      },
       "edit_event_type": {
-        "title": "{mode} 事件类型",
+        "title": "编辑事件类型",
         "description": "为此事件类型设置显示名称、图标（MDI）、颜色和按钮指标。",
         "data": {
           "event_type_key": "事件类型 ID",

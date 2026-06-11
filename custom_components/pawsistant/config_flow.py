@@ -551,9 +551,23 @@ class PawsistantOptionsFlow(OptionsFlow):
                 ): vol.In({k: k for k in VALID_BUTTON_METRICS}),
             }
 
+        # Show the add/edit form under a mode-specific step_id so the title is
+        # fully translated ("Add Event Type" / "Edit Event Type") rather than
+        # interpolating an untranslatable English {mode} word.
         return self.async_show_form(
-            step_id="edit_event_type",
+            step_id="edit_event_type" if is_edit else "add_event_type",
             data_schema=vol.Schema(schema_dict),
             errors=errors,
-            description_placeholders={"mode": "edit" if is_edit else "add"},
         )
+
+    async def async_step_add_event_type(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add a new event type.
+
+        Shares the implementation of async_step_edit_event_type but is exposed as
+        its own step so Home Assistant renders the translated "Add Event Type"
+        title. Submissions route here (no "event_type" key) and are handled as an
+        add by the shared logic.
+        """
+        return await self.async_step_edit_event_type(user_input)

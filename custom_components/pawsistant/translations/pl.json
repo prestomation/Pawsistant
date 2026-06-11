@@ -58,8 +58,24 @@
           "action": "Wybierz akcję"
         }
       },
+      "add_event_type": {
+        "title": "Dodaj typ zdarzenia",
+        "description": "Ustaw nazwę wyświetlaną, ikonę (MDI), kolor i metrykę przycisku dla tego typu zdarzenia.",
+        "data": {
+          "event_type_key": "ID typu zdarzenia",
+          "name": "Nazwa wyświetlana",
+          "icon": "Ikona MDI",
+          "color": "Kolor (hex)",
+          "metric": "Metryka przycisku"
+        },
+        "data_description": {
+          "event_type_key": "Tylko małe litery, cyfry i podkreślniki. Maksymalnie 30 znaków. Nie można zmienić po utworzeniu.",
+          "icon": "Musi zaczynać się od mdi: lub hass: (np. mdi:walk)",
+          "metric": "Co wyświetlać na przycisku czujnika. daily_count = '3 dzisiaj', days_since = '2 dni', last_value = '28.5 lbs', hours_since = '5 godzin'"
+        }
+      },
       "edit_event_type": {
-        "title": "Typ zdarzenia — {mode}",
+        "title": "Edytuj typ zdarzenia",
         "description": "Ustaw nazwę wyświetlaną, ikonę (MDI), kolor i metrykę przycisku dla tego typu zdarzenia.",
         "data": {
           "event_type_key": "ID typu zdarzenia",

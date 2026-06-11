@@ -58,8 +58,24 @@
           "action": "اختر إجراءً"
         }
       },
+      "add_event_type": {
+        "title": "إضافة نوع حدث",
+        "description": "حدد اسم العرض والأيقونة (MDI) واللون ومقياس الزر لنوع الحدث هذا.",
+        "data": {
+          "event_type_key": "معرّف نوع الحدث",
+          "name": "اسم العرض",
+          "icon": "أيقونة MDI",
+          "color": "اللون (hex)",
+          "metric": "مقياس الزر"
+        },
+        "data_description": {
+          "event_type_key": "أحرف صغيرة وأرقام وشرطات سفلية فقط. بحد أقصى 30 حرفاً. لا يمكن تغييره بعد الإنشاء.",
+          "icon": "يجب أن يبدأ بـ mdi: أو hass: (مثلاً: mdi:walk)",
+          "metric": "ما يظهر على زر المستشعر. daily_count = \"3 اليوم\"، days_since = \"2 أيام\"، last_value = \"28.5 lbs\"، hours_since = \"5 ساعات\""
+        }
+      },
       "edit_event_type": {
-        "title": "نوع الحدث {mode}",
+        "title": "تعديل نوع حدث",
         "description": "حدد اسم العرض والأيقونة (MDI) واللون ومقياس الزر لنوع الحدث هذا.",
         "data": {
           "event_type_key": "معرّف نوع الحدث",

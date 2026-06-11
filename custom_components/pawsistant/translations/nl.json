@@ -58,8 +58,24 @@
           "action": "Selecteer een actie"
         }
       },
+      "add_event_type": {
+        "title": "Gebeurtenistype toevoegen",
+        "description": "Stel de weergavenaam, het pictogram (MDI), de kleur en de knopmetriek in voor dit gebeurtenistype.",
+        "data": {
+          "event_type_key": "Gebeurtenistype-ID",
+          "name": "Weergavenaam",
+          "icon": "MDI-pictogram",
+          "color": "Kleur (hex)",
+          "metric": "Knopmetriek"
+        },
+        "data_description": {
+          "event_type_key": "Alleen kleine letters, cijfers en underscores. Maximaal 30 tekens. Kan niet worden gewijzigd na aanmaak.",
+          "icon": "Moet beginnen met mdi: of hass: (bijv. mdi:walk)",
+          "metric": "Wat wordt weergegeven op de sensorknop. daily_count = \"3 vandaag\", days_since = \"2 dagen\", last_value = \"28.5 lbs\", hours_since = \"5 uur\""
+        }
+      },
       "edit_event_type": {
-        "title": "{mode} Gebeurtenistype",
+        "title": "Gebeurtenistype bewerken",
         "description": "Stel de weergavenaam, het pictogram (MDI), de kleur en de knopmetriek in voor dit gebeurtenistype.",
         "data": {
           "event_type_key": "Gebeurtenistype-ID",

@@ -58,8 +58,24 @@
           "action": "작업 선택"
         }
       },
+      "add_event_type": {
+        "title": "이벤트 유형 추가",
+        "description": "이 이벤트 유형의 표시 이름, 아이콘 (MDI), 색상 및 버튼 메트릭을 설정합니다.",
+        "data": {
+          "event_type_key": "이벤트 유형 ID",
+          "name": "표시 이름",
+          "icon": "MDI 아이콘",
+          "color": "색상 (hex)",
+          "metric": "버튼 메트릭"
+        },
+        "data_description": {
+          "event_type_key": "소문자, 숫자, 밑줄만 사용 가능. 최대 30자. 생성 후 변경할 수 없습니다.",
+          "icon": "mdi: 또는 hass:로 시작해야 합니다 (예: mdi:walk)",
+          "metric": "센서 버튼에 표시할 내용. daily_count = \"오늘 3회\", days_since = \"2일\", last_value = \"28.5 lbs\", hours_since = \"5시간\""
+        }
+      },
       "edit_event_type": {
-        "title": "이벤트 유형 {mode}",
+        "title": "이벤트 유형 편집",
         "description": "이 이벤트 유형의 표시 이름, 아이콘 (MDI), 색상 및 버튼 메트릭을 설정합니다.",
         "data": {
           "event_type_key": "이벤트 유형 ID",

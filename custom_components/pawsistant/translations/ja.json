@@ -58,8 +58,24 @@
           "action": "アクションを選択"
         }
       },
+      "add_event_type": {
+        "title": "イベントタイプを追加",
+        "description": "このイベントタイプの表示名、アイコン（MDI）、色、ボタンメトリクスを設定します。",
+        "data": {
+          "event_type_key": "イベントタイプID",
+          "name": "表示名",
+          "icon": "MDI アイコン",
+          "color": "色（16進数）",
+          "metric": "ボタンメトリクス"
+        },
+        "data_description": {
+          "event_type_key": "小文字、数字、アンダースコアのみ使用可。最大30文字。作成後は変更できません。",
+          "icon": "mdi: または hass: で始まる必要があります（例：mdi:walk）",
+          "metric": "センサーボタンに表示する内容。daily_count = \"今日 3 回\"、days_since = \"2 日前\"、last_value = \"28.5 lbs\"、hours_since = \"5 時間前\""
+        }
+      },
       "edit_event_type": {
-        "title": "イベントタイプを{mode}",
+        "title": "イベントタイプを編集",
         "description": "このイベントタイプの表示名、アイコン（MDI）、色、ボタンメトリクスを設定します。",
         "data": {
           "event_type_key": "イベントタイプID",

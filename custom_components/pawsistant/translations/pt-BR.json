@@ -58,8 +58,24 @@
           "action": "Selecione uma ação"
         }
       },
+      "add_event_type": {
+        "title": "Adicionar tipo de evento",
+        "description": "Defina o nome de exibição, o ícone (MDI), a cor e a métrica do botão para este tipo de evento.",
+        "data": {
+          "event_type_key": "ID do tipo de evento",
+          "name": "Nome de exibição",
+          "icon": "Ícone MDI",
+          "color": "Cor (hex)",
+          "metric": "Métrica do botão"
+        },
+        "data_description": {
+          "event_type_key": "Apenas letras minúsculas, números e sublinhados. Máximo de 30 caracteres. Não pode ser alterado após a criação.",
+          "icon": "Deve começar com mdi: ou hass: (ex.: mdi:walk)",
+          "metric": "O que mostrar no botão do sensor. daily_count = \"3 hoje\", days_since = \"há 2 dias\", last_value = \"28.5 lbs\", hours_since = \"há 5 horas\""
+        }
+      },
       "edit_event_type": {
-        "title": "{mode} tipo de evento",
+        "title": "Editar tipo de evento",
         "description": "Defina o nome de exibição, o ícone (MDI), a cor e a métrica do botão para este tipo de evento.",
         "data": {
           "event_type_key": "ID do tipo de evento",

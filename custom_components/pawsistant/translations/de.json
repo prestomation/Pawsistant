@@ -58,8 +58,24 @@
           "action": "Wähle eine Aktion"
         }
       },
+      "add_event_type": {
+        "title": "Ereignistyp hinzufügen",
+        "description": "Lege Anzeigename, Symbol (MDI), Farbe und Schaltflächen-Metrik für diesen Ereignistyp fest.",
+        "data": {
+          "event_type_key": "Ereignistyp-ID",
+          "name": "Anzeigename",
+          "icon": "MDI-Symbol",
+          "color": "Farbe (Hex)",
+          "metric": "Schaltflächen-Metrik"
+        },
+        "data_description": {
+          "event_type_key": "Nur Kleinbuchstaben, Zahlen und Unterstriche. Maximal 30 Zeichen. Kann nach dem Erstellen nicht geändert werden.",
+          "icon": "Muss mit mdi: oder hass: beginnen (z. B. mdi:walk)",
+          "metric": "Was auf der Sensor-Schaltfläche angezeigt wird. daily_count = „3 heute“, days_since = „vor 2 Tagen“, last_value = „28.5 lbs“, hours_since = „vor 5 Stunden“"
+        }
+      },
       "edit_event_type": {
-        "title": "Ereignistyp {mode}",
+        "title": "Ereignistyp bearbeiten",
         "description": "Lege Anzeigename, Symbol (MDI), Farbe und Schaltflächen-Metrik für diesen Ereignistyp fest.",
         "data": {
           "event_type_key": "Ereignistyp-ID",

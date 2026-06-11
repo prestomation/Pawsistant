@@ -58,8 +58,24 @@
           "action": "Välj en åtgärd"
         }
       },
+      "add_event_type": {
+        "title": "Lägg till händelsetyp",
+        "description": "Ange visningsnamn, ikon (MDI), färg och knappmetrik för denna händelsetyp.",
+        "data": {
+          "event_type_key": "Händelsetyp-ID",
+          "name": "Visningsnamn",
+          "icon": "MDI-ikon",
+          "color": "Färg (hex)",
+          "metric": "Knappmetrik"
+        },
+        "data_description": {
+          "event_type_key": "Endast gemener, siffror och understreck. Max 30 tecken. Kan inte ändras efter skapandet.",
+          "icon": "Måste börja med mdi: eller hass: (t.ex. mdi:walk)",
+          "metric": "Vad som visas på sensorknappen. daily_count = \"3 idag\", days_since = \"2 dagar\", last_value = \"28.5 lbs\", hours_since = \"5 timmar\""
+        }
+      },
       "edit_event_type": {
-        "title": "{mode} händelsetyp",
+        "title": "Redigera händelsetyp",
         "description": "Ange visningsnamn, ikon (MDI), färg och knappmetrik för denna händelsetyp.",
         "data": {
           "event_type_key": "Händelsetyp-ID",

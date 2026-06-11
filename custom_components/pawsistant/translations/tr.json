@@ -58,8 +58,24 @@
           "action": "Bir eylem seçin"
         }
       },
+      "add_event_type": {
+        "title": "Olay türü ekle",
+        "description": "Bu olay türü için görünen adı, simgeyi (MDI), rengi ve düğme metriğini ayarlayın.",
+        "data": {
+          "event_type_key": "Olay türü kimliği",
+          "name": "Görünen ad",
+          "icon": "MDI simgesi",
+          "color": "Renk (hex)",
+          "metric": "Düğme metriği"
+        },
+        "data_description": {
+          "event_type_key": "Yalnızca küçük harf, rakam ve alt çizgi. En fazla 30 karakter. Oluşturulduktan sonra değiştirilemez.",
+          "icon": "mdi: veya hass: ile başlamalıdır (örn. mdi:walk)",
+          "metric": "Sensör düğmesinde gösterilecek değer. daily_count = \"bugün 3\", days_since = \"2 gün\", last_value = \"28.5 lbs\", hours_since = \"5 saat\""
+        }
+      },
       "edit_event_type": {
-        "title": "{mode} Olay Türü",
+        "title": "Olay türünü düzenle",
         "description": "Bu olay türü için görünen adı, simgeyi (MDI), rengi ve düğme metriğini ayarlayın.",
         "data": {
           "event_type_key": "Olay türü kimliği",
