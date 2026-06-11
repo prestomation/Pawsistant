@@ -1,0 +1,299 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "添加您的第一只宠物",
+        "description": "Pawsistant 将所有数据本地存储在 Home Assistant 中——无需云端账号。",
+        "data": {
+          "dog_name": "宠物名称",
+          "breed": "品种（可选）",
+          "birth_date": "出生日期（可选，YYYY-MM-DD）",
+          "species": "动物类型"
+        },
+        "data_description": {
+          "species": "动物类型（例如：狗、猫、兔子）。用于传感器名称和卡片标签。"
+        }
+      }
+    },
+    "error": {
+      "name_required": "宠物名称为必填项。"
+    },
+    "abort": {
+      "already_configured": "Pawsistant 已配置。请使用 pawsistant.add_dog 服务添加更多宠物。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "管理宠物",
+        "description": "当前宠物：\n{current_dogs}",
+        "data": {
+          "action": "您想执行什么操作？"
+        }
+      },
+      "add_dog": {
+        "title": "添加宠物",
+        "description": "请输入新宠物的详细信息。",
+        "data": {
+          "dog_name": "宠物名称",
+          "breed": "品种（可选）",
+          "birth_date": "出生日期（可选，YYYY-MM-DD）",
+          "species": "动物类型"
+        },
+        "data_description": {
+          "species": "动物类型（例如：狗、猫、兔子）。用于传感器名称和卡片标签。"
+        }
+      },
+      "remove_dog": {
+        "title": "移除宠物",
+        "description": "⚠️ 此操作将永久删除该宠物的所有事件。",
+        "data": {
+          "dog_name": "选择要移除的宠物"
+        }
+      },
+      "manage_event_types": {
+        "title": "事件类型",
+        "description": "已配置 {count} 个事件类型。内置类型无法删除。",
+        "data": {
+          "action": "选择一个操作"
+        }
+      },
+      "edit_event_type": {
+        "title": "{mode} 事件类型",
+        "description": "为此事件类型设置显示名称、图标（MDI）、颜色和按钮指标。",
+        "data": {
+          "event_type_key": "事件类型 ID",
+          "name": "显示名称",
+          "icon": "MDI 图标",
+          "color": "颜色（十六进制）",
+          "metric": "按钮指标"
+        },
+        "data_description": {
+          "event_type_key": "仅限小写字母、数字和下划线。最多 30 个字符。创建后无法更改。",
+          "icon": "必须以 mdi: 或 hass: 开头（例如 mdi:walk）",
+          "metric": "传感器按钮上显示的内容。daily_count = \"今日 3 次\"，days_since = \"2 天前\"，last_value = \"28.5 lbs\"，hours_since = \"5 小时前\""
+        }
+      }
+    },
+    "error": {
+      "name_required": "宠物名称为必填项。",
+      "name_already_exists": "已存在同名宠物。",
+      "dog_not_found": "未找到宠物。请刷新后重试。",
+      "store_unavailable": "集成存储不可用。请重新加载集成后重试。",
+      "cannot_delete_default": "内置事件类型无法删除。您可以编辑其名称、图标或颜色。",
+      "required": "此字段为必填项。",
+      "key_too_long": "事件类型 ID 不能超过 30 个字符。",
+      "invalid_key_format": "事件类型 ID 只能包含小写字母、数字和下划线。",
+      "key_already_exists": "已存在具有此 ID 的事件类型。",
+      "invalid_icon_format": "图标必须以 mdi: 或 hass: 开头（例如 mdi:walk）。",
+      "invalid_color_format": "颜色必须是有效的十六进制代码（例如 #4CAF50）。",
+      "invalid_metric": "按钮指标必须是以下之一：daily_count、days_since、last_value、hours_since。"
+    }
+  },
+  "selector": {
+    "init_action": {
+      "options": {
+        "add_dog": "添加宠物",
+        "remove_dog": "移除宠物",
+        "edit_event_types": "编辑事件类型",
+        "done": "完成"
+      }
+    }
+  },
+  "services": {
+    "log_event": {
+      "name": "记录事件",
+      "description": "记录宠物活动事件。事件将本地存储并立即触发传感器更新。",
+      "fields": {
+        "dog": {
+          "name": "宠物",
+          "description": "宠物的名称（不区分大小写）。"
+        },
+        "event_type": {
+          "name": "事件类型",
+          "description": "要记录的事件类型。"
+        },
+        "note": {
+          "name": "备注",
+          "description": "事件的可选备注（例如药品名称、兽医评论）。"
+        },
+        "value": {
+          "name": "数值",
+          "description": "可选的数值（例如体重，单位 lbs）。"
+        },
+        "timestamp": {
+          "name": "时间戳",
+          "description": "可选的 ISO 8601 时间戳覆盖值（例如 \"2026-03-18T10:30:00-04:00\"）。若省略则默认为当前时间。"
+        }
+      }
+    },
+    "delete_event": {
+      "name": "删除事件",
+      "description": "通过唯一 ID 删除之前记录的事件。event_id 可作为最近事件传感器的属性获取。",
+      "fields": {
+        "event_id": {
+          "name": "事件 ID",
+          "description": "要删除的事件的 UUID。"
+        }
+      }
+    },
+    "update_event": {
+      "name": "更新事件",
+      "description": "更新之前记录的事件的时间戳、备注或数值。仅更改您提供的字段——省略的字段保持不变。event_type 无法更改。",
+      "fields": {
+        "event_id": {
+          "name": "事件 ID",
+          "description": "要更新的事件的 UUID。"
+        },
+        "timestamp": {
+          "name": "时间戳",
+          "description": "新的 ISO 8601 时间戳（例如 \"2026-03-18T10:30:00-04:00\"）。省略则保留原始时间戳。"
+        },
+        "note": {
+          "name": "备注",
+          "description": "新的备注文本。省略则保留原始备注。"
+        },
+        "value": {
+          "name": "数值",
+          "description": "新的数值（例如体重，单位 lbs）。省略则保留原始数值。"
+        }
+      }
+    },
+    "add_dog": {
+      "name": "添加宠物",
+      "description": "注册一只新宠物。HA 重新加载集成后（或下次协调器刷新后）将显示一组新传感器。",
+      "fields": {
+        "name": {
+          "name": "名称",
+          "description": "宠物的名称（必须唯一）。"
+        },
+        "breed": {
+          "name": "品种",
+          "description": "可选品种。"
+        },
+        "birth_date": {
+          "name": "出生日期",
+          "description": "可选出生日期（YYYY-MM-DD）。"
+        },
+        "species": {
+          "name": "动物类型",
+          "description": "动物类型（例如：狗、猫、兔子）。默认为狗。"
+        }
+      }
+    },
+    "remove_dog": {
+      "name": "移除宠物",
+      "description": "移除一只宠物并永久删除其所有事件。此操作无法撤销。",
+      "fields": {
+        "dog": {
+          "name": "宠物",
+          "description": "要移除的宠物名称（不区分大小写）。"
+        }
+      }
+    },
+    "list_events": {
+      "name": "列出事件",
+      "description": "查询宠物的事件并通过服务响应（`response_variable`）返回结果。可在自动化中使用以检查最近的活动。",
+      "fields": {
+        "dog": {
+          "name": "宠物",
+          "description": "宠物的名称。"
+        },
+        "event_type": {
+          "name": "事件类型",
+          "description": "按事件类型筛选（可选）。"
+        },
+        "days": {
+          "name": "天数",
+          "description": "向前查询的天数（默认 7，最大 3650）。"
+        }
+      }
+    },
+    "import_events": {
+      "name": "导入事件",
+      "description": "从外部 JSON 数组批量导入事件。适用于从 Firebase 版本的 DogLog 一次性迁移数据。`id` 已存在于本地存储中的事件将被跳过。",
+      "fields": {
+        "events": {
+          "name": "事件",
+          "description": "事件对象的 JSON 数组。每个对象至少应包含：dog_id、event_type、timestamp。`id` 字段为可选——若缺失将自动生成。"
+        }
+      }
+    },
+    "update_event_type": {
+      "name": "更新事件类型",
+      "description": "更新现有事件类型的显示名称、图标、颜色或按钮指标。仅更改您提供的字段——省略的字段保持不变。内置和自定义类型均可更新。调用后传感器将立即反映更改。",
+      "fields": {
+        "event_type": {
+          "name": "事件类型键",
+          "description": "要更新的事件类型键（例如 walk、food、my_custom_type）。"
+        },
+        "name": {
+          "name": "显示名称",
+          "description": "事件类型的新显示名称。"
+        },
+        "icon": {
+          "name": "图标",
+          "description": "mdi: 格式的新图标（例如 mdi:walk、mdi:bowl）。浏览图标：https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "颜色",
+          "description": "新的十六进制颜色（例如 #4CAF50）。必须是 6 位十六进制颜色。"
+        },
+        "metric": {
+          "name": "按钮指标",
+          "description": "传感器按钮上显示的内容。选项：daily_count（今日 N 次）、days_since（N 天前）、last_value（最近事件的数值）、hours_since（N 小时前）。省略时默认为 daily_count。"
+        }
+      }
+    },
+    "add_event_type": {
+      "name": "添加事件类型",
+      "description": "添加新的自定义事件类型。内置类型（food、walk 等）无法重新创建——请改用 update_event_type 进行修改。添加后，卡片中将自动显示新按钮。",
+      "fields": {
+        "event_type": {
+          "name": "事件类型键",
+          "description": "唯一的小写 ID，只能使用 a-z、0-9 和下划线。最多 30 个字符。示例：outdoor_walk 或 vet_checkup。"
+        },
+        "name": {
+          "name": "显示名称",
+          "description": "显示在卡片按钮上的可读名称。"
+        },
+        "icon": {
+          "name": "图标",
+          "description": "mdi: 格式的 MDI 图标（例如 mdi:walk）。浏览图标：https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "颜色",
+          "description": "十六进制颜色（例如 #4CAF50）。必须是以 # 开头的 6 位十六进制颜色。"
+        },
+        "metric": {
+          "name": "按钮指标",
+          "description": "传感器按钮上显示的内容。选项：daily_count（今日 N 次）、days_since（N 天前）、last_value（最近事件的数值）、hours_since（N 小时前）。省略时默认为 daily_count。"
+        }
+      }
+    },
+    "delete_event_type": {
+      "name": "删除事件类型",
+      "description": "永久删除自定义事件类型。内置类型（food、walk 等）无法删除——请改用 update_event_type 进行修改。已使用此类型记录的事件将保留在数据库中。",
+      "fields": {
+        "event_type": {
+          "name": "事件类型键",
+          "description": "要删除的事件类型键（例如 my_custom_type）。"
+        }
+      }
+    },
+    "set_shown_types": {
+      "name": "设置显示类型",
+      "description": "设置特定宠物的可见事件类型按钮（及其顺序）。更改将在服务端持久化，以便在所有设备和仪表板之间同步。",
+      "fields": {
+        "dog": {
+          "name": "宠物",
+          "description": "要配置的宠物名称。"
+        },
+        "shown_types": {
+          "name": "显示类型",
+          "description": "要显示为按钮的事件类型键的有序列表。"
+        }
+      }
+    }
+  }
+}

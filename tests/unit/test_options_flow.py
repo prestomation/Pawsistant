@@ -128,10 +128,37 @@ def _inject_stubs() -> None:
         cv_mod.string = str
         sys.modules["homeassistant.helpers.config_validation"] = cv_mod
 
-    # homeassistant.helpers.selector — stub IconSelector so config_flow can import it
-    # Always stub since the tests don't need the real selector rendering.
+    # homeassistant.helpers.selector — stub IconSelector + SelectSelector so
+    # config_flow can import them.  The stubs are lightweight stand-ins; the
+    # tests don't need real selector rendering, only that the schema builds and
+    # the selected value passes through unchanged (vol.In is also stubbed).
     selector_mod = types.ModuleType("homeassistant.helpers.selector")
     selector_mod.IconSelector = lambda config=None: ("IconSelector", config)
+
+    class _SelectSelectorMode:
+        DROPDOWN = "dropdown"
+        LIST = "list"
+
+    def _select_option_dict(value=None, label=None, **kw):
+        return {"value": value, "label": label}
+
+    class _SelectSelectorConfig:
+        def __init__(self, options=None, mode=None, translation_key=None,
+                     custom_value=False, multiple=False, **kw):
+            self.options = options or []
+            self.mode = mode
+            self.translation_key = translation_key
+            self.custom_value = custom_value
+            self.multiple = multiple
+
+    class _SelectSelector:
+        def __init__(self, config=None):
+            self.config = config
+
+    selector_mod.SelectSelector = _SelectSelector
+    selector_mod.SelectSelectorConfig = _SelectSelectorConfig
+    selector_mod.SelectSelectorMode = _SelectSelectorMode
+    selector_mod.SelectOptionDict = _select_option_dict
     sys.modules["homeassistant.helpers.selector"] = selector_mod
 
     # re module (needed by config_flow.py)

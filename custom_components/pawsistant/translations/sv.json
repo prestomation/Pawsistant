@@ -1,0 +1,299 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Lägg till ditt första husdjur",
+        "description": "Pawsistant lagrar all data lokalt i Home Assistant – inget molnkonto krävs.",
+        "data": {
+          "dog_name": "Husdjurets namn",
+          "breed": "Ras (valfritt)",
+          "birth_date": "Födelsedatum (valfritt, YYYY-MM-DD)",
+          "species": "Djurtyp"
+        },
+        "data_description": {
+          "species": "Typ av djur (t.ex. Hund, Katt, Kanin). Används i sensornamn och kortetiketter."
+        }
+      }
+    },
+    "error": {
+      "name_required": "Husdjurets namn krävs."
+    },
+    "abort": {
+      "already_configured": "Pawsistant är redan konfigurerat. Använd tjänsten pawsistant.add_dog för att lägga till fler husdjur."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Hantera husdjur",
+        "description": "Aktuella husdjur:\n{current_dogs}",
+        "data": {
+          "action": "Vad vill du göra?"
+        }
+      },
+      "add_dog": {
+        "title": "Lägg till ett husdjur",
+        "description": "Ange uppgifterna för ditt nya husdjur.",
+        "data": {
+          "dog_name": "Husdjurets namn",
+          "breed": "Ras (valfritt)",
+          "birth_date": "Födelsedatum (valfritt, YYYY-MM-DD)",
+          "species": "Djurtyp"
+        },
+        "data_description": {
+          "species": "Typ av djur (t.ex. Hund, Katt, Kanin). Används i sensornamn och kortetiketter."
+        }
+      },
+      "remove_dog": {
+        "title": "Ta bort ett husdjur",
+        "description": "⚠️ Detta kommer att permanent radera alla händelser för detta husdjur.",
+        "data": {
+          "dog_name": "Välj ett husdjur att ta bort"
+        }
+      },
+      "manage_event_types": {
+        "title": "Händelsetyper",
+        "description": "{count} händelsetyper konfigurerade. Inbyggda typer kan inte raderas.",
+        "data": {
+          "action": "Välj en åtgärd"
+        }
+      },
+      "edit_event_type": {
+        "title": "{mode} händelsetyp",
+        "description": "Ange visningsnamn, ikon (MDI), färg och knappmetrik för denna händelsetyp.",
+        "data": {
+          "event_type_key": "Händelsetyp-ID",
+          "name": "Visningsnamn",
+          "icon": "MDI-ikon",
+          "color": "Färg (hex)",
+          "metric": "Knappmetrik"
+        },
+        "data_description": {
+          "event_type_key": "Endast gemener, siffror och understreck. Max 30 tecken. Kan inte ändras efter skapandet.",
+          "icon": "Måste börja med mdi: eller hass: (t.ex. mdi:walk)",
+          "metric": "Vad som visas på sensorknappen. daily_count = \"3 idag\", days_since = \"2 dagar\", last_value = \"28.5 lbs\", hours_since = \"5 timmar\""
+        }
+      }
+    },
+    "error": {
+      "name_required": "Husdjurets namn krävs.",
+      "name_already_exists": "Ett husdjur med detta namn är redan registrerat.",
+      "dog_not_found": "Husdjuret hittades inte. Uppdatera sidan och försök igen.",
+      "store_unavailable": "Integrationens lagring är inte tillgänglig. Ladda om integrationen och försök igen.",
+      "cannot_delete_default": "Inbyggda händelsetyper kan inte raderas. Du kan redigera deras namn, ikon eller färg istället.",
+      "required": "Det här fältet är obligatoriskt.",
+      "key_too_long": "Händelsetyp-ID får vara högst 30 tecken.",
+      "invalid_key_format": "Händelsetyp-ID får endast innehålla gemener, siffror och understreck.",
+      "key_already_exists": "En händelsetyp med detta ID finns redan.",
+      "invalid_icon_format": "Ikonen måste börja med mdi: eller hass: (t.ex. mdi:walk).",
+      "invalid_color_format": "Färgen måste vara en giltig hexkod (t.ex. #4CAF50).",
+      "invalid_metric": "Knappmetriken måste vara en av: daily_count, days_since, last_value, hours_since."
+    }
+  },
+  "selector": {
+    "init_action": {
+      "options": {
+        "add_dog": "Lägg till ett husdjur",
+        "remove_dog": "Ta bort ett husdjur",
+        "edit_event_types": "Redigera händelsetyper",
+        "done": "Klar"
+      }
+    }
+  },
+  "services": {
+    "log_event": {
+      "name": "Logga händelse",
+      "description": "Loggar en aktivitetshändelse för husdjuret. Händelsen lagras lokalt och utlöser en omedelbar sensoruppdatering.",
+      "fields": {
+        "dog": {
+          "name": "Husdjur",
+          "description": "Husdjurets namn (skiftlägesokänsligt)."
+        },
+        "event_type": {
+          "name": "Händelsetyp",
+          "description": "Den händelsetyp som ska loggas."
+        },
+        "note": {
+          "name": "Anteckning",
+          "description": "Valfri anteckning för händelsen (t.ex. läkemedelsnamn, veterinärkommentarer)."
+        },
+        "value": {
+          "name": "Värde",
+          "description": "Valfritt numeriskt värde (t.ex. vikt i lbs)."
+        },
+        "timestamp": {
+          "name": "Tidsstämpel",
+          "description": "Valfri ISO 8601-tidsstämpel att skriva över med (t.ex. \"2026-03-18T10:30:00-04:00\"). Standardvärdet är nu om det utelämnas."
+        }
+      }
+    },
+    "delete_event": {
+      "name": "Radera händelse",
+      "description": "Raderar en tidigare loggad händelse via dess unika ID. event_id finns som ett attribut på sensorerna för den senaste händelsen.",
+      "fields": {
+        "event_id": {
+          "name": "Händelse-ID",
+          "description": "UUID för händelsen som ska raderas."
+        }
+      }
+    },
+    "update_event": {
+      "name": "Uppdatera händelse",
+      "description": "Uppdaterar tidsstämpel, anteckning eller värde för en tidigare loggad händelse. Endast de fält du anger ändras – utelämnade fält lämnas oförändrade. event_type kan inte ändras.",
+      "fields": {
+        "event_id": {
+          "name": "Händelse-ID",
+          "description": "UUID för händelsen som ska uppdateras."
+        },
+        "timestamp": {
+          "name": "Tidsstämpel",
+          "description": "Ny ISO 8601-tidsstämpel (t.ex. \"2026-03-18T10:30:00-04:00\"). Utelämna för att behålla den ursprungliga tidsstämpeln."
+        },
+        "note": {
+          "name": "Anteckning",
+          "description": "Ny anteckningstext. Utelämna för att behålla den ursprungliga anteckningen."
+        },
+        "value": {
+          "name": "Värde",
+          "description": "Nytt numeriskt värde (t.ex. vikt i lbs). Utelämna för att behålla det ursprungliga värdet."
+        }
+      }
+    },
+    "add_dog": {
+      "name": "Lägg till husdjur",
+      "description": "Registrerar ett nytt husdjur. En ny uppsättning sensorer visas efter att HA laddat om integrationen (eller efter nästa koordinatoruppdatering).",
+      "fields": {
+        "name": {
+          "name": "Namn",
+          "description": "Husdjurets namn (måste vara unikt)."
+        },
+        "breed": {
+          "name": "Ras",
+          "description": "Valfri ras."
+        },
+        "birth_date": {
+          "name": "Födelsedatum",
+          "description": "Valfritt födelsedatum (YYYY-MM-DD)."
+        },
+        "species": {
+          "name": "Djurtyp",
+          "description": "Typ av djur (t.ex. Hund, Katt, Kanin). Standardvärdet är Hund."
+        }
+      }
+    },
+    "remove_dog": {
+      "name": "Ta bort husdjur",
+      "description": "Tar bort ett husdjur och raderar permanent alla dess händelser. Denna åtgärd kan inte ångras.",
+      "fields": {
+        "dog": {
+          "name": "Husdjur",
+          "description": "Namnet på husdjuret som ska tas bort (skiftlägesokänsligt)."
+        }
+      }
+    },
+    "list_events": {
+      "name": "Lista händelser",
+      "description": "Frågar efter händelser för ett husdjur och returnerar resultaten via tjänstesvaret (`response_variable`). Använd detta i automatiseringar för att granska den senaste aktiviteten.",
+      "fields": {
+        "dog": {
+          "name": "Husdjur",
+          "description": "Husdjurets namn."
+        },
+        "event_type": {
+          "name": "Händelsetyp",
+          "description": "Filtrera efter händelsetyp (valfritt)."
+        },
+        "days": {
+          "name": "Dagar",
+          "description": "Hur många dagar bakåt att söka (standard 7, max 3650)."
+        }
+      }
+    },
+    "import_events": {
+      "name": "Importera händelser",
+      "description": "Massimporterar händelser från en extern JSON-array. Avsett för engångsmigration från den Firebase-baserade versionen av DogLog. Händelser vars `id` redan finns i det lokala lagret hoppas över.",
+      "fields": {
+        "events": {
+          "name": "Händelser",
+          "description": "En JSON-array av händelseobjekt. Varje objekt bör minst ha: dog_id, event_type, timestamp. Ett `id`-fält är valfritt – ett genereras om det saknas."
+        }
+      }
+    },
+    "update_event_type": {
+      "name": "Uppdatera händelsetyp",
+      "description": "Uppdaterar visningsnamn, ikon, färg eller knappmetrik för en befintlig händelsetyp. Endast de fält du anger ändras – utelämnade fält lämnas oförändrade. Både inbyggda och anpassade typer kan uppdateras. Sensorn återspeglar ändringarna omedelbart efter anropet.",
+      "fields": {
+        "event_type": {
+          "name": "Händelsetyp-nyckel",
+          "description": "Händelsetyp-nyckeln som ska uppdateras (t.ex. walk, food, my_custom_type)."
+        },
+        "name": {
+          "name": "Visningsnamn",
+          "description": "Nytt visningsnamn för händelsetypen."
+        },
+        "icon": {
+          "name": "Ikon",
+          "description": "Ny ikon i mdi:-format (t.ex. mdi:walk, mdi:bowl). Bläddra bland ikoner på https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Färg",
+          "description": "Ny hexfärg (t.ex. #4CAF50). Måste vara en 6-siffrig hexfärg."
+        },
+        "metric": {
+          "name": "Knappmetrik",
+          "description": "Vad som visas på sensorknappen. Alternativ: daily_count (N idag), days_since (N dagar), last_value (värde från den senaste händelsen), hours_since (N timmar). Standardvärdet är daily_count om det utelämnas."
+        }
+      }
+    },
+    "add_event_type": {
+      "name": "Lägg till händelsetyp",
+      "description": "Lägger till en ny anpassad händelsetyp. Inbyggda typer (food, walk osv.) kan inte återskapas – använd update_event_type för att ändra dem istället. Efter att du lagt till visas automatiskt en ny knapp på kortet.",
+      "fields": {
+        "event_type": {
+          "name": "Händelsetyp-nyckel",
+          "description": "Unikt gement ID med endast a-z, 0-9 och understreck. Max 30 tecken. Exempel: outdoor_walk eller vet_checkup."
+        },
+        "name": {
+          "name": "Visningsnamn",
+          "description": "Läsbart namn som visas på kortknappen."
+        },
+        "icon": {
+          "name": "Ikon",
+          "description": "MDI-ikon i mdi:-format (t.ex. mdi:walk). Bläddra bland ikoner på https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Färg",
+          "description": "Hexfärg (t.ex. #4CAF50). Måste vara en 6-siffrig hexfärg som börjar med #."
+        },
+        "metric": {
+          "name": "Knappmetrik",
+          "description": "Vad som visas på sensorknappen. Alternativ: daily_count (N idag), days_since (N dagar), last_value (värde från den senaste händelsen), hours_since (N timmar). Standardvärdet är daily_count om det utelämnas."
+        }
+      }
+    },
+    "delete_event_type": {
+      "name": "Radera händelsetyp",
+      "description": "Raderar permanent en anpassad händelsetyp. Inbyggda typer (food, walk osv.) kan inte raderas – använd update_event_type för att ändra dem istället. Händelser som redan loggats med denna typ bevaras i databasen.",
+      "fields": {
+        "event_type": {
+          "name": "Händelsetyp-nyckel",
+          "description": "Händelsetyp-nyckeln som ska raderas (t.ex. my_custom_type)."
+        }
+      }
+    },
+    "set_shown_types": {
+      "name": "Ange visade typer",
+      "description": "Ställer in de synliga händelsetypknapparna (och deras ordning) för en specifik hund. Ändringarna sparas server-side så att de synkroniseras över alla enheter och instrumentpaneler.",
+      "fields": {
+        "dog": {
+          "name": "Hund",
+          "description": "Namnet på hunden som ska konfigureras."
+        },
+        "shown_types": {
+          "name": "Visade typer",
+          "description": "Ordnad lista med händelsetyp-nycklar som ska visas som knappar."
+        }
+      }
+    }
+  }
+}

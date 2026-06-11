@@ -1,0 +1,299 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Füge dein erstes Haustier hinzu",
+        "description": "Pawsistant speichert alle Daten lokal in Home Assistant – kein Cloud-Konto erforderlich.",
+        "data": {
+          "dog_name": "Name des Haustiers",
+          "breed": "Rasse (optional)",
+          "birth_date": "Geburtsdatum (optional, JJJJ-MM-TT)",
+          "species": "Tierart"
+        },
+        "data_description": {
+          "species": "Tierart (z. B. Hund, Katze, Kaninchen). Wird in Sensornamen und Karten-Beschriftungen verwendet."
+        }
+      }
+    },
+    "error": {
+      "name_required": "Der Name des Haustiers ist erforderlich."
+    },
+    "abort": {
+      "already_configured": "Pawsistant ist bereits konfiguriert. Verwende den Dienst pawsistant.add_dog, um weitere Haustiere hinzuzufügen."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Haustiere verwalten",
+        "description": "Aktuelle Haustiere:\n{current_dogs}",
+        "data": {
+          "action": "Was möchtest du tun?"
+        }
+      },
+      "add_dog": {
+        "title": "Haustier hinzufügen",
+        "description": "Gib die Details für dein neues Haustier ein.",
+        "data": {
+          "dog_name": "Name des Haustiers",
+          "breed": "Rasse (optional)",
+          "birth_date": "Geburtsdatum (optional, JJJJ-MM-TT)",
+          "species": "Tierart"
+        },
+        "data_description": {
+          "species": "Tierart (z. B. Hund, Katze, Kaninchen). Wird in Sensornamen und Karten-Beschriftungen verwendet."
+        }
+      },
+      "remove_dog": {
+        "title": "Haustier entfernen",
+        "description": "⚠️ Dadurch werden alle Ereignisse dieses Haustiers dauerhaft gelöscht.",
+        "data": {
+          "dog_name": "Wähle ein zu entfernendes Haustier aus"
+        }
+      },
+      "manage_event_types": {
+        "title": "Ereignistypen",
+        "description": "{count} Ereignistypen konfiguriert. Integrierte Typen können nicht gelöscht werden.",
+        "data": {
+          "action": "Wähle eine Aktion"
+        }
+      },
+      "edit_event_type": {
+        "title": "Ereignistyp {mode}",
+        "description": "Lege Anzeigename, Symbol (MDI), Farbe und Schaltflächen-Metrik für diesen Ereignistyp fest.",
+        "data": {
+          "event_type_key": "Ereignistyp-ID",
+          "name": "Anzeigename",
+          "icon": "MDI-Symbol",
+          "color": "Farbe (Hex)",
+          "metric": "Schaltflächen-Metrik"
+        },
+        "data_description": {
+          "event_type_key": "Nur Kleinbuchstaben, Zahlen und Unterstriche. Maximal 30 Zeichen. Kann nach dem Erstellen nicht geändert werden.",
+          "icon": "Muss mit mdi: oder hass: beginnen (z. B. mdi:walk)",
+          "metric": "Was auf der Sensor-Schaltfläche angezeigt wird. daily_count = „3 heute“, days_since = „vor 2 Tagen“, last_value = „28.5 lbs“, hours_since = „vor 5 Stunden“"
+        }
+      }
+    },
+    "error": {
+      "name_required": "Der Name des Haustiers ist erforderlich.",
+      "name_already_exists": "Ein Haustier mit diesem Namen ist bereits registriert.",
+      "dog_not_found": "Haustier nicht gefunden. Bitte aktualisiere und versuche es erneut.",
+      "store_unavailable": "Der Speicher der Integration ist nicht verfügbar. Bitte lade die Integration neu und versuche es erneut.",
+      "cannot_delete_default": "Integrierte Ereignistypen können nicht gelöscht werden. Du kannst stattdessen ihren Namen, ihr Symbol oder ihre Farbe bearbeiten.",
+      "required": "Dieses Feld ist erforderlich.",
+      "key_too_long": "Die Ereignistyp-ID darf maximal 30 Zeichen lang sein.",
+      "invalid_key_format": "Die Ereignistyp-ID darf nur Kleinbuchstaben, Zahlen und Unterstriche enthalten.",
+      "key_already_exists": "Ein Ereignistyp mit dieser ID existiert bereits.",
+      "invalid_icon_format": "Das Symbol muss mit mdi: oder hass: beginnen (z. B. mdi:walk).",
+      "invalid_color_format": "Die Farbe muss ein gültiger Hex-Code sein (z. B. #4CAF50).",
+      "invalid_metric": "Die Schaltflächen-Metrik muss eine der folgenden sein: daily_count, days_since, last_value, hours_since."
+    }
+  },
+  "selector": {
+    "init_action": {
+      "options": {
+        "add_dog": "Haustier hinzufügen",
+        "remove_dog": "Haustier entfernen",
+        "edit_event_types": "Ereignistypen bearbeiten",
+        "done": "Fertig"
+      }
+    }
+  },
+  "services": {
+    "log_event": {
+      "name": "Ereignis protokollieren",
+      "description": "Protokolliert ein Aktivitätsereignis des Haustiers. Das Ereignis wird lokal gespeichert und löst eine sofortige Sensoraktualisierung aus.",
+      "fields": {
+        "dog": {
+          "name": "Haustier",
+          "description": "Der Name des Haustiers (Groß-/Kleinschreibung wird ignoriert)."
+        },
+        "event_type": {
+          "name": "Ereignistyp",
+          "description": "Der zu protokollierende Ereignistyp."
+        },
+        "note": {
+          "name": "Notiz",
+          "description": "Optionale Notiz für das Ereignis (z. B. Medikamentenname, Tierarzt-Kommentare)."
+        },
+        "value": {
+          "name": "Wert",
+          "description": "Optionaler numerischer Wert (z. B. Gewicht in lbs)."
+        },
+        "timestamp": {
+          "name": "Zeitstempel",
+          "description": "Optionaler ISO-8601-Zeitstempel zum Überschreiben (z. B. \"2026-03-18T10:30:00-04:00\"). Standardmäßig die aktuelle Zeit, falls ausgelassen."
+        }
+      }
+    },
+    "delete_event": {
+      "name": "Ereignis löschen",
+      "description": "Löscht ein zuvor protokolliertes Ereignis anhand seiner eindeutigen ID. Die event_id ist als Attribut bei den Sensoren für das neueste Ereignis verfügbar.",
+      "fields": {
+        "event_id": {
+          "name": "Ereignis-ID",
+          "description": "Die UUID des zu löschenden Ereignisses."
+        }
+      }
+    },
+    "update_event": {
+      "name": "Ereignis aktualisieren",
+      "description": "Aktualisiert Zeitstempel, Notiz oder Wert eines zuvor protokollierten Ereignisses. Nur die von dir angegebenen Felder werden geändert – ausgelassene Felder bleiben unberührt. Der event_type kann nicht geändert werden.",
+      "fields": {
+        "event_id": {
+          "name": "Ereignis-ID",
+          "description": "Die UUID des zu aktualisierenden Ereignisses."
+        },
+        "timestamp": {
+          "name": "Zeitstempel",
+          "description": "Neuer ISO-8601-Zeitstempel (z. B. \"2026-03-18T10:30:00-04:00\"). Auslassen, um den ursprünglichen Zeitstempel beizubehalten."
+        },
+        "note": {
+          "name": "Notiz",
+          "description": "Neuer Notiztext. Auslassen, um die ursprüngliche Notiz beizubehalten."
+        },
+        "value": {
+          "name": "Wert",
+          "description": "Neuer numerischer Wert (z. B. Gewicht in lbs). Auslassen, um den ursprünglichen Wert beizubehalten."
+        }
+      }
+    },
+    "add_dog": {
+      "name": "Haustier hinzufügen",
+      "description": "Registriert ein neues Haustier. Ein neuer Satz Sensoren erscheint, nachdem HA die Integration neu geladen hat (oder nach der nächsten Aktualisierung des Koordinators).",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Der Name des Haustiers (muss eindeutig sein)."
+        },
+        "breed": {
+          "name": "Rasse",
+          "description": "Optionale Rasse."
+        },
+        "birth_date": {
+          "name": "Geburtsdatum",
+          "description": "Optionales Geburtsdatum (JJJJ-MM-TT)."
+        },
+        "species": {
+          "name": "Tierart",
+          "description": "Tierart (z. B. Hund, Katze, Kaninchen). Standard ist Hund."
+        }
+      }
+    },
+    "remove_dog": {
+      "name": "Haustier entfernen",
+      "description": "Entfernt ein Haustier und löscht dauerhaft alle seine Ereignisse. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "fields": {
+        "dog": {
+          "name": "Haustier",
+          "description": "Der Name des zu entfernenden Haustiers (Groß-/Kleinschreibung wird ignoriert)."
+        }
+      }
+    },
+    "list_events": {
+      "name": "Ereignisse auflisten",
+      "description": "Fragt Ereignisse für ein Haustier ab und gibt die Ergebnisse über die Dienstantwort (`response_variable`) zurück. Verwende dies in Automatisierungen, um die jüngste Aktivität zu prüfen.",
+      "fields": {
+        "dog": {
+          "name": "Haustier",
+          "description": "Der Name des Haustiers."
+        },
+        "event_type": {
+          "name": "Ereignistyp",
+          "description": "Nach Ereignistyp filtern (optional)."
+        },
+        "days": {
+          "name": "Tage",
+          "description": "Wie viele Tage rückwärts gesucht werden soll (Standard 7, Maximum 3650)."
+        }
+      }
+    },
+    "import_events": {
+      "name": "Ereignisse importieren",
+      "description": "Importiert Ereignisse in großen Mengen aus einem externen JSON-Array. Gedacht für eine einmalige Migration von der Firebase-basierten Version von DogLog. Ereignisse, deren `id` bereits im lokalen Speicher vorhanden ist, werden übersprungen.",
+      "fields": {
+        "events": {
+          "name": "Ereignisse",
+          "description": "Ein JSON-Array von Ereignisobjekten. Jedes Objekt sollte mindestens enthalten: dog_id, event_type, timestamp. Ein `id`-Feld ist optional – eines wird generiert, falls es fehlt."
+        }
+      }
+    },
+    "update_event_type": {
+      "name": "Ereignistyp aktualisieren",
+      "description": "Aktualisiert Anzeigename, Symbol, Farbe oder Schaltflächen-Metrik eines vorhandenen Ereignistyps. Nur die von dir angegebenen Felder werden geändert – ausgelassene Felder bleiben unberührt. Sowohl integrierte als auch benutzerdefinierte Typen können aktualisiert werden. Der Sensor spiegelt die Änderungen nach dem Aufruf sofort wider.",
+      "fields": {
+        "event_type": {
+          "name": "Ereignistyp-Schlüssel",
+          "description": "Der zu aktualisierende Ereignistyp-Schlüssel (z. B. walk, food, my_custom_type)."
+        },
+        "name": {
+          "name": "Anzeigename",
+          "description": "Neuer Anzeigename für den Ereignistyp."
+        },
+        "icon": {
+          "name": "Symbol",
+          "description": "Neues Symbol im mdi:-Format (z. B. mdi:walk, mdi:bowl). Symbole durchsuchen unter https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Farbe",
+          "description": "Neue Hex-Farbe (z. B. #4CAF50). Muss eine 6-stellige Hex-Farbe sein."
+        },
+        "metric": {
+          "name": "Schaltflächen-Metrik",
+          "description": "Was auf der Sensor-Schaltfläche angezeigt wird. Optionen: daily_count (N heute), days_since (N Tage), last_value (Wert des neuesten Ereignisses), hours_since (N Stunden). Standard ist daily_count, falls ausgelassen."
+        }
+      }
+    },
+    "add_event_type": {
+      "name": "Ereignistyp hinzufügen",
+      "description": "Fügt einen neuen benutzerdefinierten Ereignistyp hinzu. Integrierte Typen (food, walk usw.) können nicht neu erstellt werden – verwende stattdessen update_event_type, um sie zu ändern. Nach dem Hinzufügen erscheint automatisch eine neue Schaltfläche auf der Karte.",
+      "fields": {
+        "event_type": {
+          "name": "Ereignistyp-Schlüssel",
+          "description": "Eindeutige Kleinbuchstaben-ID, die nur a-z, 0-9 und Unterstriche verwendet. Maximal 30 Zeichen. Beispiel: outdoor_walk oder vet_checkup."
+        },
+        "name": {
+          "name": "Anzeigename",
+          "description": "Lesbarer Name, der auf der Karten-Schaltfläche angezeigt wird."
+        },
+        "icon": {
+          "name": "Symbol",
+          "description": "MDI-Symbol im mdi:-Format (z. B. mdi:walk). Symbole durchsuchen unter https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Farbe",
+          "description": "Hex-Farbe (z. B. #4CAF50). Muss eine 6-stellige Hex-Farbe sein, die mit # beginnt."
+        },
+        "metric": {
+          "name": "Schaltflächen-Metrik",
+          "description": "Was auf der Sensor-Schaltfläche angezeigt wird. Optionen: daily_count (N heute), days_since (N Tage), last_value (Wert des neuesten Ereignisses), hours_since (N Stunden). Standard ist daily_count, falls ausgelassen."
+        }
+      }
+    },
+    "delete_event_type": {
+      "name": "Ereignistyp löschen",
+      "description": "Löscht dauerhaft einen benutzerdefinierten Ereignistyp. Integrierte Typen (food, walk usw.) können nicht gelöscht werden – verwende stattdessen update_event_type, um sie zu ändern. Bereits mit diesem Typ protokollierte Ereignisse bleiben in der Datenbank erhalten.",
+      "fields": {
+        "event_type": {
+          "name": "Ereignistyp-Schlüssel",
+          "description": "Der zu löschende Ereignistyp-Schlüssel (z. B. my_custom_type)."
+        }
+      }
+    },
+    "set_shown_types": {
+      "name": "Angezeigte Typen festlegen",
+      "description": "Legt die sichtbaren Ereignistyp-Schaltflächen (und ihre Reihenfolge) für einen bestimmten Hund fest. Die Änderungen werden serverseitig gespeichert, sodass sie über alle Geräte und Dashboards hinweg synchronisiert werden.",
+      "fields": {
+        "dog": {
+          "name": "Hund",
+          "description": "Der Name des zu konfigurierenden Hundes."
+        },
+        "shown_types": {
+          "name": "Angezeigte Typen",
+          "description": "Geordnete Liste der als Schaltflächen anzuzeigenden Ereignistyp-Schlüssel."
+        }
+      }
+    }
+  }
+}

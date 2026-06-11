@@ -1,0 +1,299 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Voeg je eerste huisdier toe",
+        "description": "Pawsistant slaat alle gegevens lokaal op in Home Assistant — geen cloudaccount vereist.",
+        "data": {
+          "dog_name": "Naam huisdier",
+          "breed": "Ras (optioneel)",
+          "birth_date": "Geboortedatum (optioneel, YYYY-MM-DD)",
+          "species": "Diersoort"
+        },
+        "data_description": {
+          "species": "Soort dier (bijv. Hond, Kat, Konijn). Wordt gebruikt in sensornamen en kaartlabels."
+        }
+      }
+    },
+    "error": {
+      "name_required": "Naam van het huisdier is verplicht."
+    },
+    "abort": {
+      "already_configured": "Pawsistant is al geconfigureerd. Gebruik de service pawsistant.add_dog om meer huisdieren toe te voegen."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Huisdieren beheren",
+        "description": "Huidige huisdieren:\n{current_dogs}",
+        "data": {
+          "action": "Wat wil je doen?"
+        }
+      },
+      "add_dog": {
+        "title": "Huisdier toevoegen",
+        "description": "Voer de gegevens in voor je nieuwe huisdier.",
+        "data": {
+          "dog_name": "Naam huisdier",
+          "breed": "Ras (optioneel)",
+          "birth_date": "Geboortedatum (optioneel, YYYY-MM-DD)",
+          "species": "Diersoort"
+        },
+        "data_description": {
+          "species": "Soort dier (bijv. Hond, Kat, Konijn). Wordt gebruikt in sensornamen en kaartlabels."
+        }
+      },
+      "remove_dog": {
+        "title": "Huisdier verwijderen",
+        "description": "⚠️ Dit zal alle gebeurtenissen voor dit huisdier permanent verwijderen.",
+        "data": {
+          "dog_name": "Selecteer een huisdier om te verwijderen"
+        }
+      },
+      "manage_event_types": {
+        "title": "Gebeurtenistypes",
+        "description": "{count} gebeurtenistypes geconfigureerd. Ingebouwde types kunnen niet worden verwijderd.",
+        "data": {
+          "action": "Selecteer een actie"
+        }
+      },
+      "edit_event_type": {
+        "title": "{mode} Gebeurtenistype",
+        "description": "Stel de weergavenaam, het pictogram (MDI), de kleur en de knopmetriek in voor dit gebeurtenistype.",
+        "data": {
+          "event_type_key": "Gebeurtenistype-ID",
+          "name": "Weergavenaam",
+          "icon": "MDI-pictogram",
+          "color": "Kleur (hex)",
+          "metric": "Knopmetriek"
+        },
+        "data_description": {
+          "event_type_key": "Alleen kleine letters, cijfers en underscores. Maximaal 30 tekens. Kan niet worden gewijzigd na aanmaak.",
+          "icon": "Moet beginnen met mdi: of hass: (bijv. mdi:walk)",
+          "metric": "Wat wordt weergegeven op de sensorknop. daily_count = \"3 vandaag\", days_since = \"2 dagen\", last_value = \"28.5 lbs\", hours_since = \"5 uur\""
+        }
+      }
+    },
+    "error": {
+      "name_required": "Naam van het huisdier is verplicht.",
+      "name_already_exists": "Een huisdier met deze naam is al geregistreerd.",
+      "dog_not_found": "Huisdier niet gevonden. Vernieuw de pagina en probeer opnieuw.",
+      "store_unavailable": "Integratieopslag is niet beschikbaar. Herlaad de integratie en probeer opnieuw.",
+      "cannot_delete_default": "Ingebouwde gebeurtenistypes kunnen niet worden verwijderd. U kunt in plaats daarvan hun naam, pictogram of kleur bewerken.",
+      "required": "Dit veld is verplicht.",
+      "key_too_long": "Gebeurtenistype-ID mag maximaal 30 tekens bevatten.",
+      "invalid_key_format": "Gebeurtenistype-ID mag alleen kleine letters, cijfers en underscores bevatten.",
+      "key_already_exists": "Een gebeurtenistype met deze ID bestaat al.",
+      "invalid_icon_format": "Pictogram moet beginnen met mdi: of hass: (bijv. mdi:walk).",
+      "invalid_color_format": "Kleur moet een geldige hexadecimale code zijn (bijv. #4CAF50).",
+      "invalid_metric": "Knopmetriek moet een van de volgende zijn: daily_count, days_since, last_value, hours_since."
+    }
+  },
+  "selector": {
+    "init_action": {
+      "options": {
+        "add_dog": "Huisdier toevoegen",
+        "remove_dog": "Huisdier verwijderen",
+        "edit_event_types": "Gebeurtenistypes bewerken",
+        "done": "Klaar"
+      }
+    }
+  },
+  "services": {
+    "log_event": {
+      "name": "Gebeurtenis registreren",
+      "description": "Registreert een activiteitsgebeurtenis van het huisdier. De gebeurtenis wordt lokaal opgeslagen en activeert een onmiddellijke sensorupdate.",
+      "fields": {
+        "dog": {
+          "name": "Huisdier",
+          "description": "De naam van het huisdier (hoofdletterongevoelig)."
+        },
+        "event_type": {
+          "name": "Gebeurtenistype",
+          "description": "Het type gebeurtenis dat geregistreerd moet worden."
+        },
+        "note": {
+          "name": "Notitie",
+          "description": "Optionele notitie voor de gebeurtenis (bijv. naam medicijn, opmerkingen van dierenarts)."
+        },
+        "value": {
+          "name": "Waarde",
+          "description": "Optionele numerieke waarde (bijv. gewicht in lbs)."
+        },
+        "timestamp": {
+          "name": "Tijdstempel",
+          "description": "Optionele ISO 8601-tijdstempel als overschrijving (bijv. \"2026-03-18T10:30:00-04:00\"). Standaard de huidige tijd als weggelaten."
+        }
+      }
+    },
+    "delete_event": {
+      "name": "Gebeurtenis verwijderen",
+      "description": "Verwijdert een eerder geregistreerde gebeurtenis op basis van zijn unieke ID. De event_id is beschikbaar als attribuut op sensoren voor de meest recente gebeurtenis.",
+      "fields": {
+        "event_id": {
+          "name": "Gebeurtenis-ID",
+          "description": "De UUID van de te verwijderen gebeurtenis."
+        }
+      }
+    },
+    "update_event": {
+      "name": "Gebeurtenis bijwerken",
+      "description": "Werkt de tijdstempel, notitie of waarde van een eerder geregistreerde gebeurtenis bij. Alleen de velden die u opgeeft worden gewijzigd — weggelaten velden blijven ongewijzigd. Het event_type kan niet worden gewijzigd.",
+      "fields": {
+        "event_id": {
+          "name": "Gebeurtenis-ID",
+          "description": "De UUID van de bij te werken gebeurtenis."
+        },
+        "timestamp": {
+          "name": "Tijdstempel",
+          "description": "Nieuwe ISO 8601-tijdstempel (bijv. \"2026-03-18T10:30:00-04:00\"). Weglaten om de oorspronkelijke tijdstempel te behouden."
+        },
+        "note": {
+          "name": "Notitie",
+          "description": "Nieuwe notitietekst. Weglaten om de oorspronkelijke notitie te behouden."
+        },
+        "value": {
+          "name": "Waarde",
+          "description": "Nieuwe numerieke waarde (bijv. gewicht in lbs). Weglaten om de oorspronkelijke waarde te behouden."
+        }
+      }
+    },
+    "add_dog": {
+      "name": "Huisdier toevoegen",
+      "description": "Registreert een nieuw huisdier. Een nieuwe set sensoren verschijnt nadat HA de integratie heeft herladen (of na de volgende coördinatorvernieuwing).",
+      "fields": {
+        "name": {
+          "name": "Naam",
+          "description": "De naam van het huisdier (moet uniek zijn)."
+        },
+        "breed": {
+          "name": "Ras",
+          "description": "Optioneel ras."
+        },
+        "birth_date": {
+          "name": "Geboortedatum",
+          "description": "Optionele geboortedatum (YYYY-MM-DD)."
+        },
+        "species": {
+          "name": "Diersoort",
+          "description": "Soort dier (bijv. Hond, Kat, Konijn). Standaard is Hond."
+        }
+      }
+    },
+    "remove_dog": {
+      "name": "Huisdier verwijderen",
+      "description": "Verwijdert een huisdier en wist permanent al zijn gebeurtenissen. Deze actie kan niet ongedaan worden gemaakt.",
+      "fields": {
+        "dog": {
+          "name": "Huisdier",
+          "description": "De naam van het te verwijderen huisdier (hoofdletterongevoelig)."
+        }
+      }
+    },
+    "list_events": {
+      "name": "Gebeurtenissen weergeven",
+      "description": "Bevraagt gebeurtenissen voor een huisdier en retourneert de resultaten via de servicerespons (`response_variable`). Gebruik dit in automatiseringen om recente activiteit te inspecteren.",
+      "fields": {
+        "dog": {
+          "name": "Huisdier",
+          "description": "De naam van het huisdier."
+        },
+        "event_type": {
+          "name": "Gebeurtenistype",
+          "description": "Filteren op gebeurtenistype (optioneel)."
+        },
+        "days": {
+          "name": "Dagen",
+          "description": "Hoeveel dagen terug te zoeken (standaard 7, maximum 3650)."
+        }
+      }
+    },
+    "import_events": {
+      "name": "Gebeurtenissen importeren",
+      "description": "Importeert gebeurtenissen in bulk vanuit een extern JSON-array. Bedoeld voor eenmalige migratie vanuit de Firebase-gebaseerde versie van DogLog. Gebeurtenissen waarvan de `id` al bestaat in de lokale opslag worden overgeslagen.",
+      "fields": {
+        "events": {
+          "name": "Gebeurtenissen",
+          "description": "Een JSON-array van gebeurtenisobjecten. Elk object moet minimaal bevatten: dog_id, event_type, timestamp. Een `id`-veld is optioneel — er wordt er een gegenereerd als het ontbreekt."
+        }
+      }
+    },
+    "update_event_type": {
+      "name": "Gebeurtenistype bijwerken",
+      "description": "Werkt de weergavenaam, het pictogram, de kleur of de knopmetriek van een bestaand gebeurtenistype bij. Alleen de velden die u opgeeft worden gewijzigd — weggelaten velden blijven ongewijzigd. Zowel ingebouwde als aangepaste types kunnen worden bijgewerkt. De sensor weerspiegelt de wijzigingen direct na de aanroep.",
+      "fields": {
+        "event_type": {
+          "name": "Gebeurtenistype-sleutel",
+          "description": "De bij te werken gebeurtenistype-sleutel (bijv. walk, food, my_custom_type)."
+        },
+        "name": {
+          "name": "Weergavenaam",
+          "description": "Nieuwe weergavenaam voor het gebeurtenistype."
+        },
+        "icon": {
+          "name": "Pictogram",
+          "description": "Nieuw pictogram in mdi:-formaat (bijv. mdi:walk, mdi:bowl). Blader door pictogrammen op https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Kleur",
+          "description": "Nieuwe hexadecimale kleur (bijv. #4CAF50). Moet een 6-cijferige hexadecimale kleur zijn."
+        },
+        "metric": {
+          "name": "Knopmetriek",
+          "description": "Wat wordt weergegeven op de sensorknop. Opties: daily_count (N vandaag), days_since (N dagen), last_value (waarde van de meest recente gebeurtenis), hours_since (N uur). Standaard is daily_count als weggelaten."
+        }
+      }
+    },
+    "add_event_type": {
+      "name": "Gebeurtenistype toevoegen",
+      "description": "Voegt een nieuw aangepast gebeurtenistype toe. Ingebouwde types (food, walk, enz.) kunnen niet opnieuw worden aangemaakt — gebruik update_event_type om ze te wijzigen. Na het toevoegen verschijnt automatisch een nieuwe knop op de kaart.",
+      "fields": {
+        "event_type": {
+          "name": "Gebeurtenistype-sleutel",
+          "description": "Unieke kleine-letters-ID met alleen a-z, 0-9 en underscores. Maximaal 30 tekens. Voorbeeld: outdoor_walk of vet_checkup."
+        },
+        "name": {
+          "name": "Weergavenaam",
+          "description": "Leesbare naam weergegeven op de kaartknop."
+        },
+        "icon": {
+          "name": "Pictogram",
+          "description": "MDI-pictogram in mdi:-formaat (bijv. mdi:walk). Blader door pictogrammen op https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Kleur",
+          "description": "Hexadecimale kleur (bijv. #4CAF50). Moet een 6-cijferige hexadecimale kleur zijn die begint met #."
+        },
+        "metric": {
+          "name": "Knopmetriek",
+          "description": "Wat wordt weergegeven op de sensorknop. Opties: daily_count (N vandaag), days_since (N dagen), last_value (waarde van de meest recente gebeurtenis), hours_since (N uur). Standaard is daily_count als weggelaten."
+        }
+      }
+    },
+    "delete_event_type": {
+      "name": "Gebeurtenistype verwijderen",
+      "description": "Verwijdert permanent een aangepast gebeurtenistype. Ingebouwde types (food, walk, enz.) kunnen niet worden verwijderd — gebruik update_event_type om ze te wijzigen. Gebeurtenissen die al zijn geregistreerd met dit type blijven bewaard in de database.",
+      "fields": {
+        "event_type": {
+          "name": "Gebeurtenistype-sleutel",
+          "description": "De te verwijderen gebeurtenistype-sleutel (bijv. my_custom_type)."
+        }
+      }
+    },
+    "set_shown_types": {
+      "name": "Weergegeven types instellen",
+      "description": "Stelt de zichtbare gebeurtenistype-knoppen (en hun volgorde) in voor een specifieke hond. Wijzigingen worden server-side opgeslagen zodat ze worden gesynchroniseerd op alle apparaten en dashboards.",
+      "fields": {
+        "dog": {
+          "name": "Hond",
+          "description": "De naam van de te configureren hond."
+        },
+        "shown_types": {
+          "name": "Weergegeven types",
+          "description": "Geordende lijst van gebeurtenistype-sleutels die als knoppen worden weergegeven."
+        }
+      }
+    }
+  }
+}

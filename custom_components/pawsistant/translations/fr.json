@@ -1,0 +1,299 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Ajoutez votre premier animal",
+        "description": "Pawsistant stocke toutes les données localement dans Home Assistant — aucun compte cloud requis.",
+        "data": {
+          "dog_name": "Nom de l'animal",
+          "breed": "Race (facultatif)",
+          "birth_date": "Date de naissance (facultatif, AAAA-MM-JJ)",
+          "species": "Type d'animal"
+        },
+        "data_description": {
+          "species": "Type d'animal (p. ex. Chien, Chat, Lapin). Utilisé dans les noms de capteurs et les libellés de la carte."
+        }
+      }
+    },
+    "error": {
+      "name_required": "Le nom de l'animal est requis."
+    },
+    "abort": {
+      "already_configured": "Pawsistant est déjà configuré. Utilisez le service pawsistant.add_dog pour ajouter d'autres animaux."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Gérer les animaux",
+        "description": "Animaux actuels :\n{current_dogs}",
+        "data": {
+          "action": "Que souhaitez-vous faire ?"
+        }
+      },
+      "add_dog": {
+        "title": "Ajouter un animal",
+        "description": "Saisissez les détails de votre nouvel animal.",
+        "data": {
+          "dog_name": "Nom de l'animal",
+          "breed": "Race (facultatif)",
+          "birth_date": "Date de naissance (facultatif, AAAA-MM-JJ)",
+          "species": "Type d'animal"
+        },
+        "data_description": {
+          "species": "Type d'animal (p. ex. Chien, Chat, Lapin). Utilisé dans les noms de capteurs et les libellés de la carte."
+        }
+      },
+      "remove_dog": {
+        "title": "Supprimer un animal",
+        "description": "⚠️ Cela supprimera définitivement tous les événements de cet animal.",
+        "data": {
+          "dog_name": "Sélectionnez un animal à supprimer"
+        }
+      },
+      "manage_event_types": {
+        "title": "Types d'événement",
+        "description": "{count} types d'événement configurés. Les types intégrés ne peuvent pas être supprimés.",
+        "data": {
+          "action": "Sélectionnez une action"
+        }
+      },
+      "edit_event_type": {
+        "title": "Type d'événement : {mode}",
+        "description": "Définissez le nom affiché, l'icône (MDI), la couleur et la métrique du bouton pour ce type d'événement.",
+        "data": {
+          "event_type_key": "ID du type d'événement",
+          "name": "Nom affiché",
+          "icon": "Icône MDI",
+          "color": "Couleur (hex)",
+          "metric": "Métrique du bouton"
+        },
+        "data_description": {
+          "event_type_key": "Lettres minuscules, chiffres et tirets bas uniquement. 30 caractères maximum. Non modifiable après création.",
+          "icon": "Doit commencer par mdi: ou hass: (p. ex. mdi:walk)",
+          "metric": "Ce qui s'affiche sur le bouton du capteur. daily_count = « 3 aujourd'hui », days_since = « il y a 2 jours », last_value = « 28.5 lbs », hours_since = « il y a 5 heures »"
+        }
+      }
+    },
+    "error": {
+      "name_required": "Le nom de l'animal est requis.",
+      "name_already_exists": "Un animal portant ce nom est déjà enregistré.",
+      "dog_not_found": "Animal introuvable. Veuillez actualiser et réessayer.",
+      "store_unavailable": "Le stockage de l'intégration est indisponible. Veuillez recharger l'intégration et réessayer.",
+      "cannot_delete_default": "Les types d'événement intégrés ne peuvent pas être supprimés. Vous pouvez modifier leur nom, leur icône ou leur couleur à la place.",
+      "required": "Ce champ est requis.",
+      "key_too_long": "L'ID du type d'événement doit comporter 30 caractères au maximum.",
+      "invalid_key_format": "L'ID du type d'événement ne peut contenir que des lettres minuscules, des chiffres et des tirets bas.",
+      "key_already_exists": "Un type d'événement avec cet ID existe déjà.",
+      "invalid_icon_format": "L'icône doit commencer par mdi: ou hass: (p. ex. mdi:walk).",
+      "invalid_color_format": "La couleur doit être un code hexadécimal valide (p. ex. #4CAF50).",
+      "invalid_metric": "La métrique du bouton doit être l'une des suivantes : daily_count, days_since, last_value, hours_since."
+    }
+  },
+  "selector": {
+    "init_action": {
+      "options": {
+        "add_dog": "Ajouter un animal",
+        "remove_dog": "Supprimer un animal",
+        "edit_event_types": "Modifier les types d'événement",
+        "done": "Terminé"
+      }
+    }
+  },
+  "services": {
+    "log_event": {
+      "name": "Enregistrer un événement",
+      "description": "Enregistre un événement d'activité de l'animal. L'événement est stocké localement et déclenche une mise à jour immédiate du capteur.",
+      "fields": {
+        "dog": {
+          "name": "Animal",
+          "description": "Le nom de l'animal (insensible à la casse)."
+        },
+        "event_type": {
+          "name": "Type d'événement",
+          "description": "Le type d'événement à enregistrer."
+        },
+        "note": {
+          "name": "Note",
+          "description": "Note facultative pour l'événement (p. ex. nom du médicament, commentaires du vétérinaire)."
+        },
+        "value": {
+          "name": "Valeur",
+          "description": "Valeur numérique facultative (p. ex. poids en lbs)."
+        },
+        "timestamp": {
+          "name": "Horodatage",
+          "description": "Remplacement facultatif de l'horodatage ISO 8601 (p. ex. \"2026-03-18T10:30:00-04:00\"). Par défaut, l'heure actuelle si omis."
+        }
+      }
+    },
+    "delete_event": {
+      "name": "Supprimer un événement",
+      "description": "Supprime un événement précédemment enregistré par son ID unique. L'event_id est disponible comme attribut sur les capteurs d'événement le plus récent.",
+      "fields": {
+        "event_id": {
+          "name": "ID de l'événement",
+          "description": "L'UUID de l'événement à supprimer."
+        }
+      }
+    },
+    "update_event": {
+      "name": "Mettre à jour un événement",
+      "description": "Met à jour l'horodatage, la note ou la valeur d'un événement précédemment enregistré. Seuls les champs fournis sont modifiés — les champs omis restent inchangés. L'event_type ne peut pas être modifié.",
+      "fields": {
+        "event_id": {
+          "name": "ID de l'événement",
+          "description": "L'UUID de l'événement à mettre à jour."
+        },
+        "timestamp": {
+          "name": "Horodatage",
+          "description": "Nouvel horodatage ISO 8601 (p. ex. \"2026-03-18T10:30:00-04:00\"). Omettez-le pour conserver l'horodatage d'origine."
+        },
+        "note": {
+          "name": "Note",
+          "description": "Nouveau texte de note. Omettez-le pour conserver la note d'origine."
+        },
+        "value": {
+          "name": "Valeur",
+          "description": "Nouvelle valeur numérique (p. ex. poids en lbs). Omettez-la pour conserver la valeur d'origine."
+        }
+      }
+    },
+    "add_dog": {
+      "name": "Ajouter un animal",
+      "description": "Enregistre un nouvel animal. Un nouvel ensemble de capteurs apparaîtra après le rechargement de l'intégration par HA (ou après la prochaine actualisation du coordinateur).",
+      "fields": {
+        "name": {
+          "name": "Nom",
+          "description": "Le nom de l'animal (doit être unique)."
+        },
+        "breed": {
+          "name": "Race",
+          "description": "Race facultative."
+        },
+        "birth_date": {
+          "name": "Date de naissance",
+          "description": "Date de naissance facultative (AAAA-MM-JJ)."
+        },
+        "species": {
+          "name": "Type d'animal",
+          "description": "Type d'animal (p. ex. Chien, Chat, Lapin). Par défaut, Chien."
+        }
+      }
+    },
+    "remove_dog": {
+      "name": "Supprimer un animal",
+      "description": "Supprime un animal et efface définitivement tous ses événements. Cette action est irréversible.",
+      "fields": {
+        "dog": {
+          "name": "Animal",
+          "description": "Le nom de l'animal à supprimer (insensible à la casse)."
+        }
+      }
+    },
+    "list_events": {
+      "name": "Lister les événements",
+      "description": "Interroge les événements d'un animal et renvoie les résultats via la réponse du service (`response_variable`). Utilisez ceci dans les automatisations pour inspecter l'activité récente.",
+      "fields": {
+        "dog": {
+          "name": "Animal",
+          "description": "Le nom de l'animal."
+        },
+        "event_type": {
+          "name": "Type d'événement",
+          "description": "Filtrer par type d'événement (facultatif)."
+        },
+        "days": {
+          "name": "Jours",
+          "description": "Nombre de jours à remonter pour la recherche (par défaut 7, maximum 3650)."
+        }
+      }
+    },
+    "import_events": {
+      "name": "Importer des événements",
+      "description": "Importe en masse des événements depuis un tableau JSON externe. Conçu pour une migration unique depuis la version de DogLog basée sur Firebase. Les événements dont l'`id` existe déjà dans le stockage local sont ignorés.",
+      "fields": {
+        "events": {
+          "name": "Événements",
+          "description": "Un tableau JSON d'objets d'événement. Chaque objet doit comporter au minimum : dog_id, event_type, timestamp. Un champ `id` est facultatif — un sera généré s'il est absent."
+        }
+      }
+    },
+    "update_event_type": {
+      "name": "Mettre à jour un type d'événement",
+      "description": "Met à jour le nom affiché, l'icône, la couleur ou la métrique du bouton d'un type d'événement existant. Seuls les champs fournis sont modifiés — les champs omis restent inchangés. Les types intégrés et personnalisés peuvent tous deux être mis à jour. Le capteur reflète immédiatement les modifications après l'appel.",
+      "fields": {
+        "event_type": {
+          "name": "Clé du type d'événement",
+          "description": "La clé du type d'événement à mettre à jour (p. ex. walk, food, my_custom_type)."
+        },
+        "name": {
+          "name": "Nom affiché",
+          "description": "Nouveau nom affiché pour le type d'événement."
+        },
+        "icon": {
+          "name": "Icône",
+          "description": "Nouvelle icône au format mdi: (p. ex. mdi:walk, mdi:bowl). Parcourez les icônes sur https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Couleur",
+          "description": "Nouvelle couleur hexadécimale (p. ex. #4CAF50). Doit être une couleur hexadécimale à 6 chiffres."
+        },
+        "metric": {
+          "name": "Métrique du bouton",
+          "description": "Ce qui s'affiche sur le bouton du capteur. Options : daily_count (N aujourd'hui), days_since (N jours), last_value (valeur de l'événement le plus récent), hours_since (N heures). Par défaut, daily_count si omis."
+        }
+      }
+    },
+    "add_event_type": {
+      "name": "Ajouter un type d'événement",
+      "description": "Ajoute un nouveau type d'événement personnalisé. Les types intégrés (food, walk, etc.) ne peuvent pas être recréés — utilisez update_event_type pour les modifier. Après l'ajout, un nouveau bouton apparaît automatiquement sur la carte.",
+      "fields": {
+        "event_type": {
+          "name": "Clé du type d'événement",
+          "description": "ID unique en minuscules utilisant uniquement a-z, 0-9 et des tirets bas. 30 caractères max. Exemple : outdoor_walk ou vet_checkup."
+        },
+        "name": {
+          "name": "Nom affiché",
+          "description": "Nom lisible affiché sur le bouton de la carte."
+        },
+        "icon": {
+          "name": "Icône",
+          "description": "Icône MDI au format mdi: (p. ex. mdi:walk). Parcourez les icônes sur https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Couleur",
+          "description": "Couleur hexadécimale (p. ex. #4CAF50). Doit être une couleur hexadécimale à 6 chiffres commençant par #."
+        },
+        "metric": {
+          "name": "Métrique du bouton",
+          "description": "Ce qui s'affiche sur le bouton du capteur. Options : daily_count (N aujourd'hui), days_since (N jours), last_value (valeur de l'événement le plus récent), hours_since (N heures). Par défaut, daily_count si omis."
+        }
+      }
+    },
+    "delete_event_type": {
+      "name": "Supprimer un type d'événement",
+      "description": "Supprime définitivement un type d'événement personnalisé. Les types intégrés (food, walk, etc.) ne peuvent pas être supprimés — utilisez update_event_type pour les modifier. Les événements déjà enregistrés avec ce type sont conservés dans la base de données.",
+      "fields": {
+        "event_type": {
+          "name": "Clé du type d'événement",
+          "description": "La clé du type d'événement à supprimer (p. ex. my_custom_type)."
+        }
+      }
+    },
+    "set_shown_types": {
+      "name": "Définir les types affichés",
+      "description": "Définit les boutons de type d'événement visibles (et leur ordre) pour un chien donné. Les modifications sont conservées côté serveur afin d'être synchronisées sur tous les appareils et tableaux de bord.",
+      "fields": {
+        "dog": {
+          "name": "Chien",
+          "description": "Le nom du chien à configurer."
+        },
+        "shown_types": {
+          "name": "Types affichés",
+          "description": "Liste ordonnée des clés de type d'événement à afficher sous forme de boutons."
+        }
+      }
+    }
+  }
+}

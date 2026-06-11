@@ -1,0 +1,299 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Aggiungi il tuo primo animale",
+        "description": "Pawsistant memorizza tutti i dati localmente in Home Assistant: nessun account cloud richiesto.",
+        "data": {
+          "dog_name": "Nome dell'animale",
+          "breed": "Razza (facoltativo)",
+          "birth_date": "Data di nascita (facoltativo, AAAA-MM-GG)",
+          "species": "Tipo di animale"
+        },
+        "data_description": {
+          "species": "Tipo di animale (es. Cane, Gatto, Coniglio). Usato nei nomi dei sensori e nelle etichette della scheda."
+        }
+      }
+    },
+    "error": {
+      "name_required": "Il nome dell'animale è obbligatorio."
+    },
+    "abort": {
+      "already_configured": "Pawsistant è già configurato. Usa il servizio pawsistant.add_dog per aggiungere altri animali."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Gestisci animali",
+        "description": "Animali attuali:\n{current_dogs}",
+        "data": {
+          "action": "Cosa vuoi fare?"
+        }
+      },
+      "add_dog": {
+        "title": "Aggiungi un animale",
+        "description": "Inserisci i dettagli del tuo nuovo animale.",
+        "data": {
+          "dog_name": "Nome dell'animale",
+          "breed": "Razza (facoltativo)",
+          "birth_date": "Data di nascita (facoltativo, AAAA-MM-GG)",
+          "species": "Tipo di animale"
+        },
+        "data_description": {
+          "species": "Tipo di animale (es. Cane, Gatto, Coniglio). Usato nei nomi dei sensori e nelle etichette della scheda."
+        }
+      },
+      "remove_dog": {
+        "title": "Rimuovi un animale",
+        "description": "⚠️ Questo eliminerà definitivamente tutti gli eventi di questo animale.",
+        "data": {
+          "dog_name": "Seleziona un animale da rimuovere"
+        }
+      },
+      "manage_event_types": {
+        "title": "Tipi di evento",
+        "description": "{count} tipi di evento configurati. I tipi integrati non possono essere eliminati.",
+        "data": {
+          "action": "Seleziona un'azione"
+        }
+      },
+      "edit_event_type": {
+        "title": "{mode} tipo di evento",
+        "description": "Imposta il nome visualizzato, l'icona (MDI), il colore e la metrica del pulsante per questo tipo di evento.",
+        "data": {
+          "event_type_key": "ID del tipo di evento",
+          "name": "Nome visualizzato",
+          "icon": "Icona MDI",
+          "color": "Colore (hex)",
+          "metric": "Metrica del pulsante"
+        },
+        "data_description": {
+          "event_type_key": "Solo lettere minuscole, numeri e trattini bassi. Massimo 30 caratteri. Non modificabile dopo la creazione.",
+          "icon": "Deve iniziare con mdi: o hass: (es. mdi:walk)",
+          "metric": "Cosa mostrare sul pulsante del sensore. daily_count = «3 oggi», days_since = «2 giorni fa», last_value = «28.5 lbs», hours_since = «5 ore fa»"
+        }
+      }
+    },
+    "error": {
+      "name_required": "Il nome dell'animale è obbligatorio.",
+      "name_already_exists": "Un animale con questo nome è già registrato.",
+      "dog_not_found": "Animale non trovato. Aggiorna e riprova.",
+      "store_unavailable": "L'archivio dell'integrazione non è disponibile. Ricarica l'integrazione e riprova.",
+      "cannot_delete_default": "I tipi di evento integrati non possono essere eliminati. Puoi invece modificarne il nome, l'icona o il colore.",
+      "required": "Questo campo è obbligatorio.",
+      "key_too_long": "L'ID del tipo di evento deve contenere al massimo 30 caratteri.",
+      "invalid_key_format": "L'ID del tipo di evento può contenere solo lettere minuscole, numeri e trattini bassi.",
+      "key_already_exists": "Esiste già un tipo di evento con questo ID.",
+      "invalid_icon_format": "L'icona deve iniziare con mdi: o hass: (es. mdi:walk).",
+      "invalid_color_format": "Il colore deve essere un codice esadecimale valido (es. #4CAF50).",
+      "invalid_metric": "La metrica del pulsante deve essere una tra: daily_count, days_since, last_value, hours_since."
+    }
+  },
+  "selector": {
+    "init_action": {
+      "options": {
+        "add_dog": "Aggiungi un animale",
+        "remove_dog": "Rimuovi un animale",
+        "edit_event_types": "Modifica tipi di evento",
+        "done": "Fine"
+      }
+    }
+  },
+  "services": {
+    "log_event": {
+      "name": "Registra evento",
+      "description": "Registra un evento di attività dell'animale. L'evento viene memorizzato localmente e attiva un aggiornamento immediato del sensore.",
+      "fields": {
+        "dog": {
+          "name": "Animale",
+          "description": "Il nome dell'animale (senza distinzione tra maiuscole e minuscole)."
+        },
+        "event_type": {
+          "name": "Tipo di evento",
+          "description": "Il tipo di evento da registrare."
+        },
+        "note": {
+          "name": "Nota",
+          "description": "Nota facoltativa per l'evento (es. nome del farmaco, commenti del veterinario)."
+        },
+        "value": {
+          "name": "Valore",
+          "description": "Valore numerico facoltativo (es. peso in lbs)."
+        },
+        "timestamp": {
+          "name": "Timestamp",
+          "description": "Sostituzione facoltativa del timestamp ISO 8601 (es. \"2026-03-18T10:30:00-04:00\"). Se omesso, usa l'ora attuale."
+        }
+      }
+    },
+    "delete_event": {
+      "name": "Elimina evento",
+      "description": "Elimina un evento registrato in precedenza tramite il suo ID univoco. L'event_id è disponibile come attributo sui sensori dell'evento più recente.",
+      "fields": {
+        "event_id": {
+          "name": "ID evento",
+          "description": "L'UUID dell'evento da eliminare."
+        }
+      }
+    },
+    "update_event": {
+      "name": "Aggiorna evento",
+      "description": "Aggiorna il timestamp, la nota o il valore di un evento registrato in precedenza. Vengono modificati solo i campi forniti; quelli omessi restano invariati. L'event_type non può essere modificato.",
+      "fields": {
+        "event_id": {
+          "name": "ID evento",
+          "description": "L'UUID dell'evento da aggiornare."
+        },
+        "timestamp": {
+          "name": "Timestamp",
+          "description": "Nuovo timestamp ISO 8601 (es. \"2026-03-18T10:30:00-04:00\"). Ometti per mantenere il timestamp originale."
+        },
+        "note": {
+          "name": "Nota",
+          "description": "Nuovo testo della nota. Ometti per mantenere la nota originale."
+        },
+        "value": {
+          "name": "Valore",
+          "description": "Nuovo valore numerico (es. peso in lbs). Ometti per mantenere il valore originale."
+        }
+      }
+    },
+    "add_dog": {
+      "name": "Aggiungi animale",
+      "description": "Registra un nuovo animale. Un nuovo set di sensori comparirà dopo che HA avrà ricaricato l'integrazione (o dopo il successivo aggiornamento del coordinatore).",
+      "fields": {
+        "name": {
+          "name": "Nome",
+          "description": "Il nome dell'animale (deve essere univoco)."
+        },
+        "breed": {
+          "name": "Razza",
+          "description": "Razza facoltativa."
+        },
+        "birth_date": {
+          "name": "Data di nascita",
+          "description": "Data di nascita facoltativa (AAAA-MM-GG)."
+        },
+        "species": {
+          "name": "Tipo di animale",
+          "description": "Tipo di animale (es. Cane, Gatto, Coniglio). Predefinito: Cane."
+        }
+      }
+    },
+    "remove_dog": {
+      "name": "Rimuovi animale",
+      "description": "Rimuove un animale ed elimina definitivamente tutti i suoi eventi. Questa azione non può essere annullata.",
+      "fields": {
+        "dog": {
+          "name": "Animale",
+          "description": "Il nome dell'animale da rimuovere (senza distinzione tra maiuscole e minuscole)."
+        }
+      }
+    },
+    "list_events": {
+      "name": "Elenca eventi",
+      "description": "Interroga gli eventi di un animale e restituisce i risultati tramite la risposta del servizio (`response_variable`). Usalo nelle automazioni per esaminare l'attività recente.",
+      "fields": {
+        "dog": {
+          "name": "Animale",
+          "description": "Il nome dell'animale."
+        },
+        "event_type": {
+          "name": "Tipo di evento",
+          "description": "Filtra per tipo di evento (facoltativo)."
+        },
+        "days": {
+          "name": "Giorni",
+          "description": "Quanti giorni indietro cercare (predefinito 7, massimo 3650)."
+        }
+      }
+    },
+    "import_events": {
+      "name": "Importa eventi",
+      "description": "Importa in blocco gli eventi da un array JSON esterno. Pensato per una migrazione una tantum dalla versione di DogLog basata su Firebase. Gli eventi il cui `id` esiste già nell'archivio locale vengono ignorati.",
+      "fields": {
+        "events": {
+          "name": "Eventi",
+          "description": "Un array JSON di oggetti evento. Ogni oggetto deve avere almeno: dog_id, event_type, timestamp. Il campo `id` è facoltativo: ne verrà generato uno se assente."
+        }
+      }
+    },
+    "update_event_type": {
+      "name": "Aggiorna tipo di evento",
+      "description": "Aggiorna il nome visualizzato, l'icona, il colore o la metrica del pulsante di un tipo di evento esistente. Vengono modificati solo i campi forniti; quelli omessi restano invariati. È possibile aggiornare sia i tipi integrati che quelli personalizzati. Il sensore riflette immediatamente le modifiche dopo la chiamata.",
+      "fields": {
+        "event_type": {
+          "name": "Chiave del tipo di evento",
+          "description": "La chiave del tipo di evento da aggiornare (es. walk, food, my_custom_type)."
+        },
+        "name": {
+          "name": "Nome visualizzato",
+          "description": "Nuovo nome visualizzato per il tipo di evento."
+        },
+        "icon": {
+          "name": "Icona",
+          "description": "Nuova icona in formato mdi: (es. mdi:walk, mdi:bowl). Sfoglia le icone su https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Colore",
+          "description": "Nuovo colore esadecimale (es. #4CAF50). Deve essere un colore esadecimale a 6 cifre."
+        },
+        "metric": {
+          "name": "Metrica del pulsante",
+          "description": "Cosa mostrare sul pulsante del sensore. Opzioni: daily_count (N oggi), days_since (N giorni), last_value (valore dell'evento più recente), hours_since (N ore). Predefinito daily_count se omesso."
+        }
+      }
+    },
+    "add_event_type": {
+      "name": "Aggiungi tipo di evento",
+      "description": "Aggiunge un nuovo tipo di evento personalizzato. I tipi integrati (food, walk, ecc.) non possono essere ricreati: usa update_event_type per modificarli. Dopo l'aggiunta, un nuovo pulsante compare automaticamente nella scheda.",
+      "fields": {
+        "event_type": {
+          "name": "Chiave del tipo di evento",
+          "description": "ID univoco in minuscolo usando solo a-z, 0-9 e trattini bassi. Massimo 30 caratteri. Esempio: outdoor_walk o vet_checkup."
+        },
+        "name": {
+          "name": "Nome visualizzato",
+          "description": "Nome leggibile mostrato sul pulsante della scheda."
+        },
+        "icon": {
+          "name": "Icona",
+          "description": "Icona MDI in formato mdi: (es. mdi:walk). Sfoglia le icone su https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Colore",
+          "description": "Colore esadecimale (es. #4CAF50). Deve essere un colore esadecimale a 6 cifre che inizia con #."
+        },
+        "metric": {
+          "name": "Metrica del pulsante",
+          "description": "Cosa mostrare sul pulsante del sensore. Opzioni: daily_count (N oggi), days_since (N giorni), last_value (valore dell'evento più recente), hours_since (N ore). Predefinito daily_count se omesso."
+        }
+      }
+    },
+    "delete_event_type": {
+      "name": "Elimina tipo di evento",
+      "description": "Elimina definitivamente un tipo di evento personalizzato. I tipi integrati (food, walk, ecc.) non possono essere eliminati: usa update_event_type per modificarli. Gli eventi già registrati con questo tipo vengono conservati nel database.",
+      "fields": {
+        "event_type": {
+          "name": "Chiave del tipo di evento",
+          "description": "La chiave del tipo di evento da eliminare (es. my_custom_type)."
+        }
+      }
+    },
+    "set_shown_types": {
+      "name": "Imposta tipi visualizzati",
+      "description": "Imposta i pulsanti dei tipi di evento visibili (e il loro ordine) per un cane specifico. Le modifiche vengono salvate lato server per essere sincronizzate su tutti i dispositivi e le dashboard.",
+      "fields": {
+        "dog": {
+          "name": "Cane",
+          "description": "Il nome del cane da configurare."
+        },
+        "shown_types": {
+          "name": "Tipi visualizzati",
+          "description": "Elenco ordinato delle chiavi dei tipi di evento da mostrare come pulsanti."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,299 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "İlk evcil hayvanınızı ekleyin",
+        "description": "Pawsistant tüm verileri Home Assistant'ta yerel olarak saklar — bulut hesabı gerekmez.",
+        "data": {
+          "dog_name": "Evcil hayvan adı",
+          "breed": "Cins (isteğe bağlı)",
+          "birth_date": "Doğum tarihi (isteğe bağlı, YYYY-MM-DD)",
+          "species": "Hayvan türü"
+        },
+        "data_description": {
+          "species": "Hayvan türü (örn. Köpek, Kedi, Tavşan). Sensör adlarında ve kart etiketlerinde kullanılır."
+        }
+      }
+    },
+    "error": {
+      "name_required": "Evcil hayvan adı zorunludur."
+    },
+    "abort": {
+      "already_configured": "Pawsistant zaten yapılandırılmış. Daha fazla evcil hayvan eklemek için pawsistant.add_dog servisini kullanın."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Evcil hayvanları yönet",
+        "description": "Mevcut evcil hayvanlar:\n{current_dogs}",
+        "data": {
+          "action": "Ne yapmak istersiniz?"
+        }
+      },
+      "add_dog": {
+        "title": "Evcil hayvan ekle",
+        "description": "Yeni evcil hayvanınızın bilgilerini girin.",
+        "data": {
+          "dog_name": "Evcil hayvan adı",
+          "breed": "Cins (isteğe bağlı)",
+          "birth_date": "Doğum tarihi (isteğe bağlı, YYYY-MM-DD)",
+          "species": "Hayvan türü"
+        },
+        "data_description": {
+          "species": "Hayvan türü (örn. Köpek, Kedi, Tavşan). Sensör adlarında ve kart etiketlerinde kullanılır."
+        }
+      },
+      "remove_dog": {
+        "title": "Evcil hayvanı kaldır",
+        "description": "⚠️ Bu işlem, bu evcil hayvana ait tüm olayları kalıcı olarak silecektir.",
+        "data": {
+          "dog_name": "Kaldırılacak evcil hayvanı seçin"
+        }
+      },
+      "manage_event_types": {
+        "title": "Olay Türleri",
+        "description": "{count} olay türü yapılandırıldı. Yerleşik türler silinemez.",
+        "data": {
+          "action": "Bir eylem seçin"
+        }
+      },
+      "edit_event_type": {
+        "title": "{mode} Olay Türü",
+        "description": "Bu olay türü için görünen adı, simgeyi (MDI), rengi ve düğme metriğini ayarlayın.",
+        "data": {
+          "event_type_key": "Olay türü kimliği",
+          "name": "Görünen ad",
+          "icon": "MDI simgesi",
+          "color": "Renk (hex)",
+          "metric": "Düğme metriği"
+        },
+        "data_description": {
+          "event_type_key": "Yalnızca küçük harf, rakam ve alt çizgi. En fazla 30 karakter. Oluşturulduktan sonra değiştirilemez.",
+          "icon": "mdi: veya hass: ile başlamalıdır (örn. mdi:walk)",
+          "metric": "Sensör düğmesinde gösterilecek değer. daily_count = \"bugün 3\", days_since = \"2 gün\", last_value = \"28.5 lbs\", hours_since = \"5 saat\""
+        }
+      }
+    },
+    "error": {
+      "name_required": "Evcil hayvan adı zorunludur.",
+      "name_already_exists": "Bu adda bir evcil hayvan zaten kayıtlı.",
+      "dog_not_found": "Evcil hayvan bulunamadı. Lütfen yenileyin ve tekrar deneyin.",
+      "store_unavailable": "Entegrasyon deposu kullanılamıyor. Lütfen entegrasyonu yeniden yükleyin ve tekrar deneyin.",
+      "cannot_delete_default": "Yerleşik olay türleri silinemez. Bunun yerine adlarını, simgelerini veya renklerini düzenleyebilirsiniz.",
+      "required": "Bu alan zorunludur.",
+      "key_too_long": "Olay türü kimliği en fazla 30 karakter olmalıdır.",
+      "invalid_key_format": "Olay türü kimliği yalnızca küçük harf, rakam ve alt çizgi içerebilir.",
+      "key_already_exists": "Bu kimliğe sahip bir olay türü zaten mevcut.",
+      "invalid_icon_format": "Simge mdi: veya hass: ile başlamalıdır (örn. mdi:walk).",
+      "invalid_color_format": "Renk geçerli bir hex kodu olmalıdır (örn. #4CAF50).",
+      "invalid_metric": "Düğme metriği şunlardan biri olmalıdır: daily_count, days_since, last_value, hours_since."
+    }
+  },
+  "selector": {
+    "init_action": {
+      "options": {
+        "add_dog": "Evcil hayvan ekle",
+        "remove_dog": "Evcil hayvanı kaldır",
+        "edit_event_types": "Olay türlerini düzenle",
+        "done": "Tamamlandı"
+      }
+    }
+  },
+  "services": {
+    "log_event": {
+      "name": "Olay Kaydet",
+      "description": "Bir evcil hayvan aktivite olayı kaydeder. Olay yerel olarak saklanır ve anlık bir sensör güncellemesi tetikler.",
+      "fields": {
+        "dog": {
+          "name": "Evcil hayvan",
+          "description": "Evcil hayvanın adı (büyük/küçük harf duyarsız)."
+        },
+        "event_type": {
+          "name": "Olay Türü",
+          "description": "Kaydedilecek olay türü."
+        },
+        "note": {
+          "name": "Not",
+          "description": "Olay için isteğe bağlı not (örn. ilaç adı, veteriner yorumları)."
+        },
+        "value": {
+          "name": "Değer",
+          "description": "İsteğe bağlı sayısal değer (örn. pound cinsinden ağırlık)."
+        },
+        "timestamp": {
+          "name": "Zaman Damgası",
+          "description": "İsteğe bağlı ISO 8601 zaman damgası geçersiz kılma (örn. \"2026-03-18T10:30:00-04:00\"). Belirtilmezse varsayılan olarak şu anki zaman kullanılır."
+        }
+      }
+    },
+    "delete_event": {
+      "name": "Olayı Sil",
+      "description": "Daha önce kaydedilmiş bir olayı benzersiz kimliğiyle siler. event_id, en son olay sensörlerinde bir öznitelik olarak mevcuttur.",
+      "fields": {
+        "event_id": {
+          "name": "Olay Kimliği",
+          "description": "Silinecek olayın UUID'si."
+        }
+      }
+    },
+    "update_event": {
+      "name": "Olayı Güncelle",
+      "description": "Daha önce kaydedilmiş bir olayın zaman damgasını, notunu veya değerini günceller. Yalnızca belirttiğiniz alanlar değiştirilir — atlanmış alanlar olduğu gibi bırakılır. event_type değiştirilemez.",
+      "fields": {
+        "event_id": {
+          "name": "Olay Kimliği",
+          "description": "Güncellenecek olayın UUID'si."
+        },
+        "timestamp": {
+          "name": "Zaman Damgası",
+          "description": "Yeni ISO 8601 zaman damgası (örn. \"2026-03-18T10:30:00-04:00\"). Özgün zaman damgasını korumak için atlanabilir."
+        },
+        "note": {
+          "name": "Not",
+          "description": "Yeni not metni. Özgün notu korumak için atlanabilir."
+        },
+        "value": {
+          "name": "Değer",
+          "description": "Yeni sayısal değer (örn. pound cinsinden ağırlık). Özgün değeri korumak için atlanabilir."
+        }
+      }
+    },
+    "add_dog": {
+      "name": "Evcil Hayvan Ekle",
+      "description": "Yeni bir evcil hayvan kaydeder. HA entegrasyonu yeniden yükledikten (veya bir sonraki koordinatör yenilemesinden) sonra yeni bir sensör seti görünür.",
+      "fields": {
+        "name": {
+          "name": "Ad",
+          "description": "Evcil hayvanın adı (benzersiz olmalıdır)."
+        },
+        "breed": {
+          "name": "Cins",
+          "description": "İsteğe bağlı cins."
+        },
+        "birth_date": {
+          "name": "Doğum Tarihi",
+          "description": "İsteğe bağlı doğum tarihi (YYYY-MM-DD)."
+        },
+        "species": {
+          "name": "Hayvan türü",
+          "description": "Hayvan türü (örn. Köpek, Kedi, Tavşan). Varsayılan olarak Köpek."
+        }
+      }
+    },
+    "remove_dog": {
+      "name": "Evcil Hayvanı Kaldır",
+      "description": "Bir evcil hayvanı kaldırır ve tüm olaylarını kalıcı olarak siler. Bu işlem geri alınamaz.",
+      "fields": {
+        "dog": {
+          "name": "Evcil hayvan",
+          "description": "Kaldırılacak evcil hayvanın adı (büyük/küçük harf duyarsız)."
+        }
+      }
+    },
+    "list_events": {
+      "name": "Olayları Listele",
+      "description": "Bir evcil hayvana ait olayları sorgular ve sonuçları servis yanıtı (`response_variable`) aracılığıyla döndürür. Son aktiviteyi incelemek için otomasyonlarda kullanın.",
+      "fields": {
+        "dog": {
+          "name": "Evcil hayvan",
+          "description": "Evcil hayvanın adı."
+        },
+        "event_type": {
+          "name": "Olay Türü",
+          "description": "Olay türüne göre filtrele (isteğe bağlı)."
+        },
+        "days": {
+          "name": "Gün",
+          "description": "Kaç gün geriye aranacağı (varsayılan 7, maksimum 3650)."
+        }
+      }
+    },
+    "import_events": {
+      "name": "Olayları İçe Aktar",
+      "description": "Olayları harici bir JSON dizisinden toplu olarak içe aktarır. DogLog'un Firebase tabanlı sürümünden tek seferlik geçiş için tasarlanmıştır. `id` alanı yerel depoda zaten mevcut olan olaylar atlanır.",
+      "fields": {
+        "events": {
+          "name": "Olaylar",
+          "description": "Olay nesnelerinden oluşan bir JSON dizisi. Her nesne en azından şunları içermelidir: dog_id, event_type, timestamp. `id` alanı isteğe bağlıdır — yoksa otomatik oluşturulur."
+        }
+      }
+    },
+    "update_event_type": {
+      "name": "Olay Türünü Güncelle",
+      "description": "Mevcut bir olay türünün görünen adını, simgesini, rengini veya düğme metriğini günceller. Yalnızca belirttiğiniz alanlar değiştirilir — atlanmış alanlar olduğu gibi bırakılır. Hem yerleşik hem de özel türler güncellenebilir. Sensör, çağrıdan sonra değişiklikleri hemen yansıtır.",
+      "fields": {
+        "event_type": {
+          "name": "Olay türü anahtarı",
+          "description": "Güncellenecek olay türü anahtarı (örn. walk, food, my_custom_type)."
+        },
+        "name": {
+          "name": "Görünen ad",
+          "description": "Olay türü için yeni görünen ad."
+        },
+        "icon": {
+          "name": "Simge",
+          "description": "mdi: biçiminde yeni simge (örn. mdi:walk, mdi:bowl). Simgelere göz atın: https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Renk",
+          "description": "Yeni hex rengi (örn. #4CAF50). 6 haneli hex rengi olmalıdır."
+        },
+        "metric": {
+          "name": "Düğme metriği",
+          "description": "Sensör düğmesinde gösterilecek değer. Seçenekler: daily_count (bugün N), days_since (N gün), last_value (en son olayın değeri), hours_since (N saat). Atlanırsa varsayılan daily_count olur."
+        }
+      }
+    },
+    "add_event_type": {
+      "name": "Olay Türü Ekle",
+      "description": "Yeni bir özel olay türü ekler. Yerleşik türler (food, walk vb.) yeniden oluşturulamaz — bunları değiştirmek için update_event_type kullanın. Eklendikten sonra kartta otomatik olarak yeni bir düğme görünür.",
+      "fields": {
+        "event_type": {
+          "name": "Olay türü anahtarı",
+          "description": "Yalnızca a-z, 0-9 ve alt çizgi kullanan benzersiz küçük harf kimliği. En fazla 30 karakter. Örnek: outdoor_walk veya vet_checkup."
+        },
+        "name": {
+          "name": "Görünen ad",
+          "description": "Kart düğmesinde gösterilen okunabilir ad."
+        },
+        "icon": {
+          "name": "Simge",
+          "description": "mdi: biçiminde MDI simgesi (örn. mdi:walk). Simgelere göz atın: https://pictogrammers.com/library/mdi/"
+        },
+        "color": {
+          "name": "Renk",
+          "description": "Hex rengi (örn. #4CAF50). # ile başlayan 6 haneli hex rengi olmalıdır."
+        },
+        "metric": {
+          "name": "Düğme metriği",
+          "description": "Sensör düğmesinde gösterilecek değer. Seçenekler: daily_count (bugün N), days_since (N gün), last_value (en son olayın değeri), hours_since (N saat). Atlanırsa varsayılan daily_count olur."
+        }
+      }
+    },
+    "delete_event_type": {
+      "name": "Olay Türünü Sil",
+      "description": "Özel bir olay türünü kalıcı olarak siler. Yerleşik türler (food, walk vb.) silinemez — bunları değiştirmek için update_event_type kullanın. Bu türle zaten kaydedilmiş olaylar veritabanında korunur.",
+      "fields": {
+        "event_type": {
+          "name": "Olay türü anahtarı",
+          "description": "Silinecek olay türü anahtarı (örn. my_custom_type)."
+        }
+      }
+    },
+    "set_shown_types": {
+      "name": "Görüntülenen Türleri Ayarla",
+      "description": "Belirli bir köpek için görünür olay türü düğmelerini (ve sıralarını) ayarlar. Değişiklikler sunucu tarafında kaydedilir, böylece tüm cihazlar ve panolar arasında senkronize edilir.",
+      "fields": {
+        "dog": {
+          "name": "Köpek",
+          "description": "Yapılandırılacak köpeğin adı."
+        },
+        "shown_types": {
+          "name": "Görüntülenen türler",
+          "description": "Düğme olarak gösterilecek olay türü anahtarlarının sıralı listesi."
+        }
+      }
+    }
+  }
+}

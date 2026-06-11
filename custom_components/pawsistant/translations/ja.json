@@ -1,0 +1,299 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "最初のペットを追加",
+        "description": "Pawsistant はすべてのデータを Home Assistant にローカル保存します — クラウドアカウントは不要です。",
+        "data": {
+          "dog_name": "ペットの名前",
+          "breed": "品種（任意）",
+          "birth_date": "生年月日（任意、YYYY-MM-DD）",
+          "species": "動物の種類"
+        },
+        "data_description": {
+          "species": "動物の種類（例：犬、猫、ウサギ）。センサー名とカードのラベルに使用されます。"
+        }
+      }
+    },
+    "error": {
+      "name_required": "ペットの名前は必須です。"
+    },
+    "abort": {
+      "already_configured": "Pawsistant はすでに設定されています。pawsistant.add_dog サービスを使用してペットを追加してください。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "ペットを管理",
+        "description": "現在のペット:\n{current_dogs}",
+        "data": {
+          "action": "何をしますか？"
+        }
+      },
+      "add_dog": {
+        "title": "ペットを追加",
+        "description": "新しいペットの詳細を入力してください。",
+        "data": {
+          "dog_name": "ペットの名前",
+          "breed": "品種（任意）",
+          "birth_date": "生年月日（任意、YYYY-MM-DD）",
+          "species": "動物の種類"
+        },
+        "data_description": {
+          "species": "動物の種類（例：犬、猫、ウサギ）。センサー名とカードのラベルに使用されます。"
+        }
+      },
+      "remove_dog": {
+        "title": "ペットを削除",
+        "description": "⚠️ このペットのすべてのイベントが完全に削除されます。",
+        "data": {
+          "dog_name": "削除するペットを選択"
+        }
+      },
+      "manage_event_types": {
+        "title": "イベントタイプ",
+        "description": "{count} 件のイベントタイプが設定されています。組み込みタイプは削除できません。",
+        "data": {
+          "action": "アクションを選択"
+        }
+      },
+      "edit_event_type": {
+        "title": "イベントタイプを{mode}",
+        "description": "このイベントタイプの表示名、アイコン（MDI）、色、ボタンメトリクスを設定します。",
+        "data": {
+          "event_type_key": "イベントタイプID",
+          "name": "表示名",
+          "icon": "MDI アイコン",
+          "color": "色（16進数）",
+          "metric": "ボタンメトリクス"
+        },
+        "data_description": {
+          "event_type_key": "小文字、数字、アンダースコアのみ使用可。最大30文字。作成後は変更できません。",
+          "icon": "mdi: または hass: で始まる必要があります（例：mdi:walk）",
+          "metric": "センサーボタンに表示する内容。daily_count = \"今日 3 回\"、days_since = \"2 日前\"、last_value = \"28.5 lbs\"、hours_since = \"5 時間前\""
+        }
+      }
+    },
+    "error": {
+      "name_required": "ペットの名前は必須です。",
+      "name_already_exists": "この名前のペットはすでに登録されています。",
+      "dog_not_found": "ペットが見つかりません。更新してから再試行してください。",
+      "store_unavailable": "インテグレーションのストレージが利用できません。インテグレーションを再読み込みして再試行してください。",
+      "cannot_delete_default": "組み込みイベントタイプは削除できません。代わりに名前、アイコン、色を編集できます。",
+      "required": "このフィールドは必須です。",
+      "key_too_long": "イベントタイプIDは30文字以下にしてください。",
+      "invalid_key_format": "イベントタイプIDには小文字、数字、アンダースコアのみ使用できます。",
+      "key_already_exists": "このIDのイベントタイプはすでに存在します。",
+      "invalid_icon_format": "アイコンは mdi: または hass: で始まる必要があります（例：mdi:walk）。",
+      "invalid_color_format": "色は有効な16進数コードである必要があります（例：#4CAF50）。",
+      "invalid_metric": "ボタンメトリクスは次のいずれかである必要があります：daily_count、days_since、last_value、hours_since。"
+    }
+  },
+  "selector": {
+    "init_action": {
+      "options": {
+        "add_dog": "ペットを追加",
+        "remove_dog": "ペットを削除",
+        "edit_event_types": "イベントタイプを編集",
+        "done": "完了"
+      }
+    }
+  },
+  "services": {
+    "log_event": {
+      "name": "イベントを記録",
+      "description": "ペットのアクティビティイベントを記録します。イベントはローカルに保存され、センサーの即時更新をトリガーします。",
+      "fields": {
+        "dog": {
+          "name": "ペット",
+          "description": "ペットの名前（大文字小文字を区別しません）。"
+        },
+        "event_type": {
+          "name": "イベントタイプ",
+          "description": "記録するイベントのタイプ。"
+        },
+        "note": {
+          "name": "メモ",
+          "description": "イベントの任意メモ（例：薬の名前、獣医のコメント）。"
+        },
+        "value": {
+          "name": "値",
+          "description": "任意の数値（例：体重（lbs））。"
+        },
+        "timestamp": {
+          "name": "タイムスタンプ",
+          "description": "任意の ISO 8601 タイムスタンプの上書き（例：\"2026-03-18T10:30:00-04:00\"）。省略した場合は現在時刻が使用されます。"
+        }
+      }
+    },
+    "delete_event": {
+      "name": "イベントを削除",
+      "description": "一意のIDで以前に記録したイベントを削除します。event_id は最新イベントセンサーの属性として確認できます。",
+      "fields": {
+        "event_id": {
+          "name": "イベントID",
+          "description": "削除するイベントのUUID。"
+        }
+      }
+    },
+    "update_event": {
+      "name": "イベントを更新",
+      "description": "以前に記録したイベントのタイムスタンプ、メモ、または値を更新します。指定したフィールドのみ変更され、省略したフィールドはそのまま残ります。event_type は変更できません。",
+      "fields": {
+        "event_id": {
+          "name": "イベントID",
+          "description": "更新するイベントのUUID。"
+        },
+        "timestamp": {
+          "name": "タイムスタンプ",
+          "description": "新しい ISO 8601 タイムスタンプ（例：\"2026-03-18T10:30:00-04:00\"）。元のタイムスタンプを保持するには省略してください。"
+        },
+        "note": {
+          "name": "メモ",
+          "description": "新しいメモのテキスト。元のメモを保持するには省略してください。"
+        },
+        "value": {
+          "name": "値",
+          "description": "新しい数値（例：体重（lbs））。元の値を保持するには省略してください。"
+        }
+      }
+    },
+    "add_dog": {
+      "name": "ペットを追加",
+      "description": "新しいペットを登録します。HA がインテグレーションを再読み込みすると（または次のコーディネーター更新後に）、新しいセンサーセットが表示されます。",
+      "fields": {
+        "name": {
+          "name": "名前",
+          "description": "ペットの名前（一意である必要があります）。"
+        },
+        "breed": {
+          "name": "品種",
+          "description": "任意の品種。"
+        },
+        "birth_date": {
+          "name": "生年月日",
+          "description": "任意の生年月日（YYYY-MM-DD）。"
+        },
+        "species": {
+          "name": "動物の種類",
+          "description": "動物の種類（例：犬、猫、ウサギ）。デフォルトは犬です。"
+        }
+      }
+    },
+    "remove_dog": {
+      "name": "ペットを削除",
+      "description": "ペットを削除し、そのすべてのイベントを完全に削除します。この操作は元に戻せません。",
+      "fields": {
+        "dog": {
+          "name": "ペット",
+          "description": "削除するペットの名前（大文字小文字を区別しません）。"
+        }
+      }
+    },
+    "list_events": {
+      "name": "イベント一覧を取得",
+      "description": "ペットのイベントを照会し、サービスレスポンス（`response_variable`）で結果を返します。自動化で最近のアクティビティを確認するために使用します。",
+      "fields": {
+        "dog": {
+          "name": "ペット",
+          "description": "ペットの名前。"
+        },
+        "event_type": {
+          "name": "イベントタイプ",
+          "description": "イベントタイプでフィルタリング（任意）。"
+        },
+        "days": {
+          "name": "日数",
+          "description": "遡って検索する日数（デフォルト 7、最大 3650）。"
+        }
+      }
+    },
+    "import_events": {
+      "name": "イベントをインポート",
+      "description": "外部JSONアレイからイベントを一括インポートします。DogLog の Firebase 版からの一回限りの移行を目的としています。ローカルストアにすでに存在する `id` を持つイベントはスキップされます。",
+      "fields": {
+        "events": {
+          "name": "イベント",
+          "description": "イベントオブジェクトのJSONアレイ。各オブジェクトには最低限 dog_id、event_type、timestamp が必要です。`id` フィールドは任意 — 存在しない場合は自動生成されます。"
+        }
+      }
+    },
+    "update_event_type": {
+      "name": "イベントタイプを更新",
+      "description": "既存のイベントタイプの表示名、アイコン、色、またはボタンメトリクスを更新します。指定したフィールドのみ変更され、省略したフィールドはそのまま残ります。組み込みタイプとカスタムタイプの両方を更新できます。呼び出し後、センサーに即座に変更が反映されます。",
+      "fields": {
+        "event_type": {
+          "name": "イベントタイプキー",
+          "description": "更新するイベントタイプキー（例：walk、food、my_custom_type）。"
+        },
+        "name": {
+          "name": "表示名",
+          "description": "イベントタイプの新しい表示名。"
+        },
+        "icon": {
+          "name": "アイコン",
+          "description": "mdi: 形式の新しいアイコン（例：mdi:walk、mdi:bowl）。アイコンの一覧は https://pictogrammers.com/library/mdi/ を参照してください。"
+        },
+        "color": {
+          "name": "色",
+          "description": "新しい16進数カラー（例：#4CAF50）。6桁の16進数カラーである必要があります。"
+        },
+        "metric": {
+          "name": "ボタンメトリクス",
+          "description": "センサーボタンに表示する内容。オプション：daily_count（今日 N 回）、days_since（N 日前）、last_value（最新イベントの値）、hours_since（N 時間前）。省略した場合のデフォルトは daily_count です。"
+        }
+      }
+    },
+    "add_event_type": {
+      "name": "イベントタイプを追加",
+      "description": "新しいカスタムイベントタイプを追加します。組み込みタイプ（food、walk など）は再作成できません — 変更するには update_event_type を使用してください。追加後、カードに新しいボタンが自動的に表示されます。",
+      "fields": {
+        "event_type": {
+          "name": "イベントタイプキー",
+          "description": "a-z、0-9、アンダースコアのみ使用した一意の小文字ID。最大30文字。例：outdoor_walk または vet_checkup。"
+        },
+        "name": {
+          "name": "表示名",
+          "description": "カードボタンに表示される人間が読める名前。"
+        },
+        "icon": {
+          "name": "アイコン",
+          "description": "mdi: 形式のMDIアイコン（例：mdi:walk）。アイコンの一覧は https://pictogrammers.com/library/mdi/ を参照してください。"
+        },
+        "color": {
+          "name": "色",
+          "description": "16進数カラー（例：#4CAF50）。# で始まる6桁の16進数カラーである必要があります。"
+        },
+        "metric": {
+          "name": "ボタンメトリクス",
+          "description": "センサーボタンに表示する内容。オプション：daily_count（今日 N 回）、days_since（N 日前）、last_value（最新イベントの値）、hours_since（N 時間前）。省略した場合のデフォルトは daily_count です。"
+        }
+      }
+    },
+    "delete_event_type": {
+      "name": "イベントタイプを削除",
+      "description": "カスタムイベントタイプを完全に削除します。組み込みタイプ（food、walk など）は削除できません — 変更するには update_event_type を使用してください。このタイプで記録済みのイベントはデータベースに保持されます。",
+      "fields": {
+        "event_type": {
+          "name": "イベントタイプキー",
+          "description": "削除するイベントタイプキー（例：my_custom_type）。"
+        }
+      }
+    },
+    "set_shown_types": {
+      "name": "表示タイプを設定",
+      "description": "特定のペットに表示するイベントタイプボタン（とその順序）を設定します。変更はサーバー側に保存されるため、すべてのデバイスとダッシュボード間で同期されます。",
+      "fields": {
+        "dog": {
+          "name": "犬",
+          "description": "設定する犬の名前。"
+        },
+        "shown_types": {
+          "name": "表示タイプ",
+          "description": "ボタンとして表示するイベントタイプキーの順序付きリスト。"
+        }
+      }
+    }
+  }
+}
