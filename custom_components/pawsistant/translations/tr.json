@@ -119,7 +119,7 @@
         },
         "value": {
           "name": "Değer",
-          "description": "İsteğe bağlı sayısal değer (örn. pound cinsinden ağırlık)."
+          "description": "İsteğe bağlı sayısal değer (örn. lbs cinsinden ağırlık)."
         },
         "timestamp": {
           "name": "Zaman Damgası",
@@ -155,7 +155,7 @@
         },
         "value": {
           "name": "Değer",
-          "description": "Yeni sayısal değer (örn. pound cinsinden ağırlık). Özgün değeri korumak için atlanabilir."
+          "description": "Yeni sayısal değer (örn. lbs cinsinden ağırlık). Özgün değeri korumak için atlanabilir."
         }
       }
     },

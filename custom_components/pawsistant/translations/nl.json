@@ -80,7 +80,7 @@
       "name_already_exists": "Een huisdier met deze naam is al geregistreerd.",
       "dog_not_found": "Huisdier niet gevonden. Vernieuw de pagina en probeer opnieuw.",
       "store_unavailable": "Integratieopslag is niet beschikbaar. Herlaad de integratie en probeer opnieuw.",
-      "cannot_delete_default": "Ingebouwde gebeurtenistypes kunnen niet worden verwijderd. U kunt in plaats daarvan hun naam, pictogram of kleur bewerken.",
+      "cannot_delete_default": "Ingebouwde gebeurtenistypes kunnen niet worden verwijderd. Je kunt in plaats daarvan hun naam, pictogram of kleur bewerken.",
       "required": "Dit veld is verplicht.",
       "key_too_long": "Gebeurtenistype-ID mag maximaal 30 tekens bevatten.",
       "invalid_key_format": "Gebeurtenistype-ID mag alleen kleine letters, cijfers en underscores bevatten.",
@@ -139,7 +139,7 @@
     },
     "update_event": {
       "name": "Gebeurtenis bijwerken",
-      "description": "Werkt de tijdstempel, notitie of waarde van een eerder geregistreerde gebeurtenis bij. Alleen de velden die u opgeeft worden gewijzigd — weggelaten velden blijven ongewijzigd. Het event_type kan niet worden gewijzigd.",
+      "description": "Werkt de tijdstempel, notitie of waarde van een eerder geregistreerde gebeurtenis bij. Alleen de velden die je opgeeft worden gewijzigd — weggelaten velden blijven ongewijzigd. Het event_type kan niet worden gewijzigd.",
       "fields": {
         "event_id": {
           "name": "Gebeurtenis-ID",
@@ -221,7 +221,7 @@
     },
     "update_event_type": {
       "name": "Gebeurtenistype bijwerken",
-      "description": "Werkt de weergavenaam, het pictogram, de kleur of de knopmetriek van een bestaand gebeurtenistype bij. Alleen de velden die u opgeeft worden gewijzigd — weggelaten velden blijven ongewijzigd. Zowel ingebouwde als aangepaste types kunnen worden bijgewerkt. De sensor weerspiegelt de wijzigingen direct na de aanroep.",
+      "description": "Werkt de weergavenaam, het pictogram, de kleur of de knopmetriek van een bestaand gebeurtenistype bij. Alleen de velden die je opgeeft worden gewijzigd — weggelaten velden blijven ongewijzigd. Zowel ingebouwde als aangepaste types kunnen worden bijgewerkt. De sensor weerspiegelt de wijzigingen direct na de aanroep.",
       "fields": {
         "event_type": {
           "name": "Gebeurtenistype-sleutel",
