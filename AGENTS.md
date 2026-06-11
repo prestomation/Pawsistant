@@ -41,10 +41,24 @@ The helper for this is `findEntitiesByDog(hass, dogName)` in `pawsistant-card.js
 
 When adding new sensors: always include `"dog": self._dog_name` in `extra_state_attributes`. This is the stable anchor the card relies on.
 
+## Internationalization (i18n)
+
+- **Backend** (config/options/services UI): `strings.json` is the source of truth; per-locale files live in `translations/<lang>.json`. They are kept in lockstep by `tests/unit/test_translations.py`, which enforces an identical key tree, non-empty values, and matching `{placeholder}` tokens for every locale. After editing `strings.json`, update every `translations/*.json` (the test will fail otherwise).
+- **Card frontend**: a dependency-free module at `frontend/src/i18n/`. `en.ts` is the typed source of truth (`TranslationKey`/`Dict`); each locale is a `Dict`; `locales.ts` is the registry. The card reads `hass.language` and calls `setLang()` in its `hass` setter; render code uses the ambient `T()`/`TP()` wrappers. `frontend/test/i18n.test.js` asserts every locale mirrors the English key set.
+- **Built-in event-type labels** are localized for **display only** (`_displayLabel`). The English label is still used for `days_since` sensor `friendly_name` matching — never localize that path.
+
+## Browser e2e tests (Playwright)
+
+- Location: `tests/e2e/` (Playwright + Chromium) drives a real browser against the same HA Docker container as `tests/integration`, on the seeded `pawsistant-e2e` YAML dashboard.
+- Run locally / in a session: `bash ci/e2e-up.sh` (builds the card, starts HA, runs Playwright, tears down). `KEEP_UP=1` leaves HA running.
+- Environment prep: `ci/setup-browser-env.sh` starts the Docker daemon and installs Chromium. It is wired to a Claude Code **SessionStart** hook (`.claude/settings.json`) so web sessions are e2e-ready.
+- Auth: `tests/e2e/global-setup.ts` completes HA onboarding and performs a real UI login, saving an authenticated storage state.
+
 ## CI
 
 - `.github/workflows/test.yml` — lint, pytest, HACS validation, hassfest, frontend tests
 - `.github/workflows/integration.yml` — Docker-based integration tests (CI only, not local)
+- `.github/workflows/e2e.yml` — Docker + Playwright browser smoke tests; uploads the Playwright report on failure
 - `.github/workflows/release.yml` — tag-triggered release: tests, version bump via PR, build zip, create GitHub release
 - Uses `pytest-homeassistant-custom-component` (not raw `homeassistant` package)
 

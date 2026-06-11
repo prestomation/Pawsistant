@@ -12,6 +12,20 @@ api:
 # Enable frontend (required for Lovelace resources API)
 frontend:
 
+# Dedicated YAML dashboard used by the Playwright e2e suite. The default
+# (storage-mode) dashboard from onboarding is left untouched. The Pawsistant
+# card JS is auto-registered as a Lovelace resource by the integration, so the
+# custom: cards below resolve at http://localhost:8123/pawsistant-e2e.
+lovelace:
+  mode: storage
+  dashboards:
+    pawsistant-e2e:
+      mode: yaml
+      title: Pawsistant E2E
+      icon: mdi:dog
+      show_in_sidebar: true
+      filename: pawsistant-e2e.yaml
+
 # Minimal logging
 logger:
   default: info
