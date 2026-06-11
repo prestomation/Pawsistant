@@ -1,12 +1,18 @@
 # Pawsistant 🐾
 
-[![GitHub Release](https://img.shields.io/github/v/release/prestomation/Pawsistant?style=for-the-badge)](https://github.com/prestomation/Pawsistant/releases)
-[![GitHub Downloads](https://img.shields.io/github/downloads/prestomation/Pawsistant/total.svg?style=for-the-badge)](https://github.com/prestomation/Pawsistant/releases)
-[![GitHub Latest Downloads](https://img.shields.io/github/downloads-pre/prestomation/Pawsistant/latest/total?style=for-the-badge)](https://github.com/prestomation/Pawsistant/releases)
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![HACS Validation](https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml/badge.svg)](https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml)
-[![License](https://img.shields.io/github/license/prestomation/Pawsistant)](LICENSE)
-[![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.4%2B-blue.svg)](https://www.home-assistant.io/)
+[![Integration Usage][integration-usage-shield]][integration-usage]
+
+[![GitHub Downloads][downloads-shield]][releases]
+[![GitHub Latest Downloads][downloads-latest-shield]][releases]
+[![GitHub Release][releases-shield]][releases]
+[![GitHub Release Date][release-date-shield]][releases]
+[![GitHub Activity][commits-shield]][commits]
+[![Coverage][coverage-shield]][coverage]
+[![License][license-shield]](LICENSE)
+[![hacs][hacsbadge]][hacs]
+![Project Maintenance][maintenance-shield]
+[![HACS Validation][hacs-validation-shield]][hacs-validation]
+[![HA Version][ha-version-shield]][ha-version]
 
 A local-only dog activity tracker for Home Assistant. Log walks, bathroom breaks, meals, medications, weight, and more — all stored privately in your HA instance with no cloud dependency.
 
@@ -191,3 +197,23 @@ No external database, no cloud sync, no tokens.
 ## License
 
 MIT
+
+[integration-usage-shield]: https://img.shields.io/badge/dynamic/json?color=41BDF5&logo=home-assistant&label=integration%20usage&suffix=%20installs&cacheSeconds=15600&url=https%3A%2F%2Fanalytics.home-assistant.io%2Fcustom_integrations.json&query=%24.pawsistant.total&style=for-the-badge
+[integration-usage]: https://analytics.home-assistant.io/custom_integrations.json
+[commits-shield]: https://img.shields.io/github/last-commit/prestomation/Pawsistant?style=for-the-badge
+[commits]: https://github.com/prestomation/Pawsistant/commits/main
+[hacs]: https://github.com/custom-components/hacs
+[hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
+[license-shield]: https://img.shields.io/github/license/prestomation/Pawsistant.svg?style=for-the-badge
+[maintenance-shield]: https://img.shields.io/badge/Maintainers-%40prestomation-blue.svg?style=for-the-badge
+[downloads-shield]: https://img.shields.io/github/downloads/prestomation/Pawsistant/total.svg?style=for-the-badge
+[downloads-latest-shield]: https://img.shields.io/github/downloads-pre/prestomation/Pawsistant/latest/total?style=for-the-badge
+[releases-shield]: https://img.shields.io/github/release/prestomation/Pawsistant.svg?style=for-the-badge
+[release-date-shield]: https://img.shields.io/github/release-date/prestomation/Pawsistant?style=for-the-badge
+[releases]: https://github.com/prestomation/Pawsistant/releases
+[coverage]: https://htmlpreview.github.io/?https://github.com/prestomation/Pawsistant/blob/python-coverage-comment-action-data/htmlcov/index.html
+[coverage-shield]: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/prestomation/Pawsistant/python-coverage-comment-action-data/endpoint.json&style=for-the-badge
+[hacs-validation-shield]: https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml/badge.svg
+[hacs-validation]: https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml
+[ha-version-shield]: https://img.shields.io/badge/Home%20Assistant-2024.4%2B-blue.svg?style=for-the-badge
+[ha-version]: https://www.home-assistant.io/
