@@ -4,7 +4,7 @@ version = "2.4.0"
 requires-python = ">=3.12"
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "requests>=2.31"]
+dev = ["pytest>=8.0", "pytest-cov>=4.0", "requests>=2.31"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -12,3 +12,11 @@ asyncio_mode = "auto"
 markers = [
     "real_ha: marks tests that use real HA modules (not mocked)",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["custom_components/pawsistant"]
+relative_files = true
+
+[tool.coverage.report]
+show_missing = true
