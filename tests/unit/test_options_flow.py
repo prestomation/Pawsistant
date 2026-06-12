@@ -128,10 +128,37 @@ def _inject_stubs() -> None:
         cv_mod.string = str
         sys.modules["homeassistant.helpers.config_validation"] = cv_mod
 
-    # homeassistant.helpers.selector — stub IconSelector so config_flow can import it
-    # Always stub since the tests don't need the real selector rendering.
+    # homeassistant.helpers.selector — stub IconSelector + SelectSelector so
+    # config_flow can import them.  The stubs are lightweight stand-ins; the
+    # tests don't need real selector rendering, only that the schema builds and
+    # the selected value passes through unchanged (vol.In is also stubbed).
     selector_mod = types.ModuleType("homeassistant.helpers.selector")
     selector_mod.IconSelector = lambda config=None: ("IconSelector", config)
+
+    class _SelectSelectorMode:
+        DROPDOWN = "dropdown"
+        LIST = "list"
+
+    def _select_option_dict(value=None, label=None, **kw):
+        return {"value": value, "label": label}
+
+    class _SelectSelectorConfig:
+        def __init__(self, options=None, mode=None, translation_key=None,
+                     custom_value=False, multiple=False, **kw):
+            self.options = options or []
+            self.mode = mode
+            self.translation_key = translation_key
+            self.custom_value = custom_value
+            self.multiple = multiple
+
+    class _SelectSelector:
+        def __init__(self, config=None):
+            self.config = config
+
+    selector_mod.SelectSelector = _SelectSelector
+    selector_mod.SelectSelectorConfig = _SelectSelectorConfig
+    selector_mod.SelectSelectorMode = _SelectSelectorMode
+    selector_mod.SelectOptionDict = _select_option_dict
     sys.modules["homeassistant.helpers.selector"] = selector_mod
 
     # re module (needed by config_flow.py)
@@ -523,3 +550,33 @@ class TestMissingRuntimeData:
         )
         assert result["type"] == "form"
         assert result["errors"].get("dog_name") == "store_unavailable"
+
+
+class TestEventTypeStepTitles:
+    """The add/edit event-type form renders under a mode-specific step_id so the
+    title is fully translated (no English {mode} placeholder)."""
+
+    @pytest.mark.asyncio
+    async def test_add_uses_add_event_type_step(self):
+        flow, store, coord, hass = _make_flow()
+        store.get_event_types.return_value = {}
+        store.get_button_metrics.return_value = {}
+        result = await flow.async_step_add_event_type(user_input={})
+        assert result["type"] == "form"
+        assert result["step_id"] == "add_event_type"
+        # No untranslatable {mode} word is injected.
+        assert "mode" not in result["description_placeholders"]
+
+    @pytest.mark.asyncio
+    async def test_edit_uses_edit_event_type_step(self):
+        flow, store, coord, hass = _make_flow()
+        store.get_event_types.return_value = {
+            "walk": {"name": "Walk", "icon": "mdi:walk", "color": "#66BB6A"}
+        }
+        store.get_button_metrics.return_value = {}
+        result = await flow.async_step_edit_event_type(
+            user_input={"event_type": "walk"}
+        )
+        assert result["type"] == "form"
+        assert result["step_id"] == "edit_event_type"
+        assert "mode" not in result["description_placeholders"]

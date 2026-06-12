@@ -1,0 +1,16 @@
+# Lovelace dashboard for the Playwright e2e suite.
+# Renders both Pawsistant cards for the seeded "Testdog" so browser tests can
+# assert on real DOM. Referenced from configuration.yaml -> lovelace.dashboards.
+title: Pawsistant E2E
+views:
+  - title: Card
+    path: card
+    cards:
+      - type: custom:pawsistant-card
+        dog: Testdog
+      - type: custom:pawsistant-button-card
+        dog: Testdog
+        buttons:
+          - event_type: poop
+          - event_type: pee
+          - event_type: weight

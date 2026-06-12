@@ -8,6 +8,7 @@
 import type { PawsistantCard } from './index';
 import { setupLongPress } from './interactions';
 import { openBackdateForm, openWeightForm, openEditForm, closeForm } from './forms';
+import { T } from './i18n';
 
 interface LongPressBtn extends HTMLButtonElement {
   _longPressCleanup?: () => void;
@@ -86,7 +87,7 @@ export function bindEvents(card: PawsistantCard, root: ShadowRoot): void {
       } else {
         // First tap — show confirm state
         btn.classList.add('confirm-pending');
-        btn.textContent = 'Delete?';
+        btn.textContent = T('timeline.delete_confirm');
         const revertId = card._setTimeout(() => {
           card._deleteConfirmState.delete(eventId);
           btn.classList.remove('confirm-pending');

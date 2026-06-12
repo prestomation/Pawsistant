@@ -8,7 +8,7 @@
 import './button-card-editor';
 import type { HomeAssistant, PawsistantButtonCardConfig, ButtonConfig, EventMeta } from './types';
 import { buildRegistry, getMeta, FALLBACK_EVENT_META } from './registry';
-import { METRIC_LABELS } from './metrics';
+import { setLang, T } from './i18n';
 import { logEvent } from './services';
 import { findEntitiesByDog, stateNum, stateAttr, toDisplayWeight, _escapeHTML } from './utils';
 import { renderPawsistantButton } from './button';
@@ -75,6 +75,7 @@ export class PawsistantButtonCard extends HTMLElement {
 
   set hass(hass: HomeAssistant) {
     this._hass = hass;
+    setLang(hass.language);
     const hash = this._computeHash();
     if (hash !== this._lastHash) {
       this._lastHash = hash;
@@ -130,10 +131,10 @@ export class PawsistantButtonCard extends HTMLElement {
     if (metric === 'daily_count') {
       if (eventType === 'pee') {
         const n = stateNum(hass, ent.pee_count);
-        if (n !== null) return `(${METRIC_LABELS.daily_count(n)})`;
+        if (n !== null) return `(${T('metric.daily_count', { n })})`;
       } else if (eventType === 'poop') {
         const n = stateNum(hass, ent.poop_count);
-        if (n !== null) return `(${METRIC_LABELS.daily_count(n)})`;
+        if (n !== null) return `(${T('metric.daily_count', { n })})`;
       }
     } else if (metric === 'days_since') {
       const { registry } = buildRegistry(hass);
@@ -148,15 +149,24 @@ export class PawsistantButtonCard extends HTMLElement {
       }
     } else if (metric === 'last_value') {
       const w = toDisplayWeight(stateNum(hass, ent.weight), weightUnit);
-      if (w !== null) return `(${METRIC_LABELS.last_value(w, weightUnit)})`;
+      if (w !== null) return `(${T('metric.last_value', { v: w, unit: ' ' + weightUnit })})`;
     } else if (metric === 'hours_since') {
       const lastTs = stateAttr(hass, ent.timeline, 'last_' + eventType + '_ts') as string | null;
       if (lastTs) {
         const hrs = Math.floor((Date.now() - new Date(lastTs).getTime()) / 3600000);
-        if (hrs >= 0) return `(${METRIC_LABELS.hours_since(hrs)})`;
+        if (hrs >= 0) return `(${T('metric.hours_since', { n: hrs })})`;
       }
     }
     return '';
+  }
+
+  /** Localized label for DISPLAY only (built-in types translated; custom keep
+   *  their user name). Never use for the days_since friendly_name match. */
+  _displayLabel(type: string, meta: EventMeta): string {
+    if (type in FALLBACK_EVENT_META) {
+      return T(`eventtype.${type}` as Parameters<typeof T>[0]);
+    }
+    return meta.label;
   }
 
   _render(): void {
@@ -270,7 +280,7 @@ export class PawsistantButtonCard extends HTMLElement {
 
       const { element: btn, cleanup: btnCleanup } = renderPawsistantButton({
         container: grid,
-        meta,
+        meta: { ...meta, label: this._displayLabel(btnCfg.event_type, meta) },
         metricText,
         onTap: () => {
           if (isWeight) {

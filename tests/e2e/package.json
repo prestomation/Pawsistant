@@ -1,0 +1,12 @@
+{
+  "name": "pawsistant-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Playwright browser e2e smoke tests for the Pawsistant card",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
+  }
+}

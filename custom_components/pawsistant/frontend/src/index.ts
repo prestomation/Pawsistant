@@ -27,6 +27,7 @@ import type { HomeAssistant, PawsistantCardConfig, DogEntities, Registry, Regist
 import { PawsistantCardEditor } from './editor';
 import { openBackdateForm, openWeightForm, openEditForm, closeForm, showFormError } from './forms';
 import { bindEvents } from './bindings';
+import { setLang, T, TP } from './i18n';
 
 /* ── Card picker registration ───────────────────────────────────────────── */
 window.customCards = window.customCards || [];
@@ -84,6 +85,9 @@ export class PawsistantCard extends HTMLElement {
 
   set hass(hass: HomeAssistant) {
     this._hass = hass;
+    // Keep the ambient i18n language in sync so T()/TP() in render and in
+    // interaction handlers (forms opened later) localize to the user's HA language.
+    setLang(hass.language);
     const hash = buildHash(hass, this._config);
     if (hash !== this._lastHash) {
       this._lastHash = hash;
@@ -228,18 +232,18 @@ export class PawsistantCard extends HTMLElement {
       const noteHTML = ev.note
         ? `<span class="event-note" title="${_escapeHTML(ev.note)}">${_escapeHTML(ev.note)}</span>`
         : '';
-      const delAriaLabel = `Delete ${_escapeHTML(ev.type)} event at ${_escapeHTML(ev.time)}`;
-      const editAriaLabel = `Edit ${_escapeHTML(ev.type)} event at ${_escapeHTML(ev.time)}`;
+      const delAriaLabel = T('timeline.aria.delete_event', { type: _escapeHTML(ev.type), time: _escapeHTML(ev.time) });
+      const editAriaLabel = T('timeline.aria.edit_event', { type: _escapeHTML(ev.type), time: _escapeHTML(ev.time) });
       html += `
           <div class="event-row" data-id="${_escapeHTML(ev.event_id)}" data-type="${_escapeHTML(ev.type)}" data-timestamp="${_escapeHTML(ev.iso || '')}" data-note="${_escapeHTML(ev.note || '')}" data-value="${ev.value !== undefined && ev.value !== null ? ev.value : ''}"  >
             <span class="event-emoji">${meta.emoji}</span>
             <span class="event-time">${_escapeHTML(ev.time)}</span>
-            <span class="event-type">${_escapeHTML(meta.label)}</span>
+            <span class="event-type">${_escapeHTML(this._displayLabel(ev.type, meta))}</span>
             ${noteHTML}
             <button class="edit-btn" data-id="${_escapeHTML(ev.event_id)}"
-              aria-label="${editAriaLabel}" title="Edit event">✏️</button>
+              aria-label="${editAriaLabel}" title="${T('timeline.aria.edit_event_title')}">✏️</button>
             <button class="delete-btn" data-id="${_escapeHTML(ev.event_id)}"
-              aria-label="${delAriaLabel}" title="Delete event">🗑️</button>
+              aria-label="${delAriaLabel}" title="${T('timeline.aria.delete_event_title')}">🗑️</button>
           </div>
         `;
     }
@@ -256,7 +260,7 @@ export class PawsistantCard extends HTMLElement {
     if (append) {
       // Append mode: inject rows directly, no full re-render
       const loadMoreBtn = this.shadowRoot?.querySelector('#load-more-btn');
-      if (loadMoreBtn) loadMoreBtn.textContent = 'Loading...';
+      if (loadMoreBtn) loadMoreBtn.textContent = T('timeline.loading_short');
       this._timelineLoading = true;
 
       try {
@@ -346,6 +350,16 @@ export class PawsistantCard extends HTMLElement {
   }
 
   /* ── Render ────────────────────────────────────────────────────────── */
+  /** Localized label for DISPLAY only. Built-in event types are translated;
+   *  custom types keep their user-defined name. Never use this for the
+   *  days_since sensor friendly_name match — that must stay the English label. */
+  _displayLabel(type: string, meta: { label: string }): string {
+    if (type in FALLBACK_EVENT_META) {
+      return T(`eventtype.${type}` as Parameters<typeof T>[0]);
+    }
+    return meta.label;
+  }
+
   _render() {
     const hass = this._hass;
     if (!hass) return;
@@ -370,11 +384,11 @@ export class PawsistantCard extends HTMLElement {
     /* Build timeline HTML */
     let timelineHTML = '';
     if (this._timelineLoading && events.length === 0) {
-      timelineHTML = '<div class="empty">Loading timeline…</div>';
+      timelineHTML = `<div class="empty">${T('timeline.loading')}</div>`;
     } else if (events.length === 0) {
       timelineHTML = this._timelineFetched
-        ? '<div class="empty">No events logged yet</div>'
-        : '<div class="empty">No events in the last 24 hours</div>';
+        ? `<div class="empty">${T('timeline.empty_no_events')}</div>`
+        : `<div class="empty">${T('timeline.empty_24h')}</div>`;
     } else {
       const registry = this._registry().registry;
       const { html } = this._buildEventRowsHTML(events, registry, null);
@@ -385,8 +399,8 @@ export class PawsistantCard extends HTMLElement {
     let loadMoreHTML = '';
     if (this._timelineFetched && this._timelineTotal > events.length) {
       const showingLabel = this._timelineLoading
-        ? 'Loading...'
-        : `Load more (showing ${events.length} of ${this._timelineTotal})`;
+        ? T('timeline.loading_short')
+        : T('timeline.load_more', { shown: events.length, total: this._timelineTotal });
       loadMoreHTML = `<button class="load-more-btn" id="load-more-btn">${showingLabel}</button>`;
     }
 
@@ -431,8 +445,8 @@ export class PawsistantCard extends HTMLElement {
       }
 
       const ariaLabel = isWeight
-        ? `Log weight`
-        : `Log ${meta.label}. Hold to log now.`;
+        ? T('button.aria.log_weight')
+        : T('button.aria.log_event', { label: this._displayLabel(type, meta) });
       const dataAttrs = isWeight
         ? `data-type="weight" data-weight="true"`
         : `data-type="${_escapeHTML(type)}" data-longpress="true"`;
@@ -440,7 +454,7 @@ export class PawsistantCard extends HTMLElement {
       buttonsHTML += `
         <button class="log-btn" ${dataAttrs} aria-label="${_escapeHTML(ariaLabel)}">
           <span class="btn-emoji" aria-hidden="true">${meta.emoji}</span>
-          <span class="btn-label">${_escapeHTML(meta.label)}${countSuffix}</span>
+          <span class="btn-label">${_escapeHTML(this._displayLabel(type, meta))}${countSuffix}</span>
         </button>
       `;
     }
@@ -1069,7 +1083,7 @@ export class PawsistantCard extends HTMLElement {
     return `
         <div class="card-header">
           <span class="card-title">🐾 ${_escapeHTML(dogName)}</span>
-          <button class="event-types-gear-btn" id="et-gear-btn" title="Configure event types" aria-label="Configure event types">⚙️</button>
+          <button class="event-types-gear-btn" id="et-gear-btn" title="${T('panel.configure')}" aria-label="${T('panel.configure')}">⚙️</button>
         </div>
 
         <div class="quick-log-section">
@@ -1077,7 +1091,7 @@ export class PawsistantCard extends HTMLElement {
             ${buttonsHTML}
           </div>
           <!-- U1 — long-press hint -->
-          <div class="longpress-hint" aria-live="polite">Hold to log now</div>
+          <div class="longpress-hint" aria-live="polite">${T('button.hold_hint')}</div>
 
           <!-- Inline form panel (hidden by default) -->
           <div class="inline-form-wrap" id="inline-form-wrap">
@@ -1087,7 +1101,7 @@ export class PawsistantCard extends HTMLElement {
           </div>
         </div>
 
-        <div class="timeline-header">📋 Timeline</div>
+        <div class="timeline-header">📋 ${T('timeline.title')}</div>
         <div class="timeline-body" id="timeline-body">${timelineHTML}${loadMoreHTML}</div>
       `;
   }
@@ -1118,18 +1132,18 @@ export class PawsistantCard extends HTMLElement {
       const isVisible = shownInOrder.includes(key);
       return `
         <li class="event-type-row" data-et-key="${esc(key)}" draggable="true">
-          <span class="et-drag-handle" title="Drag to reorder">☰</span>
+          <span class="et-drag-handle" title="${T('panel.drag_to_reorder')}">☰</span>
           <span class="et-color-swatch" style="background:${esc(displayMeta.color)}" title="${esc(displayMeta.color)}"></span>
           <span class="et-icon" title="${esc(displayMeta.icon || '')}">${icon}</span>
-          <span class="et-name">${esc(displayMeta.label)}</span>
+          <span class="et-name">${esc(this._displayLabel(key, displayMeta))}</span>
           <span class="et-badge">${metricBadge}</span>
           <div class="et-actions">
-            <label class="et-visibility-toggle" title="${isVisible ? 'Hide from card' : 'Show on card'}">
+            <label class="et-visibility-toggle" title="${isVisible ? T('panel.hide_from_card') : T('panel.show_on_card')}">
               <input type="checkbox" class="et-visible-cb" data-et-key="${esc(key)}" ${isVisible ? 'checked' : ''} />
               <span class="et-visible-icon">${isVisible ? '👁' : '🚫'}</span>
             </label>
-            <button class="et-btn edit" data-et-key="${esc(key)}" title="Edit '${esc(key)}'">✎</button>
-            <button class="et-btn delete" data-et-key="${esc(key)}" title="Delete '${esc(key)}'">✕</button>
+            <button class="et-btn edit" data-et-key="${esc(key)}" title="${T('panel.edit_key', { key: esc(key) })}">✎</button>
+            <button class="et-btn delete" data-et-key="${esc(key)}" title="${T('panel.delete_key', { key: esc(key) })}">✕</button>
           </div>
         </li>`;
     }).join('');
@@ -1137,15 +1151,15 @@ export class PawsistantCard extends HTMLElement {
     return `
         <div class="event-types-panel">
           <div class="event-types-panel-header">
-            <button class="event-types-back-btn" id="et-back-btn" title="Back">←</button>
-            <span class="event-types-panel-title">⚙️ Event Types</span>
+            <button class="event-types-back-btn" id="et-back-btn" title="${T('panel.back')}">←</button>
+            <span class="event-types-panel-title">⚙️ ${T('panel.title')}</span>
           </div>
-          <p class="et-hint">Drag ☰ to reorder · 👁 toggles button visibility</p>
+          <p class="et-hint">${T('panel.hint')}</p>
           <ul class="event-types-list" id="et-list">
             ${rows}
           </ul>
           <button class="add-event-type-btn" id="et-add-btn">
-            <span>+</span> Add Event Type
+            <span>+</span> ${T('panel.add_event_type')}
           </button>
         </div>
       `;
@@ -1159,7 +1173,7 @@ export class PawsistantCard extends HTMLElement {
     const esc = _escapeHTML;
 
     let keyVal = '', nameVal = '', iconVal = '', colorVal = '#4CAF50', metricVal = 'daily_count';
-    let formTitle = 'Add Event Type';
+    let formTitle = T('panel.form.add_title');
 
     if (isEdit) {
       const editingState = editing as EventTypeFormState;
@@ -1170,7 +1184,7 @@ export class PawsistantCard extends HTMLElement {
       iconVal = editingState.icon || meta.icon || '';
       colorVal = editingState.color || meta.color || '#4CAF50';
       metricVal = editingState.metric || metrics[editingState.event_type] || 'daily_count';
-      formTitle = 'Edit Event Type';
+      formTitle = T('panel.form.edit_title');
     }
 
     // Restore draft values on validation error re-render
@@ -1202,30 +1216,30 @@ export class PawsistantCard extends HTMLElement {
     return `
         <div class="event-types-panel">
           <div class="event-types-panel-header">
-            <button class="event-types-back-btn" id="et-form-back-btn" title="Back to list">←</button>
+            <button class="event-types-back-btn" id="et-form-back-btn" title="${T('panel.back_to_list')}">←</button>
             <span class="event-types-panel-title">${esc(formTitle)}</span>
           </div>
           <div class="et-form" id="et-form">
             <div class="et-form-field">
-              <label class="et-form-label" for="et-name-input">Display name</label>
+              <label class="et-form-label" for="et-name-input">${T('panel.form.display_name')}</label>
               <input type="text" id="et-name-input" value="${esc(nameVal)}"
-                placeholder="e.g. Morning Walk"
+                placeholder="${esc(T('panel.form.display_name_placeholder'))}"
                 style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font-size:15px;" />
               ${isAdd ? `<div class="hint" style="font-size:11px;color:var(--secondary-text-color);margin-top:3px;">
-                Key: <code id="et-key-preview">${esc(keyPreview) || '—'}</code>
+                ${T('panel.form.key_prefix')} <code id="et-key-preview">${esc(keyPreview) || '—'}</code>
               </div>` : ''}
             </div>
             ${!isAdd ? `<div class="et-form-field">
-              <label class="et-form-label">Event type key</label>
+              <label class="et-form-label">${T('panel.form.event_type_key')}</label>
               <div style="font-size:14px;color:var(--secondary-text-color);padding:4px 0;font-family:monospace;">${esc(keyVal)}</div>
             </div>` : ''}
             <div class="et-form-field">
-              <label class="et-form-label" for="et-icon-input">Icon</label>
-              <ha-icon-picker id="et-icon-input" value="${esc(iconVal)}" label="Icon"
+              <label class="et-form-label" for="et-icon-input">${T('panel.form.icon')}</label>
+              <ha-icon-picker id="et-icon-input" value="${esc(iconVal)}" label="${esc(T('panel.form.icon'))}"
                 style="width:100%;"></ha-icon-picker>
             </div>
             <div class="et-form-field">
-              <label class="et-form-label" for="et-color-input">Color</label>
+              <label class="et-form-label" for="et-color-input">${T('panel.form.color')}</label>
               <div class="et-color-row">
                 <input type="color" id="et-color-input" class="et-color-input"
                   value="${esc(colorVal)}" />
@@ -1233,19 +1247,19 @@ export class PawsistantCard extends HTMLElement {
               </div>
             </div>
             <div class="et-form-field">
-              <label class="et-form-label" for="et-metric-select">Button metric</label>
+              <label class="et-form-label" for="et-metric-select">${T('panel.form.button_metric')}</label>
               <select id="et-metric-select"
                 style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font-size:15px;">
                 ${metricOptions}
               </select>
               <div style="font-size:11px;color:var(--secondary-text-color);margin-top:3px;">
-                daily_count = "N today" · days_since = "N days" · last_value = "value" · hours_since = "N hours"
+                ${T('panel.form.metric_hint')}
               </div>
             </div>
             ${errorHTML}
             <div class="et-form-actions">
-              <button class="et-btn-cancel" id="et-form-cancel">Cancel</button>
-              <button class="et-btn-submit" id="et-form-submit">${isAdd ? 'Add Event Type' : 'Save Changes'}</button>
+              <button class="et-btn-cancel" id="et-form-cancel">${T('panel.form.cancel')}</button>
+              <button class="et-btn-submit" id="et-form-submit">${isAdd ? T('panel.form.add_submit') : T('panel.form.save_submit')}</button>
             </div>
           </div>
         </div>
@@ -1327,17 +1341,17 @@ export class PawsistantCard extends HTMLElement {
 
     // Basic client-side validation before calling service
     if (isAdd && !eventType) {
-      this._eventTypeFormError = "Display name must contain letters or numbers.";
+      this._eventTypeFormError = T('panel.form.error.name_chars');
       this._render();
       return;
     }
     if (!name.trim()) {
-      this._eventTypeFormError = "Display name is required.";
+      this._eventTypeFormError = T('panel.form.error.name_required');
       this._render();
       return;
     }
     if (!icon.trim()) {
-      this._eventTypeFormError = "Icon is required.";
+      this._eventTypeFormError = T('panel.form.error.icon_required');
       this._render();
       return;
     }
@@ -1361,7 +1375,7 @@ export class PawsistantCard extends HTMLElement {
       })
       .catch(err => {
         // Surface service validation error
-        const msg = (err && err.message) ? String(err.message).replace(/^Error: /i, '') : 'Unknown error.';
+        const msg = (err && err.message) ? String(err.message).replace(/^Error: /i, '') : T('panel.unknown_error');
         this._eventTypeFormError = msg;
         this._render();
       });
@@ -1386,7 +1400,7 @@ export class PawsistantCard extends HTMLElement {
 
   /* ── Delete Event Type ─────────────────────────────────────────────── */
   _deleteEventType(key: string) {
-    if (!confirm(`Delete event type '${key}'? Events logged with this type will be preserved.`)) return;
+    if (!confirm(T('panel.delete_confirm', { key }))) return;
     deleteEventType(this._hass!, key)
       .then(() => {
         // Optimistically remove the type from the cached registry immediately,
@@ -1399,7 +1413,7 @@ export class PawsistantCard extends HTMLElement {
       })
       .catch(err => {
         console.error('[pawsistant-card] delete_event_type failed:', err);
-        this._eventTypeFormError = 'Delete failed: ' + ((err && err.message) || 'Unknown error');
+        this._eventTypeFormError = T('panel.delete_failed', { msg: (err && err.message) || T('panel.unknown_error') });
         this._render();
       });
   }

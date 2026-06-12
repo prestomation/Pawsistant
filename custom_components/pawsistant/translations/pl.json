@@ -1,0 +1,315 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Dodaj pierwszego pupila",
+        "description": "Pawsistant przechowuje wszystkie dane lokalnie w Home Assistant — nie wymaga konta w chmurze.",
+        "data": {
+          "dog_name": "Nazwa pupila",
+          "breed": "Rasa (opcjonalnie)",
+          "birth_date": "Data urodzenia (opcjonalnie, YYYY-MM-DD)",
+          "species": "Typ zwierzęcia"
+        },
+        "data_description": {
+          "species": "Typ zwierzęcia (np. Pies, Kot, Królik). Używany w nazwach czujników i etykietach kart."
+        }
+      }
+    },
+    "error": {
+      "name_required": "Nazwa pupila jest wymagana."
+    },
+    "abort": {
+      "already_configured": "Pawsistant jest już skonfigurowany. Użyj usługi pawsistant.add_dog, aby dodać więcej pupili."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Zarządzaj pupilami",
+        "description": "Aktualne pupile:\n{current_dogs}",
+        "data": {
+          "action": "Co chcesz zrobić?"
+        }
+      },
+      "add_dog": {
+        "title": "Dodaj pupila",
+        "description": "Wprowadź dane nowego pupila.",
+        "data": {
+          "dog_name": "Nazwa pupila",
+          "breed": "Rasa (opcjonalnie)",
+          "birth_date": "Data urodzenia (opcjonalnie, YYYY-MM-DD)",
+          "species": "Typ zwierzęcia"
+        },
+        "data_description": {
+          "species": "Typ zwierzęcia (np. Pies, Kot, Królik). Używany w nazwach czujników i etykietach kart."
+        }
+      },
+      "remove_dog": {
+        "title": "Usuń pupila",
+        "description": "⚠️ Spowoduje to trwałe usunięcie wszystkich zdarzeń tego pupila.",
+        "data": {
+          "dog_name": "Wybierz pupila do usunięcia"
+        }
+      },
+      "manage_event_types": {
+        "title": "Typy zdarzeń",
+        "description": "{count} skonfigurowanych typów zdarzeń. Wbudowanych typów nie można usunąć.",
+        "data": {
+          "action": "Wybierz akcję"
+        }
+      },
+      "add_event_type": {
+        "title": "Dodaj typ zdarzenia",
+        "description": "Ustaw nazwę wyświetlaną, ikonę (MDI), kolor i metrykę przycisku dla tego typu zdarzenia.",
+        "data": {
+          "event_type_key": "ID typu zdarzenia",
+          "name": "Nazwa wyświetlana",
+          "icon": "Ikona MDI",
+          "color": "Kolor (hex)",
+          "metric": "Metryka przycisku"
+        },
+        "data_description": {
+          "event_type_key": "Tylko małe litery, cyfry i podkreślniki. Maksymalnie 30 znaków. Nie można zmienić po utworzeniu.",
+          "icon": "Musi zaczynać się od mdi: lub hass: (np. mdi:walk)",
+          "metric": "Co wyświetlać na przycisku czujnika. daily_count = '3 dzisiaj', days_since = '2 dni', last_value = '28.5 lbs', hours_since = '5 godzin'"
+        }
+      },
+      "edit_event_type": {
+        "title": "Edytuj typ zdarzenia",
+        "description": "Ustaw nazwę wyświetlaną, ikonę (MDI), kolor i metrykę przycisku dla tego typu zdarzenia.",
+        "data": {
+          "event_type_key": "ID typu zdarzenia",
+          "name": "Nazwa wyświetlana",
+          "icon": "Ikona MDI",
+          "color": "Kolor (hex)",
+          "metric": "Metryka przycisku"
+        },
+        "data_description": {
+          "event_type_key": "Tylko małe litery, cyfry i podkreślniki. Maksymalnie 30 znaków. Nie można zmienić po utworzeniu.",
+          "icon": "Musi zaczynać się od mdi: lub hass: (np. mdi:walk)",
+          "metric": "Co wyświetlać na przycisku czujnika. daily_count = '3 dzisiaj', days_since = '2 dni', last_value = '28.5 lbs', hours_since = '5 godzin'"
+        }
+      }
+    },
+    "error": {
+      "name_required": "Nazwa pupila jest wymagana.",
+      "name_already_exists": "Pupil o tej nazwie jest już zarejestrowany.",
+      "dog_not_found": "Nie znaleziono pupila. Odśwież stronę i spróbuj ponownie.",
+      "store_unavailable": "Magazyn integracji jest niedostępny. Przeładuj integrację i spróbuj ponownie.",
+      "cannot_delete_default": "Wbudowanych typów zdarzeń nie można usunąć. Zamiast tego możesz edytować ich nazwę, ikonę lub kolor.",
+      "required": "To pole jest wymagane.",
+      "key_too_long": "ID typu zdarzenia może mieć maksymalnie 30 znaków.",
+      "invalid_key_format": "ID typu zdarzenia może zawierać tylko małe litery, cyfry i podkreślniki.",
+      "key_already_exists": "Typ zdarzenia o tym ID już istnieje.",
+      "invalid_icon_format": "Ikona musi zaczynać się od mdi: lub hass: (np. mdi:walk).",
+      "invalid_color_format": "Kolor musi być prawidłowym kodem hex (np. #4CAF50).",
+      "invalid_metric": "Metryka przycisku musi być jedną z: daily_count, days_since, last_value, hours_since."
+    }
+  },
+  "selector": {
+    "init_action": {
+      "options": {
+        "add_dog": "Dodaj pupila",
+        "remove_dog": "Usuń pupila",
+        "edit_event_types": "Edytuj typy zdarzeń",
+        "done": "Gotowe"
+      }
+    }
+  },
+  "services": {
+    "log_event": {
+      "name": "Zapisz zdarzenie",
+      "description": "Zapisuje zdarzenie aktywności pupila. Zdarzenie jest przechowywane lokalnie i powoduje natychmiastową aktualizację czujnika.",
+      "fields": {
+        "dog": {
+          "name": "Pupil",
+          "description": "Nazwa pupila (bez rozróżniania wielkości liter)."
+        },
+        "event_type": {
+          "name": "Typ zdarzenia",
+          "description": "Typ zdarzenia do zapisania."
+        },
+        "note": {
+          "name": "Notatka",
+          "description": "Opcjonalna notatka do zdarzenia (np. nazwa leku, komentarze weterynarza)."
+        },
+        "value": {
+          "name": "Wartość",
+          "description": "Opcjonalna wartość numeryczna (np. waga w lbs)."
+        },
+        "timestamp": {
+          "name": "Znacznik czasu",
+          "description": "Opcjonalne nadpisanie znacznika czasu ISO 8601 (np. \"2026-03-18T10:30:00-04:00\"). Domyślnie bieżący czas, jeśli pominięty."
+        }
+      }
+    },
+    "delete_event": {
+      "name": "Usuń zdarzenie",
+      "description": "Usuwa wcześniej zapisane zdarzenie na podstawie jego unikalnego ID. event_id jest dostępne jako atrybut czujników ostatniego zdarzenia.",
+      "fields": {
+        "event_id": {
+          "name": "ID zdarzenia",
+          "description": "UUID zdarzenia do usunięcia."
+        }
+      }
+    },
+    "update_event": {
+      "name": "Aktualizuj zdarzenie",
+      "description": "Aktualizuje znacznik czasu, notatkę lub wartość wcześniej zapisanego zdarzenia. Zmieniane są tylko podane pola — pominięte pola pozostają bez zmian. Nie można zmienić event_type.",
+      "fields": {
+        "event_id": {
+          "name": "ID zdarzenia",
+          "description": "UUID zdarzenia do aktualizacji."
+        },
+        "timestamp": {
+          "name": "Znacznik czasu",
+          "description": "Nowy znacznik czasu ISO 8601 (np. \"2026-03-18T10:30:00-04:00\"). Pomiń, aby zachować oryginalny znacznik czasu."
+        },
+        "note": {
+          "name": "Notatka",
+          "description": "Nowy tekst notatki. Pomiń, aby zachować oryginalną notatkę."
+        },
+        "value": {
+          "name": "Wartość",
+          "description": "Nowa wartość numeryczna (np. waga w lbs). Pomiń, aby zachować oryginalną wartość."
+        }
+      }
+    },
+    "add_dog": {
+      "name": "Dodaj pupila",
+      "description": "Rejestruje nowego pupila. Nowy zestaw czujników pojawi się po ponownym załadowaniu integracji przez HA (lub po następnym odświeżeniu koordynatora).",
+      "fields": {
+        "name": {
+          "name": "Nazwa",
+          "description": "Nazwa pupila (musi być unikalna)."
+        },
+        "breed": {
+          "name": "Rasa",
+          "description": "Opcjonalna rasa."
+        },
+        "birth_date": {
+          "name": "Data urodzenia",
+          "description": "Opcjonalna data urodzenia (YYYY-MM-DD)."
+        },
+        "species": {
+          "name": "Typ zwierzęcia",
+          "description": "Typ zwierzęcia (np. Pies, Kot, Królik). Domyślnie Pies."
+        }
+      }
+    },
+    "remove_dog": {
+      "name": "Usuń pupila",
+      "description": "Usuwa pupila i trwale usuwa wszystkie jego zdarzenia. Tej akcji nie można cofnąć.",
+      "fields": {
+        "dog": {
+          "name": "Pupil",
+          "description": "Nazwa pupila do usunięcia (bez rozróżniania wielkości liter)."
+        }
+      }
+    },
+    "list_events": {
+      "name": "Wyświetl zdarzenia",
+      "description": "Pobiera zdarzenia dla pupila i zwraca wyniki przez odpowiedź usługi (`response_variable`). Użyj w automatyzacjach do sprawdzenia ostatniej aktywności.",
+      "fields": {
+        "dog": {
+          "name": "Pupil",
+          "description": "Nazwa pupila."
+        },
+        "event_type": {
+          "name": "Typ zdarzenia",
+          "description": "Filtruj według typu zdarzenia (opcjonalnie)."
+        },
+        "days": {
+          "name": "Dni",
+          "description": "Ile dni wstecz przeszukiwać (domyślnie 7, maksymalnie 3650)."
+        }
+      }
+    },
+    "import_events": {
+      "name": "Importuj zdarzenia",
+      "description": "Masowy import zdarzeń z zewnętrznej tablicy JSON. Przeznaczony do jednorazowej migracji z wersji DogLog opartej na Firebase. Zdarzenia, których `id` już istnieje w lokalnym magazynie, są pomijane.",
+      "fields": {
+        "events": {
+          "name": "Zdarzenia",
+          "description": "Tablica JSON obiektów zdarzeń. Każdy obiekt powinien zawierać co najmniej: dog_id, event_type, timestamp. Pole `id` jest opcjonalne — zostanie wygenerowane, jeśli go brakuje."
+        }
+      }
+    },
+    "update_event_type": {
+      "name": "Aktualizuj typ zdarzenia",
+      "description": "Aktualizuje nazwę wyświetlaną, ikonę, kolor lub metrykę przycisku istniejącego typu zdarzenia. Zmieniane są tylko podane pola — pominięte pola pozostają bez zmian. Można aktualizować zarówno typy wbudowane, jak i niestandardowe. Czujnik natychmiast odzwierciedla zmiany po wywołaniu.",
+      "fields": {
+        "event_type": {
+          "name": "Klucz typu zdarzenia",
+          "description": "Klucz typu zdarzenia do aktualizacji (np. walk, food, my_custom_type)."
+        },
+        "name": {
+          "name": "Nazwa wyświetlana",
+          "description": "Nowa nazwa wyświetlana dla typu zdarzenia."
+        },
+        "icon": {
+          "name": "Ikona",
+          "description": "Nowa ikona w formacie mdi: (np. mdi:walk, mdi:bowl)."
+        },
+        "color": {
+          "name": "Kolor",
+          "description": "Nowy kolor hex (np. #4CAF50). Musi być 6-cyfrowym kolorem hex."
+        },
+        "metric": {
+          "name": "Metryka przycisku",
+          "description": "Co wyświetlać na przycisku czujnika. Opcje: daily_count (N dzisiaj), days_since (N dni), last_value (wartość z ostatniego zdarzenia), hours_since (N godzin). Domyślnie daily_count, jeśli pominięto."
+        }
+      }
+    },
+    "add_event_type": {
+      "name": "Dodaj typ zdarzenia",
+      "description": "Dodaje nowy niestandardowy typ zdarzenia. Typów wbudowanych (food, walk itp.) nie można odtworzyć — użyj update_event_type, aby je zmodyfikować. Po dodaniu na karcie automatycznie pojawia się nowy przycisk.",
+      "fields": {
+        "event_type": {
+          "name": "Klucz typu zdarzenia",
+          "description": "Unikalne ID pisane małymi literami, zawierające tylko a-z, 0-9 i podkreślniki. Maksymalnie 30 znaków. Przykład: outdoor_walk lub vet_checkup."
+        },
+        "name": {
+          "name": "Nazwa wyświetlana",
+          "description": "Czytelna nazwa wyświetlana na przycisku karty."
+        },
+        "icon": {
+          "name": "Ikona",
+          "description": "Ikona MDI w formacie mdi: (np. mdi:walk)."
+        },
+        "color": {
+          "name": "Kolor",
+          "description": "Kolor hex (np. #4CAF50). Musi być 6-cyfrowym kolorem hex zaczynającym się od #."
+        },
+        "metric": {
+          "name": "Metryka przycisku",
+          "description": "Co wyświetlać na przycisku czujnika. Opcje: daily_count (N dzisiaj), days_since (N dni), last_value (wartość z ostatniego zdarzenia), hours_since (N godzin). Domyślnie daily_count, jeśli pominięto."
+        }
+      }
+    },
+    "delete_event_type": {
+      "name": "Usuń typ zdarzenia",
+      "description": "Trwale usuwa niestandardowy typ zdarzenia. Typów wbudowanych (food, walk itp.) nie można usunąć — użyj update_event_type, aby je zmodyfikować. Zdarzenia już zapisane z tym typem są zachowane w bazie danych.",
+      "fields": {
+        "event_type": {
+          "name": "Klucz typu zdarzenia",
+          "description": "Klucz typu zdarzenia do usunięcia (np. my_custom_type)."
+        }
+      }
+    },
+    "set_shown_types": {
+      "name": "Ustaw wyświetlane typy",
+      "description": "Ustawia widoczne przyciski typów zdarzeń (i ich kolejność) dla konkretnego psa. Zmiany są zapisywane po stronie serwera, dzięki czemu synchronizują się na wszystkich urządzeniach i pulpitach.",
+      "fields": {
+        "dog": {
+          "name": "Pies",
+          "description": "Nazwa psa do skonfigurowania."
+        },
+        "shown_types": {
+          "name": "Wyświetlane typy",
+          "description": "Uporządkowana lista kluczy typów zdarzeń wyświetlanych jako przyciski."
+        }
+      }
+    }
+  }
+}
