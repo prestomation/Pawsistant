@@ -249,7 +249,7 @@
         },
         "icon": {
           "name": "アイコン",
-          "description": "mdi: 形式の新しいアイコン（例：mdi:walk、mdi:bowl）。アイコンの一覧は https://pictogrammers.com/library/mdi/ を参照してください。"
+          "description": "mdi: 形式の新しいアイコン（例：mdi:walk、mdi:bowl）。"
         },
         "color": {
           "name": "色",
@@ -275,7 +275,7 @@
         },
         "icon": {
           "name": "アイコン",
-          "description": "mdi: 形式のMDIアイコン（例：mdi:walk）。アイコンの一覧は https://pictogrammers.com/library/mdi/ を参照してください。"
+          "description": "mdi: 形式のMDIアイコン（例：mdi:walk）。"
         },
         "color": {
           "name": "色",

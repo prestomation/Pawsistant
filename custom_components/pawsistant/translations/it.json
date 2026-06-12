@@ -249,7 +249,7 @@
         },
         "icon": {
           "name": "Icona",
-          "description": "Nuova icona in formato mdi: (es. mdi:walk, mdi:bowl). Sfoglia le icone su https://pictogrammers.com/library/mdi/"
+          "description": "Nuova icona in formato mdi: (es. mdi:walk, mdi:bowl)."
         },
         "color": {
           "name": "Colore",
@@ -275,7 +275,7 @@
         },
         "icon": {
           "name": "Icona",
-          "description": "Icona MDI in formato mdi: (es. mdi:walk). Sfoglia le icone su https://pictogrammers.com/library/mdi/"
+          "description": "Icona MDI in formato mdi: (es. mdi:walk)."
         },
         "color": {
           "name": "Colore",

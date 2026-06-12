@@ -249,7 +249,7 @@
         },
         "icon": {
           "name": "Icon",
-          "description": "New icon in mdi: format (e.g. mdi:walk, mdi:bowl). Browse icons at https://pictogrammers.com/library/mdi/"
+          "description": "New icon in mdi: format (e.g. mdi:walk, mdi:bowl)."
         },
         "color": {
           "name": "Color",
@@ -275,7 +275,7 @@
         },
         "icon": {
           "name": "Icon",
-          "description": "MDI icon in mdi: format (e.g. mdi:walk). Browse icons at https://pictogrammers.com/library/mdi/"
+          "description": "MDI icon in mdi: format (e.g. mdi:walk)."
         },
         "color": {
           "name": "Color",

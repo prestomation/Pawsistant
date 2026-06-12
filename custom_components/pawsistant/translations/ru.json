@@ -249,7 +249,7 @@
         },
         "icon": {
           "name": "Значок",
-          "description": "Новый значок в формате mdi: (например, mdi:walk, mdi:bowl). Просматривайте значки на https://pictogrammers.com/library/mdi/"
+          "description": "Новый значок в формате mdi: (например, mdi:walk, mdi:bowl)."
         },
         "color": {
           "name": "Цвет",
@@ -275,7 +275,7 @@
         },
         "icon": {
           "name": "Значок",
-          "description": "Значок MDI в формате mdi: (например, mdi:walk). Просматривайте значки на https://pictogrammers.com/library/mdi/"
+          "description": "Значок MDI в формате mdi: (например, mdi:walk)."
         },
         "color": {
           "name": "Цвет",

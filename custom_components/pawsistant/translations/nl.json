@@ -249,7 +249,7 @@
         },
         "icon": {
           "name": "Pictogram",
-          "description": "Nieuw pictogram in mdi:-formaat (bijv. mdi:walk, mdi:bowl). Blader door pictogrammen op https://pictogrammers.com/library/mdi/"
+          "description": "Nieuw pictogram in mdi:-formaat (bijv. mdi:walk, mdi:bowl)."
         },
         "color": {
           "name": "Kleur",
@@ -275,7 +275,7 @@
         },
         "icon": {
           "name": "Pictogram",
-          "description": "MDI-pictogram in mdi:-formaat (bijv. mdi:walk). Blader door pictogrammen op https://pictogrammers.com/library/mdi/"
+          "description": "MDI-pictogram in mdi:-formaat (bijv. mdi:walk)."
         },
         "color": {
           "name": "Kleur",

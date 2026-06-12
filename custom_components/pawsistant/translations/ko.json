@@ -249,7 +249,7 @@
         },
         "icon": {
           "name": "아이콘",
-          "description": "mdi: 형식의 새 아이콘 (예: mdi:walk, mdi:bowl). 아이콘 탐색: https://pictogrammers.com/library/mdi/"
+          "description": "mdi: 형식의 새 아이콘 (예: mdi:walk, mdi:bowl)."
         },
         "color": {
           "name": "색상",
@@ -275,7 +275,7 @@
         },
         "icon": {
           "name": "아이콘",
-          "description": "mdi: 형식의 MDI 아이콘 (예: mdi:walk). 아이콘 탐색: https://pictogrammers.com/library/mdi/"
+          "description": "mdi: 형식의 MDI 아이콘 (예: mdi:walk)."
         },
         "color": {
           "name": "색상",

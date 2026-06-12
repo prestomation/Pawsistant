@@ -249,7 +249,7 @@
         },
         "icon": {
           "name": "الأيقونة",
-          "description": "أيقونة جديدة بتنسيق mdi: (مثلاً: mdi:walk، mdi:bowl). تصفح الأيقونات على https://pictogrammers.com/library/mdi/"
+          "description": "أيقونة جديدة بتنسيق mdi: (مثلاً: mdi:walk، mdi:bowl)."
         },
         "color": {
           "name": "اللون",
@@ -275,7 +275,7 @@
         },
         "icon": {
           "name": "الأيقونة",
-          "description": "أيقونة MDI بتنسيق mdi: (مثلاً: mdi:walk). تصفح الأيقونات على https://pictogrammers.com/library/mdi/"
+          "description": "أيقونة MDI بتنسيق mdi: (مثلاً: mdi:walk)."
         },
         "color": {
           "name": "اللون",

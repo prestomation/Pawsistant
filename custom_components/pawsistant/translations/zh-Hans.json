@@ -249,7 +249,7 @@
         },
         "icon": {
           "name": "图标",
-          "description": "mdi: 格式的新图标（例如 mdi:walk、mdi:bowl）。浏览图标：https://pictogrammers.com/library/mdi/"
+          "description": "mdi: 格式的新图标（例如 mdi:walk、mdi:bowl）。"
         },
         "color": {
           "name": "颜色",
@@ -275,7 +275,7 @@
         },
         "icon": {
           "name": "图标",
-          "description": "mdi: 格式的 MDI 图标（例如 mdi:walk）。浏览图标：https://pictogrammers.com/library/mdi/"
+          "description": "mdi: 格式的 MDI 图标（例如 mdi:walk）。"
         },
         "color": {
           "name": "颜色",

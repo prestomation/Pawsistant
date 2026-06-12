@@ -249,7 +249,7 @@
         },
         "icon": {
           "name": "Simge",
-          "description": "mdi: biçiminde yeni simge (örn. mdi:walk, mdi:bowl). Simgelere göz atın: https://pictogrammers.com/library/mdi/"
+          "description": "mdi: biçiminde yeni simge (örn. mdi:walk, mdi:bowl)."
         },
         "color": {
           "name": "Renk",
@@ -275,7 +275,7 @@
         },
         "icon": {
           "name": "Simge",
-          "description": "mdi: biçiminde MDI simgesi (örn. mdi:walk). Simgelere göz atın: https://pictogrammers.com/library/mdi/"
+          "description": "mdi: biçiminde MDI simgesi (örn. mdi:walk)."
         },
         "color": {
           "name": "Renk",

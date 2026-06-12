@@ -249,7 +249,7 @@
         },
         "icon": {
           "name": "आइकन",
-          "description": "mdi: प्रारूप में नया आइकन (जैसे mdi:walk, mdi:bowl)। आइकन यहां ब्राउज़ करें: https://pictogrammers.com/library/mdi/"
+          "description": "mdi: प्रारूप में नया आइकन (जैसे mdi:walk, mdi:bowl)।"
         },
         "color": {
           "name": "रंग",
@@ -275,7 +275,7 @@
         },
         "icon": {
           "name": "आइकन",
-          "description": "mdi: प्रारूप में MDI आइकन (जैसे mdi:walk)। आइकन यहां ब्राउज़ करें: https://pictogrammers.com/library/mdi/"
+          "description": "mdi: प्रारूप में MDI आइकन (जैसे mdi:walk)।"
         },
         "color": {
           "name": "रंग",
