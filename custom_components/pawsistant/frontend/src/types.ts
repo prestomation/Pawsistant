@@ -132,6 +132,7 @@ export interface PawsistantButtonCardConfig {
   dog: string;
   buttons: ButtonConfig[];
   show_title?: boolean;
+  show_event_log?: boolean;
   weight_unit?: string;
   buttons_per_row?: number;
   /** @deprecated — use buttons[] instead; kept for backward compat migration */
@@ -148,6 +149,10 @@ export interface BackdateFormResult {
 
 export interface WeightFormResult {
   value: number;
+  cleanup: () => void;
+}
+
+export interface EditFormResult {
   cleanup: () => void;
 }
 

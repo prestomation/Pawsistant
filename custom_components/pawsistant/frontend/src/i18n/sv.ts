@@ -85,6 +85,7 @@ export const sv: Dict = {
   'editor.no_buttons': 'Inga knappar har lagts till ännu.',
   'editor.add_event_type_option': '— lägg till händelsetyp —',
   'editor.show_pet_name': 'Visa husdjurets namn',
+  'editor.show_event_log': 'Visa händelseloggknapp',
   'editor.buttons_per_row': 'Knappar per rad',
   'editor.move_up': 'Flytta upp',
   'editor.move_down': 'Flytta ner',
@@ -105,6 +106,11 @@ export const sv: Dict = {
   'eventtype.weight': 'Vikt',
   'eventtype.teeth': 'Tänder',
   'eventtype.grooming': 'Pälsvård',
+
+  'button_card.open_event_log': 'Öppna händelselogg',
+
+  'popup.close': 'Stäng',
+
 
   'time.now': 'Nu',
   'time.min_ago.one': '{n} min sedan',

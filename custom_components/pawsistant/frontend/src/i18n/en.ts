@@ -100,6 +100,7 @@ export const en = {
   'editor.no_buttons': 'No buttons added yet.',
   'editor.add_event_type_option': '— add event type —',
   'editor.show_pet_name': 'Show pet name',
+  'editor.show_event_log': 'Show event log button',
   'editor.buttons_per_row': 'Buttons per row',
   'editor.move_up': 'Move up',
   'editor.move_down': 'Move down',
@@ -121,6 +122,10 @@ export const en = {
   'eventtype.weight': 'Weight',
   'eventtype.teeth': 'Teeth',
   'eventtype.grooming': 'Grooming',
+
+  /* ── Event log popup (button card) ──────────────────────────────── */
+  'button_card.open_event_log': 'Open event log',
+  'popup.close': 'Close',
 
   /* ── Relative time (slider display) ─────────────────────────────── */
   'time.now': 'Now',

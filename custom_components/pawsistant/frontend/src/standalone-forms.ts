@@ -5,8 +5,8 @@
  * NOT tied to PawsistantCard instance — used by PawsistantButtonCard.
  */
 
-import type { HomeAssistant, EventMeta, BackdateFormResult, WeightFormResult } from './types';
-import { logEvent } from './services';
+import type { HomeAssistant, EventMeta, BackdateFormResult, WeightFormResult, EditFormResult } from './types';
+import { logEvent, updateEvent } from './services';
 import { _escapeHTML, toDisplayWeight } from './utils';
 import { T, TP } from './i18n';
 
@@ -304,6 +304,153 @@ export function openWeightForm(opts: WeightFormOptions): Promise<WeightFormResul
           }
           console.error('[pawsistant-button-card] weight failed:', err);
         });
+    });
+
+    setTimeout(() => {
+      const first = formWrap.querySelector<HTMLElement>('input');
+      if (first) first.focus();
+    }, 100);
+  });
+}
+
+/* ── Edit form ─────────────────────────────────────────────────────── */
+
+interface EditFormOptions {
+  container: HTMLElement;
+  hass: HomeAssistant;
+  meta: EventMeta;
+  eventType: string;
+  eventId: string;
+  timestamp?: string;
+  note?: string;
+  value?: string;
+  displayUnit?: string;
+}
+
+export function openEditForm(opts: EditFormOptions): Promise<EditFormResult | null> {
+  const { container, hass, meta, eventType, eventId } = opts;
+  const displayUnit = opts.displayUnit || 'lbs';
+  const isWeight = eventType === 'weight';
+  const root = container.shadowRoot || container;
+
+  _ensureFormStyles(root as ShadowRoot);
+
+  // Calculate minutes ago from timestamp
+  let minutesAgo = 0;
+  if (opts.timestamp) {
+    const diff = Date.now() - new Date(opts.timestamp).getTime();
+    minutesAgo = Math.max(0, Math.round(diff / 60000));
+  }
+
+  const formWrap = document.createElement('div');
+  formWrap.className = 'inline-form';
+
+  if (isWeight) {
+    const displayVal = opts.value
+      ? (displayUnit === 'kg' ? Math.round(Number(opts.value) / 2.20462 * 10) / 10 : opts.value)
+      : '';
+    formWrap.innerHTML = `
+      <div class="form-title">⚖️ ${T('form.edit_weight_title')}</div>
+      <div class="form-field">
+        <label class="form-label" for="pbc-edit-weight-input">${T('form.weight_label', { unit: _escapeHTML(displayUnit) })}</label>
+        <div class="weight-input-row">
+          <input type="number" id="pbc-edit-weight-input" min="1" max="999" step="0.1"
+            inputmode="decimal"
+            value="${displayVal}"
+            placeholder="0.0" />
+          <span class="weight-unit">${_escapeHTML(displayUnit)}</span>
+        </div>
+      </div>
+      <div class="form-error" id="pbc-edit-form-error" role="alert"></div>
+      <div class="form-actions">
+        <button class="btn-cancel" id="pbc-edit-form-cancel">${T('form.cancel')}</button>
+        <button class="btn-submit" id="pbc-edit-form-submit">${T('form.update_weight')}</button>
+      </div>
+    `;
+  } else {
+    formWrap.innerHTML = `
+      <div class="form-title">${meta.emoji} ${T('form.edit_title', { label: _escapeHTML(meta.label) })}</div>
+      <div class="form-field">
+        <div class="form-label-row">
+          <label class="form-label" for="pbc-edit-minutes-slider">${T('form.minutes_ago')}</label>
+          <span class="slider-value" id="pbc-edit-slider-display">${T('time.now')}</span>
+        </div>
+        <input type="range" id="pbc-edit-minutes-slider" min="0" max="480" step="1" value="${minutesAgo}" aria-label="${T('form.minutes_ago')}" />
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="pbc-edit-note">${T('form.note_optional')}</label>
+        <input type="text" id="pbc-edit-note" placeholder="${_escapeHTML(T('form.note_placeholder'))}" value="${_escapeHTML(opts.note || '')}" />
+      </div>
+      <div class="form-error" id="pbc-edit-form-error" role="alert"></div>
+      <div class="form-actions">
+        <button class="btn-cancel" id="pbc-edit-form-cancel">${T('form.cancel')}</button>
+        <button class="btn-submit" id="pbc-edit-form-submit">${T('form.update_event')}</button>
+      </div>
+    `;
+  }
+  root.appendChild(formWrap);
+
+  const cleanup = (): void => {
+    formWrap.remove();
+  };
+
+  const showError = (): void => {
+    const errEl = formWrap.querySelector<HTMLElement>('#pbc-edit-form-error');
+    if (errEl) {
+      errEl.textContent = T('form.error.update_event');
+      errEl.classList.add('visible');
+    }
+  };
+
+  if (!isWeight) {
+    const slider = formWrap.querySelector<HTMLInputElement>('#pbc-edit-minutes-slider')!;
+    const display = formWrap.querySelector<HTMLElement>('#pbc-edit-slider-display')!;
+    const updateDisplay = (): void => {
+      const v = parseInt(slider.value, 10);
+      const t = new Date(Date.now() - v * 60000);
+      const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      display.textContent = (v === 0 ? T('time.now') : TP('time.min_ago', v)) + ` · ${timeStr}`;
+    };
+    slider.addEventListener('input', updateDisplay);
+    updateDisplay();
+  }
+
+  return new Promise<EditFormResult | null>((resolve) => {
+    formWrap.querySelector('#pbc-edit-form-cancel')!.addEventListener('click', () => {
+      cleanup();
+      resolve(null);
+    });
+
+    formWrap.querySelector('#pbc-edit-form-submit')!.addEventListener('click', () => {
+      if (isWeight) {
+        const weightInput = formWrap.querySelector<HTMLInputElement>('#pbc-edit-weight-input')!;
+        const value = parseFloat(weightInput.value);
+        if (isNaN(value) || value < 1 || value > 999) {
+          weightInput.style.outline = '2px solid var(--error-color, #ef5350)';
+          weightInput.focus();
+          return;
+        }
+        // Convert kg to lbs for storage if needed
+        const valueLbs = displayUnit === 'kg' ? Math.round(value * 2.20462 * 10) / 10 : value;
+        updateEvent(hass, eventId, { value: valueLbs })
+          .then(() => resolve({ cleanup }))
+          .catch((err) => {
+            showError();
+            console.error('[pawsistant-button-card] update weight failed:', err);
+          });
+      } else {
+        const slider = formWrap.querySelector<HTMLInputElement>('#pbc-edit-minutes-slider')!;
+        const minutes = parseInt(slider.value, 10);
+        const note = formWrap.querySelector<HTMLInputElement>('#pbc-edit-note')!.value.trim();
+        const timestamp = new Date(Date.now() - minutes * 60000).toISOString();
+        // note is always sent — empty string clears an existing note
+        updateEvent(hass, eventId, { timestamp, note })
+          .then(() => resolve({ cleanup }))
+          .catch((err) => {
+            showError();
+            console.error('[pawsistant-button-card] update event failed:', err);
+          });
+      }
     });
 
     setTimeout(() => {

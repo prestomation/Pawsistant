@@ -217,3 +217,115 @@ describe('PawsistantButtonCard', () => {
     });
   });
 });
+
+describe('PawsistantButtonCard event log popup', () => {
+  function popupHass() {
+    const hass = mockHass(['Sharky']);
+    hass.states['sensor.sharky_recent_timeline'].attributes.dog_id = 'dog1';
+    hass.connection = {
+      sendCommand: vi.fn(),
+      sendMessagePromise: vi.fn().mockResolvedValue({ events: [], total: 0 }),
+    };
+    hass.language = 'en';
+    return hass;
+  }
+
+  function popupCard(extraConfig = {}) {
+    const card = new PawsistantButtonCard();
+    card.setConfig({
+      type: 'custom:pawsistant-button-card',
+      dog: 'Sharky',
+      buttons: [{ event_type: 'poop' }],
+      ...extraConfig,
+    });
+    card.hass = popupHass();
+    return card;
+  }
+
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  it('does not render the event log button by default', () => {
+    const card = popupCard();
+    expect(card.shadowRoot.querySelector('#pbc-log-btn')).toBeNull();
+  });
+
+  it('renders the event log button when show_event_log is true', () => {
+    const card = popupCard({ show_event_log: true });
+    const btn = card.shadowRoot.querySelector('#pbc-log-btn');
+    expect(btn).not.toBeNull();
+    expect(btn.getAttribute('aria-haspopup')).toBe('dialog');
+  });
+
+  it('opens a dialog popup on click and fetches the event log', async () => {
+    const card = popupCard({ show_event_log: true });
+    card.shadowRoot.querySelector('#pbc-log-btn').click();
+    await flush();
+
+    const dialog = card.shadowRoot.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(card._hass.connection.sendMessagePromise).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'pawsistant/get_events', dog_id: 'dog1' }),
+    );
+  });
+
+  it('keeps the popup open across hass updates', async () => {
+    const card = popupCard({ show_event_log: true });
+    card.shadowRoot.querySelector('#pbc-log-btn').click();
+    await flush();
+
+    // New hass with a changed metric state would normally trigger a re-render
+    const newHass = popupHass();
+    newHass.states['sensor.sharky_daily_poop_count'].state = '9';
+    card.hass = newHass;
+
+    expect(card.shadowRoot.querySelector('.pbc-overlay')).not.toBeNull();
+    expect(card.shadowRoot.querySelector('[role="dialog"]')).not.toBeNull();
+  });
+
+  it('closes via the close button and restores the log button', async () => {
+    const card = popupCard({ show_event_log: true });
+    card.shadowRoot.querySelector('#pbc-log-btn').click();
+    await flush();
+
+    card.shadowRoot.querySelector('#pbc-dialog-close').click();
+    expect(card.shadowRoot.querySelector('.pbc-overlay')).toBeNull();
+    expect(card.shadowRoot.querySelector('#pbc-log-btn')).not.toBeNull();
+    expect(card._activeForm).toBe(false);
+  });
+
+  it('closes on Escape', async () => {
+    const card = popupCard({ show_event_log: true });
+    card.shadowRoot.querySelector('#pbc-log-btn').click();
+    await flush();
+
+    const dialog = card.shadowRoot.querySelector('[role="dialog"]');
+    dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(card.shadowRoot.querySelector('.pbc-overlay')).toBeNull();
+  });
+
+  it('closes on backdrop click but not on dialog click', async () => {
+    const card = popupCard({ show_event_log: true });
+    card.shadowRoot.querySelector('#pbc-log-btn').click();
+    await flush();
+
+    const overlay = card.shadowRoot.querySelector('.pbc-overlay');
+    const dialog = overlay.querySelector('[role="dialog"]');
+    dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(card.shadowRoot.querySelector('.pbc-overlay')).not.toBeNull();
+
+    overlay.dispatchEvent(new MouseEvent('click'));
+    expect(card.shadowRoot.querySelector('.pbc-overlay')).toBeNull();
+  });
+
+  it('shows an empty state when the dog has no dog_id', async () => {
+    const card = popupCard({ show_event_log: true });
+    delete card._hass.states['sensor.sharky_recent_timeline'].attributes.dog_id;
+    card.shadowRoot.querySelector('#pbc-log-btn').click();
+    await flush();
+
+    expect(card.shadowRoot.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(card.shadowRoot.querySelector('#pbc-log-body .empty')).not.toBeNull();
+    expect(card._hass.connection.sendMessagePromise).not.toHaveBeenCalled();
+  });
+});

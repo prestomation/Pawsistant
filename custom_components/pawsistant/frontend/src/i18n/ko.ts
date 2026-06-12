@@ -85,6 +85,7 @@ export const ko: Dict = {
   'editor.no_buttons': '아직 추가된 버튼이 없습니다.',
   'editor.add_event_type_option': '— 이벤트 유형 추가 —',
   'editor.show_pet_name': '반려동물 이름 표시',
+  'editor.show_event_log': '이벤트 로그 버튼 표시',
   'editor.buttons_per_row': '한 줄당 버튼 수',
   'editor.move_up': '위로 이동',
   'editor.move_down': '아래로 이동',
@@ -105,6 +106,11 @@ export const ko: Dict = {
   'eventtype.weight': '체중',
   'eventtype.teeth': '치아',
   'eventtype.grooming': '미용',
+
+  'button_card.open_event_log': '이벤트 로그 열기',
+
+  'popup.close': '닫기',
+
 
   'time.now': '지금',
   'time.min_ago.one': '{n}분 전',

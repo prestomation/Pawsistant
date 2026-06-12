@@ -85,6 +85,7 @@ export const es: Dict = {
   'editor.no_buttons': 'Aún no se han añadido botones.',
   'editor.add_event_type_option': '— añadir tipo de evento —',
   'editor.show_pet_name': 'Mostrar nombre de la mascota',
+  'editor.show_event_log': 'Mostrar botón del registro de eventos',
   'editor.buttons_per_row': 'Botones por fila',
   'editor.move_up': 'Subir',
   'editor.move_down': 'Bajar',
@@ -105,6 +106,11 @@ export const es: Dict = {
   'eventtype.weight': 'Peso',
   'eventtype.teeth': 'Dientes',
   'eventtype.grooming': 'Aseo',
+
+  'button_card.open_event_log': 'Abrir registro de eventos',
+
+  'popup.close': 'Cerrar',
+
 
   'time.now': 'Ahora',
   'time.min_ago.one': 'hace {n} min',

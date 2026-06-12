@@ -85,6 +85,7 @@ export const ja: Dict = {
   'editor.no_buttons': 'まだボタンが追加されていません。',
   'editor.add_event_type_option': '— イベントタイプを追加 —',
   'editor.show_pet_name': 'ペットの名前を表示',
+  'editor.show_event_log': 'イベントログボタンを表示',
   'editor.buttons_per_row': '1行あたりのボタン数',
   'editor.move_up': '上へ移動',
   'editor.move_down': '下へ移動',
@@ -105,6 +106,11 @@ export const ja: Dict = {
   'eventtype.weight': '体重',
   'eventtype.teeth': '歯',
   'eventtype.grooming': 'グルーミング',
+
+  'button_card.open_event_log': 'イベントログを開く',
+
+  'popup.close': '閉じる',
+
 
   'time.now': '今',
   'time.min_ago.one': '{n} 分前',

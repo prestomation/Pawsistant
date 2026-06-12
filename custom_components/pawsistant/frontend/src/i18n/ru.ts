@@ -85,6 +85,7 @@ export const ru: Dict = {
   'editor.no_buttons': 'Кнопки ещё не добавлены.',
   'editor.add_event_type_option': '— добавить тип события —',
   'editor.show_pet_name': 'Показывать имя питомца',
+  'editor.show_event_log': 'Показать кнопку журнала событий',
   'editor.buttons_per_row': 'Кнопок в строке',
   'editor.move_up': 'Вверх',
   'editor.move_down': 'Вниз',
@@ -105,6 +106,11 @@ export const ru: Dict = {
   'eventtype.weight': 'Вес',
   'eventtype.teeth': 'Зубы',
   'eventtype.grooming': 'Груминг',
+
+  'button_card.open_event_log': 'Открыть журнал событий',
+
+  'popup.close': 'Закрыть',
+
 
   'time.now': 'Сейчас',
   'time.min_ago.one': '{n} мин назад',
