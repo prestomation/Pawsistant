@@ -23,6 +23,18 @@ jobs:
           VERSION=$(python3 -c "import json; print(json.load(open('custom_components/pawsistant/manifest.json'))['version'])")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+          # Classify the version. Pre-release versions (e.g. 2.19.0b1, 2.19.0rc2)
+          # become GitHub pre-releases: HACS only offers them to users who enabled
+          # "Show beta versions". Everything else ships as a normal release.
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(a|b|rc)[0-9]+$ ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::manifest.json version '$VERSION' is malformed — expected X.Y.Z or X.Y.Z{a|b|rc}N (e.g. 2.19.0 or 2.19.0b1)."
+            exit 1
+          fi
+
           if git rev-parse --verify "refs/tags/v$VERSION" >/dev/null 2>&1; then
             echo "Tag v$VERSION already exists — nothing to release."
             echo "release=false" >> "$GITHUB_OUTPUT"
@@ -108,5 +120,5 @@ jobs:
           name: "v${{ steps.check.outputs.version }}"
           body: ${{ steps.changelog.outputs.notes }}
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.check.outputs.prerelease == 'true' }}
           files: pawsistant.zip
