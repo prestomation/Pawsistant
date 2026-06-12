@@ -25,7 +25,13 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
-from homeassistant.helpers.selector import IconSelector
+from homeassistant.helpers.selector import (
+    IconSelector,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectOptionDict,
+    SelectSelectorMode,
+)
 
 from .const import CONF_SPECIES, DEFAULT_SPECIES, DOMAIN, CONF_EVENT_TYPES, CONF_BUTTON_METRICS, DEFAULT_EVENT_TYPES, DEFAULT_BUTTON_METRICS
 
@@ -189,18 +195,29 @@ class PawsistantOptionsFlow(OptionsFlow):
             dog_lines.append(line)
         dogs_summary = "\n".join(f"• {l}" for l in dog_lines)
 
-        action_options = {
-            ACTION_ADD_DOG: "Add a pet",
-            ACTION_REMOVE_DOG: "Remove a pet",
-            ACTION_EDIT_EVENT_TYPES: "Edit event types",
-            ACTION_DONE: "Done",
-        }
+        # Build a translatable select selector.  Option labels are localized by
+        # HA via strings.json -> selector.init_action.options.<value>, so we do
+        # NOT pass hardcoded English labels here.
+        action_selector = SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(value=ACTION_ADD_DOG, label=ACTION_ADD_DOG),
+                    SelectOptionDict(value=ACTION_REMOVE_DOG, label=ACTION_REMOVE_DOG),
+                    SelectOptionDict(
+                        value=ACTION_EDIT_EVENT_TYPES, label=ACTION_EDIT_EVENT_TYPES
+                    ),
+                    SelectOptionDict(value=ACTION_DONE, label=ACTION_DONE),
+                ],
+                mode=SelectSelectorMode.DROPDOWN,
+                translation_key="init_action",
+            )
+        )
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Required("action", default=ACTION_DONE): vol.In(action_options),
+                    vol.Required("action", default=ACTION_DONE): action_selector,
                 }
             ),
             description_placeholders={"current_dogs": dogs_summary},
@@ -534,9 +551,23 @@ class PawsistantOptionsFlow(OptionsFlow):
                 ): vol.In({k: k for k in VALID_BUTTON_METRICS}),
             }
 
+        # Show the add/edit form under a mode-specific step_id so the title is
+        # fully translated ("Add Event Type" / "Edit Event Type") rather than
+        # interpolating an untranslatable English {mode} word.
         return self.async_show_form(
-            step_id="edit_event_type",
+            step_id="edit_event_type" if is_edit else "add_event_type",
             data_schema=vol.Schema(schema_dict),
             errors=errors,
-            description_placeholders={"mode": "edit" if is_edit else "add"},
         )
+
+    async def async_step_add_event_type(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add a new event type.
+
+        Shares the implementation of async_step_edit_event_type but is exposed as
+        its own step so Home Assistant renders the translated "Add Event Type"
+        title. Submissions route here (no "event_type" key) and are handled as an
+        add by the shared logic.
+        """
+        return await self.async_step_edit_event_type(user_input)

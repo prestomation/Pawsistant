@@ -7,6 +7,7 @@
 import type { HomeAssistant, PawsistantButtonCardConfig, ButtonConfig } from './types';
 import { _escapeHTML, dogNamesFromHass } from './utils';
 import { buildRegistry, getMeta, FALLBACK_EVENT_META } from './registry';
+import { T } from './i18n';
 
 export class PawsistantButtonCardEditor extends HTMLElement {
   _config: PawsistantButtonCardConfig = { type: 'custom:pawsistant-button-card', dog: '', buttons: [] };
@@ -65,9 +66,9 @@ export class PawsistantButtonCardEditor extends HTMLElement {
         <div class="btn-row" data-index="${i}">
           <span class="btn-info">${esc(meta.emoji)} ${esc(meta.label)}</span>
           <span class="btn-actions">
-            <button class="icon-btn btn-up" data-index="${i}" ${isFirst ? 'disabled' : ''} title="Move up">&uarr;</button>
-            <button class="icon-btn btn-down" data-index="${i}" ${isLast ? 'disabled' : ''} title="Move down">&darr;</button>
-            <button class="icon-btn btn-remove" data-index="${i}" title="Remove">&times;</button>
+            <button class="icon-btn btn-up" data-index="${i}" ${isFirst ? 'disabled' : ''} title="${esc(T('editor.move_up'))}">&uarr;</button>
+            <button class="icon-btn btn-down" data-index="${i}" ${isLast ? 'disabled' : ''} title="${esc(T('editor.move_down'))}">&darr;</button>
+            <button class="icon-btn btn-remove" data-index="${i}" title="${esc(T('editor.remove'))}">&times;</button>
           </span>
         </div>
       `;
@@ -181,24 +182,24 @@ export class PawsistantButtonCardEditor extends HTMLElement {
       </style>
       <div class="form">
         <div>
-          <label class="field-label" for="ed-dog">Pet *</label>
+          <label class="field-label" for="ed-dog">${esc(T('editor.pet'))}</label>
           ${dogNames.length > 0
             ? `<select id="ed-dog" name="dog">
-                <option value="">— select a pet —</option>
+                <option value="">${esc(T('editor.select_pet'))}</option>
                 ${dogNames.map(n => `<option value="${esc(n)}"${cfg.dog === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}
               </select>`
-            : `<input id="ed-dog" name="dog" type="text" value="${esc(cfg.dog || '')}" placeholder="Sharky" />
-               <div class="hint">No dogs found — enter a name manually.</div>`
+            : `<input id="ed-dog" name="dog" type="text" value="${esc(cfg.dog || '')}" placeholder="${esc(T('editor.pet_placeholder'))}" />
+               <div class="hint">${esc(T('editor.no_dogs_hint_short'))}</div>`
           }
         </div>
 
         <div>
-          <label class="field-label">Buttons</label>
+          <label class="field-label">${esc(T('editor.buttons'))}</label>
           <div class="buttons-section">
-            ${buttonRows || '<div class="empty-msg">No buttons added yet.</div>'}
+            ${buttonRows || `<div class="empty-msg">${esc(T('editor.no_buttons'))}</div>`}
             <div class="add-row">
               <select id="ed-add-type">
-                <option value="">— add event type —</option>
+                <option value="">${esc(T('editor.add_event_type_option'))}</option>
                 ${addOptions}
               </select>
               <button class="add-btn" id="ed-add-btn">+</button>
@@ -208,17 +209,17 @@ export class PawsistantButtonCardEditor extends HTMLElement {
 
         <div class="checkbox-row">
           <input type="checkbox" id="ed-show-title" name="show_title" ${showTitle ? 'checked' : ''} />
-          <label class="field-label" for="ed-show-title" style="margin-bottom:0">Show pet name</label>
+          <label class="field-label" for="ed-show-title" style="margin-bottom:0">${esc(T('editor.show_pet_name'))}</label>
         </div>
         <div>
-          <label class="field-label" for="ed-weight-unit">Weight unit</label>
+          <label class="field-label" for="ed-weight-unit">${esc(T('editor.weight_unit'))}</label>
           <select id="ed-weight-unit" name="weight_unit">
             <option value="lbs" ${weightUnit === 'lbs' ? 'selected' : ''}>lbs</option>
             <option value="kg" ${weightUnit === 'kg' ? 'selected' : ''}>kg</option>
           </select>
         </div>
         <div>
-          <label class="field-label">Buttons per row</label>
+          <label class="field-label">${esc(T('editor.buttons_per_row'))}</label>
           <div class="range-row">
             <input type="range" id="ed-bpr" min="2" max="6" value="${buttonsPerRow}" />
             <span class="range-val" id="ed-bpr-val">${buttonsPerRow}</span>

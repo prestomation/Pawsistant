@@ -58,8 +58,24 @@
           "action": "Select an action"
         }
       },
+      "add_event_type": {
+        "title": "Add Event Type",
+        "description": "Set the display name, icon (MDI), color, and button metric for this event type.",
+        "data": {
+          "event_type_key": "Event type ID",
+          "name": "Display name",
+          "icon": "MDI icon",
+          "color": "Color (hex)",
+          "metric": "Button metric"
+        },
+        "data_description": {
+          "event_type_key": "Lowercase letters, numbers, underscores only. Max 30 characters. Cannot be changed after creation.",
+          "icon": "Must start with mdi: or hass: (e.g. mdi:walk)",
+          "metric": "What to show on the sensor button. daily_count = \"3 today\", days_since = \"2 days\", last_value = \"28.5 lbs\", hours_since = \"5 hours\""
+        }
+      },
       "edit_event_type": {
-        "title": "{mode} Event Type",
+        "title": "Edit Event Type",
         "description": "Set the display name, icon (MDI), color, and button metric for this event type.",
         "data": {
           "event_type_key": "Event type ID",
@@ -88,6 +104,212 @@
       "invalid_icon_format": "Icon must start with mdi: or hass: (e.g. mdi:walk).",
       "invalid_color_format": "Color must be a valid hex code (e.g. #4CAF50).",
       "invalid_metric": "Button metric must be one of: daily_count, days_since, last_value, hours_since."
+    }
+  },
+  "selector": {
+    "init_action": {
+      "options": {
+        "add_dog": "Add a pet",
+        "remove_dog": "Remove a pet",
+        "edit_event_types": "Edit event types",
+        "done": "Done"
+      }
+    }
+  },
+  "services": {
+    "log_event": {
+      "name": "Log Event",
+      "description": "Log a pet activity event. The event is stored locally and triggers an immediate sensor update.",
+      "fields": {
+        "dog": {
+          "name": "Pet",
+          "description": "The name of the pet (case-insensitive)."
+        },
+        "event_type": {
+          "name": "Event Type",
+          "description": "The type of event to log."
+        },
+        "note": {
+          "name": "Note",
+          "description": "Optional note for the event (e.g. medicine name, vet comments)."
+        },
+        "value": {
+          "name": "Value",
+          "description": "Optional numeric value (e.g. weight in lbs)."
+        },
+        "timestamp": {
+          "name": "Timestamp",
+          "description": "Optional ISO 8601 timestamp override (e.g. \"2026-03-18T10:30:00-04:00\"). Defaults to now if omitted."
+        }
+      }
+    },
+    "delete_event": {
+      "name": "Delete Event",
+      "description": "Delete a previously logged event by its unique ID. The event_id is available as an attribute on most-recent-event sensors.",
+      "fields": {
+        "event_id": {
+          "name": "Event ID",
+          "description": "The UUID of the event to delete."
+        }
+      }
+    },
+    "update_event": {
+      "name": "Update Event",
+      "description": "Update a previously logged event's timestamp, note, or value. Only fields you provide are changed — omitted fields are left untouched. The event_type cannot be changed.",
+      "fields": {
+        "event_id": {
+          "name": "Event ID",
+          "description": "The UUID of the event to update."
+        },
+        "timestamp": {
+          "name": "Timestamp",
+          "description": "New ISO 8601 timestamp (e.g. \"2026-03-18T10:30:00-04:00\"). Omit to keep the original timestamp."
+        },
+        "note": {
+          "name": "Note",
+          "description": "New note text. Omit to keep the original note."
+        },
+        "value": {
+          "name": "Value",
+          "description": "New numeric value (e.g. weight in lbs). Omit to keep the original value."
+        }
+      }
+    },
+    "add_dog": {
+      "name": "Add Pet",
+      "description": "Register a new pet. A new set of sensors will appear after HA reloads the integration (or after the next coordinator refresh).",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "The pet's name (must be unique)."
+        },
+        "breed": {
+          "name": "Breed",
+          "description": "Optional breed."
+        },
+        "birth_date": {
+          "name": "Birth Date",
+          "description": "Optional birth date (YYYY-MM-DD)."
+        },
+        "species": {
+          "name": "Animal type",
+          "description": "Type of animal (e.g. Dog, Cat, Rabbit). Defaults to Dog."
+        }
+      }
+    },
+    "remove_dog": {
+      "name": "Remove Pet",
+      "description": "Remove a pet and permanently delete all of its events. This action cannot be undone.",
+      "fields": {
+        "dog": {
+          "name": "Pet",
+          "description": "The name of the pet to remove (case-insensitive)."
+        }
+      }
+    },
+    "list_events": {
+      "name": "List Events",
+      "description": "Query events for a pet and return the results via service response (`response_variable`). Use this in automations to inspect recent activity.",
+      "fields": {
+        "dog": {
+          "name": "Pet",
+          "description": "The name of the pet."
+        },
+        "event_type": {
+          "name": "Event Type",
+          "description": "Filter by event type (optional)."
+        },
+        "days": {
+          "name": "Days",
+          "description": "How many days back to search (default 7, max 3650)."
+        }
+      }
+    },
+    "import_events": {
+      "name": "Import Events",
+      "description": "Bulk-import events from an external JSON array. Intended for one-time migration from the Firebase-backed version of DogLog. Events whose `id` already exists in the local store are skipped.",
+      "fields": {
+        "events": {
+          "name": "Events",
+          "description": "A JSON array of event objects. Each object should have at minimum: dog_id, event_type, timestamp. An `id` field is optional — one will be generated if absent."
+        }
+      }
+    },
+    "update_event_type": {
+      "name": "Update Event Type",
+      "description": "Update the display name, icon, color, or button metric for an existing event type. Only the fields you provide are changed — omitted fields are left untouched. Built-in and custom types can both be updated. The sensor immediately reflects the changes after the call.",
+      "fields": {
+        "event_type": {
+          "name": "Event type key",
+          "description": "The event type key to update (e.g. walk, food, my_custom_type)."
+        },
+        "name": {
+          "name": "Display name",
+          "description": "New display name for the event type."
+        },
+        "icon": {
+          "name": "Icon",
+          "description": "New icon in mdi: format (e.g. mdi:walk, mdi:bowl)."
+        },
+        "color": {
+          "name": "Color",
+          "description": "New hex color (e.g. #4CAF50). Must be a 6-digit hex color."
+        },
+        "metric": {
+          "name": "Button metric",
+          "description": "What to show on the sensor button. Options: daily_count (N today), days_since (N days), last_value (value from most recent event), hours_since (N hours). Default if omitted is daily_count."
+        }
+      }
+    },
+    "add_event_type": {
+      "name": "Add Event Type",
+      "description": "Add a new custom event type. Built-in types (food, walk, etc.) cannot be recreated — use update_event_type to modify them instead. After adding, a new button appears in the card automatically.",
+      "fields": {
+        "event_type": {
+          "name": "Event type key",
+          "description": "Unique lowercase ID using only a-z, 0-9, and underscores. Max 30 chars. Example: outdoor_walk or vet_checkup."
+        },
+        "name": {
+          "name": "Display name",
+          "description": "Human-readable name shown on the card button."
+        },
+        "icon": {
+          "name": "Icon",
+          "description": "MDI icon in mdi: format (e.g. mdi:walk)."
+        },
+        "color": {
+          "name": "Color",
+          "description": "Hex color (e.g. #4CAF50). Must be a 6-digit hex color starting with #."
+        },
+        "metric": {
+          "name": "Button metric",
+          "description": "What to show on the sensor button. Options: daily_count (N today), days_since (N days), last_value (value from most recent event), hours_since (N hours). Defaults to daily_count if omitted."
+        }
+      }
+    },
+    "delete_event_type": {
+      "name": "Delete Event Type",
+      "description": "Permanently delete a custom event type. Built-in types (food, walk, etc.) cannot be deleted — use update_event_type to modify them instead. Events already logged with this type are preserved in the database.",
+      "fields": {
+        "event_type": {
+          "name": "Event type key",
+          "description": "The event type key to delete (e.g. my_custom_type)."
+        }
+      }
+    },
+    "set_shown_types": {
+      "name": "Set Shown Types",
+      "description": "Set the visible event type buttons (and their order) for a specific dog. Changes persist server-side so they sync across all devices and dashboards.",
+      "fields": {
+        "dog": {
+          "name": "Dog",
+          "description": "The name of the dog to configure."
+        },
+        "shown_types": {
+          "name": "Shown types",
+          "description": "Ordered list of event type keys to show as buttons."
+        }
+      }
     }
   }
 }

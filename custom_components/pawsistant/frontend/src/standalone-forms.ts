@@ -8,6 +8,7 @@
 import type { HomeAssistant, EventMeta, BackdateFormResult, WeightFormResult } from './types';
 import { logEvent } from './services';
 import { _escapeHTML, toDisplayWeight } from './utils';
+import { T, TP } from './i18n';
 
 /* ── Form CSS (injected once per shadow root) ───────────────────────── */
 
@@ -157,22 +158,22 @@ export function openBackdateForm(opts: BackdateFormOptions): Promise<BackdateFor
   const formWrap = document.createElement('div');
   formWrap.className = 'inline-form';
   formWrap.innerHTML = `
-    <div class="form-title">${meta.emoji} Log ${_escapeHTML(meta.label)}</div>
+    <div class="form-title">${meta.emoji} ${T('form.log_title', { label: _escapeHTML(meta.label) })}</div>
     <div class="form-field">
       <div class="form-label-row">
-        <label class="form-label" for="pbc-minutes-slider">Minutes ago</label>
-        <span class="slider-value" id="pbc-slider-display">Now</span>
+        <label class="form-label" for="pbc-minutes-slider">${T('form.minutes_ago')}</label>
+        <span class="slider-value" id="pbc-slider-display">${T('time.now')}</span>
       </div>
-      <input type="range" id="pbc-minutes-slider" min="0" max="480" step="1" value="0" aria-label="Minutes ago" />
+      <input type="range" id="pbc-minutes-slider" min="0" max="480" step="1" value="0" aria-label="${T('form.minutes_ago')}" />
     </div>
     <div class="form-field">
-      <label class="form-label" for="pbc-backdate-note">Note (optional)</label>
-      <input type="text" id="pbc-backdate-note" placeholder="Add a note\u2026" />
+      <label class="form-label" for="pbc-backdate-note">${T('form.note_optional')}</label>
+      <input type="text" id="pbc-backdate-note" placeholder="${T('form.note_placeholder')}" />
     </div>
     <div class="form-error" id="pbc-form-error" role="alert"></div>
     <div class="form-actions">
-      <button class="btn-cancel" id="pbc-form-cancel">Cancel</button>
-      <button class="btn-submit" id="pbc-form-submit">Log Event</button>
+      <button class="btn-cancel" id="pbc-form-cancel">${T('form.cancel')}</button>
+      <button class="btn-submit" id="pbc-form-submit">${T('form.log_event')}</button>
     </div>
   `;
   root.appendChild(formWrap);
@@ -184,7 +185,7 @@ export function openBackdateForm(opts: BackdateFormOptions): Promise<BackdateFor
     const v = parseInt(slider.value, 10);
     const t = new Date(Date.now() - v * 60000);
     const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    display.textContent = (v === 0 ? 'Now' : v === 1 ? '1 min ago' : `${v} min ago`) + ` \u00b7 ${timeStr}`;
+    display.textContent = (v === 0 ? T('time.now') : TP('time.min_ago', v)) + ` \u00b7 ${timeStr}`;
   };
   slider.addEventListener('input', updateDisplay);
   updateDisplay();
@@ -214,7 +215,7 @@ export function openBackdateForm(opts: BackdateFormOptions): Promise<BackdateFor
         .catch((err) => {
           const errEl = formWrap.querySelector<HTMLElement>('#pbc-form-error');
           if (errEl) {
-            errEl.textContent = 'Failed to log event. Please try again.';
+            errEl.textContent = T('form.error.log_event');
             errEl.classList.add('visible');
           }
           console.error('[pawsistant-button-card] backdate failed:', err);
@@ -251,9 +252,9 @@ export function openWeightForm(opts: WeightFormOptions): Promise<WeightFormResul
   const formWrap = document.createElement('div');
   formWrap.className = 'inline-form';
   formWrap.innerHTML = `
-    <div class="form-title">\u2696\uFE0F Log Weight</div>
+    <div class="form-title">\u2696\uFE0F ${T('form.log_weight_title')}</div>
     <div class="form-field">
-      <label class="form-label" for="pbc-weight-input">Weight (${_escapeHTML(displayUnit)})</label>
+      <label class="form-label" for="pbc-weight-input">${T('form.weight_label', { unit: _escapeHTML(displayUnit) })}</label>
       <div class="weight-input-row">
         <input type="number" id="pbc-weight-input" min="1" max="999" step="0.1"
           inputmode="decimal"
@@ -264,8 +265,8 @@ export function openWeightForm(opts: WeightFormOptions): Promise<WeightFormResul
     </div>
     <div class="form-error" id="pbc-form-error" role="alert"></div>
     <div class="form-actions">
-      <button class="btn-cancel" id="pbc-form-cancel">Cancel</button>
-      <button class="btn-submit" id="pbc-form-submit">Log Weight</button>
+      <button class="btn-cancel" id="pbc-form-cancel">${T('form.cancel')}</button>
+      <button class="btn-submit" id="pbc-form-submit">${T('form.log_weight_title')}</button>
     </div>
   `;
   root.appendChild(formWrap);
@@ -298,7 +299,7 @@ export function openWeightForm(opts: WeightFormOptions): Promise<WeightFormResul
         .catch((err) => {
           const errEl = formWrap.querySelector<HTMLElement>('#pbc-form-error');
           if (errEl) {
-            errEl.textContent = 'Failed to log weight. Please try again.';
+            errEl.textContent = T('form.error.log_weight');
             errEl.classList.add('visible');
           }
           console.error('[pawsistant-button-card] weight failed:', err);

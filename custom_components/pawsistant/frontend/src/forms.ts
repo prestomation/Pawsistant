@@ -6,6 +6,7 @@
  */
 
 import type { PawsistantCard } from './index';
+import { T, TP } from './i18n';
 import { getMeta } from './registry';
 import { logEvent, updateEvent } from './services';
 import { stateNum, _escapeHTML, toDisplayWeight } from './utils';
@@ -25,22 +26,22 @@ export function openBackdateForm(
   const formEl = card.shadowRoot!.getElementById('inline-form')!;
   /* U10 — proper <label for> on all inputs */
   formEl.innerHTML = `
-      <div class="form-title">${meta.emoji} Log ${_escapeHTML(meta.label)}</div>
+      <div class="form-title">${meta.emoji} ${T('form.log_title', { label: _escapeHTML(meta.label) })}</div>
       <div class="form-field">
         <div class="form-label-row">
-          <label class="form-label" for="minutes-slider">Minutes ago</label>
-          <span class="slider-value" id="slider-display">Now</span>
+          <label class="form-label" for="minutes-slider">${T('form.minutes_ago')}</label>
+          <span class="slider-value" id="slider-display">${T('time.now')}</span>
         </div>
-        <input type="range" id="minutes-slider" min="0" max="480" step="1" value="0" aria-label="Minutes ago" />
+        <input type="range" id="minutes-slider" min="0" max="480" step="1" value="0" aria-label="${T('form.minutes_ago')}" />
       </div>
       <div class="form-field">
-        <label class="form-label" for="backdate-note">Note (optional)</label>
-        <input type="text" id="backdate-note" placeholder="Add a note…" />
+        <label class="form-label" for="backdate-note">${T('form.note_optional')}</label>
+        <input type="text" id="backdate-note" placeholder="${_escapeHTML(T('form.note_placeholder'))}" />
       </div>
       <div class="form-error" id="form-error" role="alert"></div>
       <div class="form-actions">
-        <button class="btn-cancel" id="form-cancel">Cancel</button>
-        <button class="btn-submit" id="form-submit">Log Event</button>
+        <button class="btn-cancel" id="form-cancel">${T('form.cancel')}</button>
+        <button class="btn-submit" id="form-submit">${T('form.log_event')}</button>
       </div>
     `;
 
@@ -50,7 +51,7 @@ export function openBackdateForm(
     const v = parseInt(slider.value, 10);
     const t = new Date(Date.now() - v * 60000);
     const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    display.textContent = (v === 0 ? 'Now' : v === 1 ? '1 min ago' : `${v} min ago`) + ` · ${timeStr}`;
+    display.textContent = (v === 0 ? T('time.now') : TP('time.min_ago', v)) + ` · ${timeStr}`;
   };
   slider.addEventListener('input', _updateSliderDisplay);
   _updateSliderDisplay();
@@ -79,9 +80,9 @@ export function openWeightForm(card: PawsistantCard, activeBtn: HTMLButtonElemen
   const formEl = card.shadowRoot!.getElementById('inline-form')!;
   /* U10 — <label for>, U21 — inputmode="decimal", U22 — configurable unit */
   formEl.innerHTML = `
-      <div class="form-title">⚖️ Log Weight</div>
+      <div class="form-title">⚖️ ${T('form.log_weight_title')}</div>
       <div class="form-field">
-        <label class="form-label" for="weight-input">Weight (${_escapeHTML(unit)})</label>
+        <label class="form-label" for="weight-input">${T('form.weight_label', { unit: _escapeHTML(unit) })}</label>
         <div class="weight-input-row">
           <input type="number" id="weight-input" min="1" max="999" step="0.1"
             inputmode="decimal"
@@ -92,8 +93,8 @@ export function openWeightForm(card: PawsistantCard, activeBtn: HTMLButtonElemen
       </div>
       <div class="form-error" id="form-error" role="alert"></div>
       <div class="form-actions">
-        <button class="btn-cancel" id="form-cancel">Cancel</button>
-        <button class="btn-submit" id="form-submit">Log Weight</button>
+        <button class="btn-cancel" id="form-cancel">${T('form.cancel')}</button>
+        <button class="btn-submit" id="form-submit">${T('form.log_weight_title')}</button>
       </div>
     `;
 
@@ -144,9 +145,9 @@ export function openEditForm(
   if (isWeight) {
     const displayVal = value ? (unit === 'kg' ? Math.round(Number(value) / 2.20462 * 10) / 10 : value) : '';
     formEl.innerHTML = `
-        <div class="form-title">⚖️ Edit Weight</div>
+        <div class="form-title">⚖️ ${T('form.edit_weight_title')}</div>
         <div class="form-field">
-          <label class="form-label" for="weight-input">Weight (${_escapeHTML(unit)})</label>
+          <label class="form-label" for="weight-input">${T('form.weight_label', { unit: _escapeHTML(unit) })}</label>
           <div class="weight-input-row">
             <input type="number" id="weight-input" min="1" max="999" step="0.1"
               inputmode="decimal"
@@ -157,8 +158,8 @@ export function openEditForm(
         </div>
         <div class="form-error" id="form-error" role="alert"></div>
         <div class="form-actions">
-          <button class="btn-cancel" id="form-cancel">Cancel</button>
-          <button class="btn-submit" id="form-submit">Update Weight</button>
+          <button class="btn-cancel" id="form-cancel">${T('form.cancel')}</button>
+          <button class="btn-submit" id="form-submit">${T('form.update_weight')}</button>
         </div>
       `;
     formEl.querySelector('#form-cancel')!.addEventListener('click', () => closeForm(card));
@@ -175,22 +176,22 @@ export function openEditForm(
     });
   } else {
     formEl.innerHTML = `
-        <div class="form-title">${meta.emoji} Edit ${_escapeHTML(meta.label)}</div>
+        <div class="form-title">${meta.emoji} ${T('form.edit_title', { label: _escapeHTML(meta.label) })}</div>
         <div class="form-field">
           <div class="form-label-row">
-            <label class="form-label" for="minutes-slider">Minutes ago</label>
-            <span class="slider-value" id="slider-display">Now</span>
+            <label class="form-label" for="minutes-slider">${T('form.minutes_ago')}</label>
+            <span class="slider-value" id="slider-display">${T('time.now')}</span>
           </div>
-          <input type="range" id="minutes-slider" min="0" max="480" step="1" value="${minutesAgo}" aria-label="Minutes ago" />
+          <input type="range" id="minutes-slider" min="0" max="480" step="1" value="${minutesAgo}" aria-label="${T('form.minutes_ago')}" />
         </div>
         <div class="form-field">
-          <label class="form-label" for="backdate-note">Note (optional)</label>
-          <input type="text" id="backdate-note" placeholder="Add a note…" value="${_escapeHTML(note || '')}" />
+          <label class="form-label" for="backdate-note">${T('form.note_optional')}</label>
+          <input type="text" id="backdate-note" placeholder="${_escapeHTML(T('form.note_placeholder'))}" value="${_escapeHTML(note || '')}" />
         </div>
         <div class="form-error" id="form-error" role="alert"></div>
         <div class="form-actions">
-          <button class="btn-cancel" id="form-cancel">Cancel</button>
-          <button class="btn-submit" id="form-submit">Update Event</button>
+          <button class="btn-cancel" id="form-cancel">${T('form.cancel')}</button>
+          <button class="btn-submit" id="form-submit">${T('form.update_event')}</button>
         </div>
       `;
 
@@ -200,7 +201,7 @@ export function openEditForm(
       const v = parseInt(slider.value, 10);
       const t = new Date(Date.now() - v * 60000);
       const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      display.textContent = (v === 0 ? 'Now' : v === 1 ? '1 min ago' : `${v} min ago`) + ` · ${timeStr}`;
+      display.textContent = (v === 0 ? T('time.now') : TP('time.min_ago', v)) + ` · ${timeStr}`;
     };
     slider.addEventListener('input', _updateSliderDisplay);
     _updateSliderDisplay();
@@ -242,7 +243,7 @@ export function submitBackdate(
     .catch(err => {
       /* U11 — show error in form instead of just console.error */
       console.error('[pawsistant-card] log_event (backdate) failed:', err);
-      showFormError(card, 'Failed to log event. Please try again.');
+      showFormError(card, T('form.error.log_event'));
     });
 }
 
@@ -259,7 +260,7 @@ export function submitWeight(card: PawsistantCard, btn: HTMLButtonElement, value
     .catch(err => {
       /* U11 — show error in form */
       console.error('[pawsistant-card] log_event (weight) failed:', err);
-      showFormError(card, 'Failed to log weight. Please try again.');
+      showFormError(card, T('form.error.log_weight'));
     });
 }
 
@@ -277,7 +278,7 @@ export function submitEdit(card: PawsistantCard, updates: Record<string, unknown
     })
     .catch(err => {
       console.error('[pawsistant-card] update_event failed:', err);
-      showFormError(card, 'Failed to update event. Please try again.');
+      showFormError(card, T('form.error.update_event'));
     });
 }
 

@@ -4,6 +4,7 @@
 
 import type { HomeAssistant, PawsistantCardConfig } from './types';
 import { _escapeHTML, dogNamesFromHass } from './utils';
+import { T } from './i18n';
 
 export class PawsistantCardEditor extends HTMLElement {
   _config: PawsistantCardConfig = { type: 'custom:pawsistant-card', dog: '' };
@@ -63,18 +64,18 @@ export class PawsistantCardEditor extends HTMLElement {
       </style>
       <div class="form">
         <div>
-          <label class="field-label" for="ed-dog">Pet *</label>
+          <label class="field-label" for="ed-dog">${T('editor.pet')}</label>
           ${dogNames.length > 0
             ? `<select id="ed-dog" name="dog">
-                <option value="">— select a pet —</option>
+                <option value="">${T('editor.select_pet')}</option>
                 ${dogNames.map(n => `<option value="${esc(n)}"${cfg.dog === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}
               </select>`
-            : `<input id="ed-dog" name="dog" value="${esc(cfg.dog || '')}" placeholder="Sharky" />
-               <div class="hint">No dogs found — enter a name manually or set up dogs via the integration options.</div>`
+            : `<input id="ed-dog" name="dog" value="${esc(cfg.dog || '')}" placeholder="${esc(T('editor.pet_placeholder'))}" />
+               <div class="hint">${T('editor.no_dogs_hint')}</div>`
           }
         </div>
         <div>
-          <label class="field-label" for="ed-weight-unit">Weight unit</label>
+          <label class="field-label" for="ed-weight-unit">${T('editor.weight_unit')}</label>
           <select id="ed-weight-unit" name="weight_unit">
             <option value="lbs" ${weightUnit === 'lbs' ? 'selected' : ''}>lbs</option>
             <option value="kg" ${weightUnit === 'kg' ? 'selected' : ''}>kg</option>
