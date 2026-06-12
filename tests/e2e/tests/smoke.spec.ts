@@ -54,4 +54,22 @@ test.describe('Pawsistant card — smoke', () => {
     await expect(card.locator('.event-types-panel-title')).toContainText('Event Types');
     await expect(card.locator('#et-add-btn')).toContainText('Add Event Type');
   });
+
+  test('button card opens and closes the event log popup', async ({ page }) => {
+    const errors = trackCardErrors(page);
+    await openDashboard(page);
+    const bcard = page.locator('pawsistant-button-card').first();
+
+    await bcard.locator('#pbc-log-btn').click();
+    const dialog = bcard.locator('.pbc-dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('.pbc-dialog-title')).toContainText('Testdog');
+    // Timeline body shows rows or a localized empty state — never a raw key
+    await expect(dialog.locator('.timeline-body')).not.toContainText('timeline.');
+
+    await dialog.locator('#pbc-dialog-close').click();
+    await expect(bcard.locator('.pbc-overlay')).toHaveCount(0);
+
+    expect(errors, `card errors:\n${errors.join('\n')}`).toHaveLength(0);
+  });
 });

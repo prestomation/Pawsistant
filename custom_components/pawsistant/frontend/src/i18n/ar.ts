@@ -85,6 +85,7 @@ export const ar: Dict = {
   'editor.no_buttons': 'لم تتم إضافة أي أزرار بعد.',
   'editor.add_event_type_option': '— إضافة نوع حدث —',
   'editor.show_pet_name': 'إظهار اسم الحيوان الأليف',
+  'editor.show_event_log': 'إظهار زر سجل الأحداث',
   'editor.buttons_per_row': 'الأزرار لكل صف',
   'editor.move_up': 'تحريك لأعلى',
   'editor.move_down': 'تحريك لأسفل',
@@ -105,6 +106,11 @@ export const ar: Dict = {
   'eventtype.weight': 'الوزن',
   'eventtype.teeth': 'الأسنان',
   'eventtype.grooming': 'العناية',
+
+  'button_card.open_event_log': 'فتح سجل الأحداث',
+
+  'popup.close': 'إغلاق',
+
 
   'time.now': 'الآن',
   'time.min_ago.one': 'منذ {n} دقيقة',

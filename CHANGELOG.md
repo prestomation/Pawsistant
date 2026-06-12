@@ -2,6 +2,14 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.20.0b1] - 2026-06-12
+
+### Added
+- **Event log popup for the button card** — the compact button card can now open the full event timeline in a popup, matching the big card's functionality (day headers, load-more pagination, edit, and two-tap delete). Enable it with the new opt-in `show_event_log` option (also available as a checkbox in the card editor); a 📋 button then appears in the card header. The popup is keyboard accessible (focus trap, Escape/backdrop/✕ to close) and localized in all 16 languages.
+
+### Notes
+- Beta release — feedback on the popup UX welcome before the stable 2.20.0 release.
+
 ## [2.19.0] - 2026-06-12
 
 ### Added

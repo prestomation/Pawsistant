@@ -85,6 +85,7 @@ export const tr: Dict = {
   'editor.no_buttons': 'Henüz düğme eklenmedi.',
   'editor.add_event_type_option': '— olay türü ekle —',
   'editor.show_pet_name': 'Evcil hayvan adını göster',
+  'editor.show_event_log': 'Olay günlüğü düğmesini göster',
   'editor.buttons_per_row': 'Satır başına düğme',
   'editor.move_up': 'Yukarı taşı',
   'editor.move_down': 'Aşağı taşı',
@@ -105,6 +106,11 @@ export const tr: Dict = {
   'eventtype.weight': 'Kilo',
   'eventtype.teeth': 'Dişler',
   'eventtype.grooming': 'Bakım',
+
+  'button_card.open_event_log': 'Olay günlüğünü aç',
+
+  'popup.close': 'Kapat',
+
 
   'time.now': 'Şimdi',
   'time.min_ago.one': '{n} dk önce',

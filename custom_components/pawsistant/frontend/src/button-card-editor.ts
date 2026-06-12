@@ -43,6 +43,7 @@ export class PawsistantButtonCardEditor extends HTMLElement {
     const esc = _escapeHTML;
     const weightUnit = cfg.weight_unit || 'lbs';
     const showTitle = cfg.show_title !== false;
+    const showEventLog = cfg.show_event_log === true;
     const buttonsPerRow = cfg.buttons_per_row || 3;
 
     const dogNames = dogNamesFromHass(this.__hass);
@@ -211,6 +212,10 @@ export class PawsistantButtonCardEditor extends HTMLElement {
           <input type="checkbox" id="ed-show-title" name="show_title" ${showTitle ? 'checked' : ''} />
           <label class="field-label" for="ed-show-title" style="margin-bottom:0">${esc(T('editor.show_pet_name'))}</label>
         </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="ed-show-event-log" name="show_event_log" ${showEventLog ? 'checked' : ''} />
+          <label class="field-label" for="ed-show-event-log" style="margin-bottom:0">${esc(T('editor.show_event_log'))}</label>
+        </div>
         <div>
           <label class="field-label" for="ed-weight-unit">${esc(T('editor.weight_unit'))}</label>
           <select id="ed-weight-unit" name="weight_unit">
@@ -238,6 +243,12 @@ export class PawsistantButtonCardEditor extends HTMLElement {
     const showTitleCb = this.shadowRoot!.querySelector<HTMLInputElement>('#ed-show-title');
     if (showTitleCb) {
       showTitleCb.addEventListener('change', () => this._scalarChanged());
+    }
+
+    // Show event log checkbox
+    const showEventLogCb = this.shadowRoot!.querySelector<HTMLInputElement>('#ed-show-event-log');
+    if (showEventLogCb) {
+      showEventLogCb.addEventListener('change', () => this._scalarChanged());
     }
 
     // Buttons per row slider
@@ -323,6 +334,16 @@ export class PawsistantButtonCardEditor extends HTMLElement {
         delete newConfig['show_title'];
       } else {
         newConfig['show_title'] = false;
+      }
+    }
+
+    // Show event log — defaults off, only persist when true
+    const showEventLogCb = this.shadowRoot!.querySelector<HTMLInputElement>('#ed-show-event-log');
+    if (showEventLogCb) {
+      if (showEventLogCb.checked) {
+        newConfig['show_event_log'] = true;
+      } else {
+        delete newConfig['show_event_log'];
       }
     }
 

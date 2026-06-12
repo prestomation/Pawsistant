@@ -85,6 +85,7 @@ export const ptBR: Dict = {
   'editor.no_buttons': 'Nenhum botão adicionado ainda.',
   'editor.add_event_type_option': '— adicionar tipo de evento —',
   'editor.show_pet_name': 'Mostrar nome do pet',
+  'editor.show_event_log': 'Mostrar botão do registro de eventos',
   'editor.buttons_per_row': 'Botões por linha',
   'editor.move_up': 'Mover para cima',
   'editor.move_down': 'Mover para baixo',
@@ -105,6 +106,11 @@ export const ptBR: Dict = {
   'eventtype.weight': 'Peso',
   'eventtype.teeth': 'Dentes',
   'eventtype.grooming': 'Banho e tosa',
+
+  'button_card.open_event_log': 'Abrir registro de eventos',
+
+  'popup.close': 'Fechar',
+
 
   'time.now': 'Agora',
   'time.min_ago.one': 'há {n} min',

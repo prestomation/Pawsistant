@@ -10,6 +10,7 @@ views:
         dog: Testdog
       - type: custom:pawsistant-button-card
         dog: Testdog
+        show_event_log: true
         buttons:
           - event_type: poop
           - event_type: pee

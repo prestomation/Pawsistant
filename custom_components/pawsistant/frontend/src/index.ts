@@ -7,13 +7,14 @@
 
 import { CARD_VERSION } from 'card-version';
 import {
-  FALLBACK_EVENT_META, EVENT_META, DEFAULT_SHOWN_TYPES,
+  EVENT_META, DEFAULT_SHOWN_TYPES,
   buildRegistry, getMeta, iconToEmoji
 } from './registry';
 import { METRIC_LABELS } from './metrics';
 import { setupLongPress, withCooldown } from './interactions';
 import { logEvent, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services';
-import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, toDisplayWeight } from './utils';
+import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, toDisplayWeight, getDogId } from './utils';
+import { buildEventRowsHTML, displayLabel } from './timeline-render';
 
 /* ── Slugify helper for auto-generating event type keys ─────────────── */
 function slugifyEventKey(name: string): string {
@@ -205,49 +206,13 @@ export class PawsistantCard extends HTMLElement {
 
   /* ── Dog ID lookup ─────────────────────────────────────────────────── */
   _getDogId() {
-    if (!this._hass || !this._config.dog) return null;
-    const dogNameLower = this._config.dog.toLowerCase();
-    for (const state of Object.values(this._hass.states)) {
-      const attrs = state.attributes || {};
-      if (attrs.dog && attrs.dog.toLowerCase() === dogNameLower && attrs.dog_id) {
-        return attrs.dog_id;
-      }
-    }
-    return null;
+    return getDogId(this._hass, this._config.dog);
   }
 
   /* ── Fetch timeline via WebSocket ──────────────────────────────────── */
   /* Generate HTML for a batch of events, including day headers */
   _buildEventRowsHTML(events: TimelineEvent[], registry: Registry, lastDate: string | null) {
-    let html = '';
-    let currentDate = lastDate;
-    for (const ev of events) {
-      const meta = getMeta(ev.type, registry);
-      const evDate = ev.date || '';
-      if (evDate !== currentDate) {
-        const label = evDate || ev.day || '';
-        html += `<div class="day-header">${_escapeHTML(label)}</div>`;
-        currentDate = evDate;
-      }
-      const noteHTML = ev.note
-        ? `<span class="event-note" title="${_escapeHTML(ev.note)}">${_escapeHTML(ev.note)}</span>`
-        : '';
-      const delAriaLabel = T('timeline.aria.delete_event', { type: _escapeHTML(ev.type), time: _escapeHTML(ev.time) });
-      const editAriaLabel = T('timeline.aria.edit_event', { type: _escapeHTML(ev.type), time: _escapeHTML(ev.time) });
-      html += `
-          <div class="event-row" data-id="${_escapeHTML(ev.event_id)}" data-type="${_escapeHTML(ev.type)}" data-timestamp="${_escapeHTML(ev.iso || '')}" data-note="${_escapeHTML(ev.note || '')}" data-value="${ev.value !== undefined && ev.value !== null ? ev.value : ''}"  >
-            <span class="event-emoji">${meta.emoji}</span>
-            <span class="event-time">${_escapeHTML(ev.time)}</span>
-            <span class="event-type">${_escapeHTML(this._displayLabel(ev.type, meta))}</span>
-            ${noteHTML}
-            <button class="edit-btn" data-id="${_escapeHTML(ev.event_id)}"
-              aria-label="${editAriaLabel}" title="${T('timeline.aria.edit_event_title')}">✏️</button>
-            <button class="delete-btn" data-id="${_escapeHTML(ev.event_id)}"
-              aria-label="${delAriaLabel}" title="${T('timeline.aria.delete_event_title')}">🗑️</button>
-          </div>
-        `;
-    }
-    return { html, lastDate: currentDate };
+    return buildEventRowsHTML(events, registry, lastDate);
   }
 
   async _fetchTimeline(append = false) {
@@ -354,10 +319,7 @@ export class PawsistantCard extends HTMLElement {
    *  custom types keep their user-defined name. Never use this for the
    *  days_since sensor friendly_name match — that must stay the English label. */
   _displayLabel(type: string, meta: { label: string }): string {
-    if (type in FALLBACK_EVENT_META) {
-      return T(`eventtype.${type}` as Parameters<typeof T>[0]);
-    }
-    return meta.label;
+    return displayLabel(type, meta as Parameters<typeof displayLabel>[1]);
   }
 
   _render() {

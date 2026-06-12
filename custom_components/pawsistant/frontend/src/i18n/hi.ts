@@ -85,6 +85,7 @@ export const hi: Dict = {
   'editor.no_buttons': 'अभी तक कोई बटन नहीं जोड़ा गया।',
   'editor.add_event_type_option': '— घटना प्रकार जोड़ें —',
   'editor.show_pet_name': 'पालतू का नाम दिखाएँ',
+  'editor.show_event_log': 'इवेंट लॉग बटन दिखाएँ',
   'editor.buttons_per_row': 'प्रति पंक्ति बटन',
   'editor.move_up': 'ऊपर ले जाएँ',
   'editor.move_down': 'नीचे ले जाएँ',
@@ -105,6 +106,11 @@ export const hi: Dict = {
   'eventtype.weight': 'वज़न',
   'eventtype.teeth': 'दाँत',
   'eventtype.grooming': 'ग्रूमिंग',
+
+  'button_card.open_event_log': 'इवेंट लॉग खोलें',
+
+  'popup.close': 'बंद करें',
+
 
   'time.now': 'अभी',
   'time.min_ago.one': '{n} मिनट पहले',

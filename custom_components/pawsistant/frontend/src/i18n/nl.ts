@@ -85,6 +85,7 @@ export const nl: Dict = {
   'editor.no_buttons': 'Nog geen knoppen toegevoegd.',
   'editor.add_event_type_option': '— gebeurtenistype toevoegen —',
   'editor.show_pet_name': 'Naam huisdier tonen',
+  'editor.show_event_log': 'Gebeurtenissenlogboek-knop tonen',
   'editor.buttons_per_row': 'Knoppen per rij',
   'editor.move_up': 'Omhoog',
   'editor.move_down': 'Omlaag',
@@ -105,6 +106,11 @@ export const nl: Dict = {
   'eventtype.weight': 'Gewicht',
   'eventtype.teeth': 'Tanden',
   'eventtype.grooming': 'Vachtverzorging',
+
+  'button_card.open_event_log': 'Gebeurtenissenlogboek openen',
+
+  'popup.close': 'Sluiten',
+
 
   'time.now': 'Nu',
   'time.min_ago.one': '{n} min geleden',

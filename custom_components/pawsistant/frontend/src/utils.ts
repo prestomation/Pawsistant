@@ -100,6 +100,19 @@ export function toDisplayWeight(lbs: number | null | undefined, unit: string): n
   return lbs;
 }
 
+/** Find the dog_id for a dog name by scanning hass.states (case-insensitive). */
+export function getDogId(hass: HomeAssistant | null, dogName: string | undefined): string | null {
+  if (!hass || !dogName) return null;
+  const nameLower = dogName.toLowerCase();
+  for (const state of Object.values(hass.states)) {
+    const attrs = state.attributes || {};
+    if (attrs.dog && attrs.dog.toLowerCase() === nameLower && attrs.dog_id) {
+      return attrs.dog_id;
+    }
+  }
+  return null;
+}
+
 /** Extract unique dog names from hass entity attributes. */
 export function dogNamesFromHass(hass: HomeAssistant | null): string[] {
   if (!hass) return [];

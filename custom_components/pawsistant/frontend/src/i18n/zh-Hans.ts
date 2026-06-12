@@ -85,6 +85,7 @@ export const zhHans: Dict = {
   'editor.no_buttons': '尚未添加任何按钮。',
   'editor.add_event_type_option': '— 添加事件类型 —',
   'editor.show_pet_name': '显示宠物名称',
+  'editor.show_event_log': '显示事件日志按钮',
   'editor.buttons_per_row': '每行按钮数',
   'editor.move_up': '上移',
   'editor.move_down': '下移',
@@ -105,6 +106,11 @@ export const zhHans: Dict = {
   'eventtype.weight': '体重',
   'eventtype.teeth': '牙齿',
   'eventtype.grooming': '美容',
+
+  'button_card.open_event_log': '打开事件日志',
+
+  'popup.close': '关闭',
+
 
   'time.now': '现在',
   'time.min_ago.one': '{n} 分钟前',
