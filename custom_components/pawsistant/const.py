@@ -5,7 +5,7 @@ import re
 DOMAIN = "pawsistant"
 PLATFORMS = ["sensor"]
 URL_BASE = "/pawsistant"
-CARD_VERSION = "2.18.0"
+CARD_VERSION = "2.19.0b1"
 
 # ── Validation constants ──────────────────────────────────────────────────
 MDI_ICON_RE = re.compile(r"^(mdi|hass):[a-z0-9-]+$")

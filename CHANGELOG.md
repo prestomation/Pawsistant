@@ -2,6 +2,14 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [2.19.0b1] - 2026-06-12
+
+### Added
+- **Full localization (15 languages)** — the integration's config/options/services UI and the Lovelace card UI are now translatable, with Arabic, German, Spanish, French, Hindi, Italian, Japanese, Korean, Dutch, Polish, Portuguese (BR), Russian, Swedish, Turkish, and Simplified Chinese shipped. The card follows your Home Assistant language automatically.
+
+### Notes
+- Beta release — translations are machine-authored with structure/placeholder validation; native-speaker wording review still welcome.
+
 ## [2.18.0] - 2026-05-29
 
 ### Added
