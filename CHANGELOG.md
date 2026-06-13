@@ -2,6 +2,11 @@
 
 All notable changes to Pawsistant will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Button card no longer shows the dog's weight on every button** — the `last_value` metric reads the dog's weight sensor, so any non-weight button configured with `last_value` (e.g. vaccine, vet, symptoms) incorrectly displayed the dog's weight. `last_value` now only appears on the weight button.
+
 ## [2.20.0b1] - 2026-06-12
 
 ### Added

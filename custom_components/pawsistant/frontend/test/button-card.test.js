@@ -145,6 +145,30 @@ describe('PawsistantButtonCard', () => {
       const text = card._metricText('custom_thing');
       expect(text).toBe('');
     });
+
+    it('does not show the dog weight on non-weight buttons with last_value metric', () => {
+      // Regression: the weight (last_value) reads the dog's weight sensor,
+      // which is weight-specific. A non-weight button assigned last_value
+      // must not display the dog's weight (forum bug: weight shown on every
+      // button — Gewicht/Symptome/Tierarzt/Impfung all read "5.2 kg").
+      const card = new PawsistantButtonCard();
+      card.setConfig({
+        type: 'custom:pawsistant-button-card',
+        dog: 'Sharky',
+        buttons: [{ event_type: 'weight' }, { event_type: 'vaccine' }],
+      });
+      const hass = mockHass();
+      hass.states['sensor.sharky_recent_timeline'].attributes.button_metrics = {
+        weight: 'last_value',
+        vaccine: 'last_value',
+      };
+      card._hass = hass;
+
+      // The weight button still shows the weight…
+      expect(card._metricText('weight')).toBe('(80 lbs)');
+      // …but the vaccine button must not borrow it.
+      expect(card._metricText('vaccine')).toBe('');
+    });
   });
 
   describe('error cards', () => {

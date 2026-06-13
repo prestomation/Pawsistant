@@ -108,7 +108,7 @@ export class PawsistantButtonCard extends HTMLElement {
         else if (btn.event_type === 'poop') parts.push(String(stateNum(hass, ent.poop_count) ?? ''));
       } else if (metric === 'days_since') {
         parts.push(String(stateNum(hass, ent.medicine_days) ?? ''));
-      } else if (metric === 'last_value') {
+      } else if (metric === 'last_value' && btn.event_type === 'weight') {
         parts.push(String(stateNum(hass, ent.weight) ?? ''));
       } else if (metric === 'hours_since') {
         parts.push(String(stateAttr(hass, ent.timeline, 'last_' + btn.event_type + '_ts') ?? ''));
@@ -152,8 +152,13 @@ export class PawsistantButtonCard extends HTMLElement {
         }
       }
     } else if (metric === 'last_value') {
-      const w = toDisplayWeight(stateNum(hass, ent.weight), weightUnit);
-      if (w !== null) return `(${T('metric.last_value', { v: w, unit: ' ' + weightUnit })})`;
+      // last_value is sourced from the dog's weight sensor, which is
+      // weight-specific. Only the weight button may display it — otherwise
+      // every last_value button would borrow the dog's weight.
+      if (eventType === 'weight') {
+        const w = toDisplayWeight(stateNum(hass, ent.weight), weightUnit);
+        if (w !== null) return `(${T('metric.last_value', { v: w, unit: ' ' + weightUnit })})`;
+      }
     } else if (metric === 'hours_since') {
       const lastTs = stateAttr(hass, ent.timeline, 'last_' + eventType + '_ts') as string | null;
       if (lastTs) {
