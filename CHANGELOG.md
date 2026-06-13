@@ -4,16 +4,12 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed
-Button metric badges are fixed on **both** the main card and the button card (the two cards previously had duplicate logic; the per-type computation is now shared so they can't drift):
-- **No longer shows the dog's weight on every button** — the `last_value` metric reads the dog's weight sensor, so any non-weight button configured with `last_value` (e.g. vaccine, vet, symptoms) incorrectly displayed the dog's weight. `last_value` now only appears on the weight button.
-- **`daily_count` now works for every event type** — previously only the pee and poop buttons showed a daily count; `walk`, `food`, `water`, `treat`, and custom event types showed nothing even though counts were available.
-- **`hours_since` now works** — the metric previously displayed nothing for any event type because the card read a value the integration never published. It now shows the hours since the most recent event of that type.
-- **`days_since` no longer leaks between event types that share a display name** — two event types both named e.g. "Shot" now each show their own value instead of both showing the first one's. Per-type metric values are now resolved by the language-independent event type rather than by matching button text.
-- **`days_since` no longer shows a negative value** — a future-dated event now reads `0d` instead of `-1d`.
+## [2.20.0b2] - 2026-06-13
 
-Other:
-- **The main card now shows a clear "Unknown dog" error** when its `dog:` is set to a name that doesn't exist, instead of rendering an empty card (matching the button card).
+### Fixed
+- **Button metric badges now show correct values on both the main card and the button card.** Several metrics were broken or misleading: the dog's weight showed up on every button, and `daily_count`, `hours_since`, and `days_since` either did nothing or only worked for a few event types. All four now compute correctly for every event type, and `days_since` no longer leaks between two event types that share a display name.
+- **Future-dated events no longer show a negative age** — `days_since` now reads `0d` instead of `-1d`.
+- **The main card now shows a clear "Unknown dog" error** when its configured `dog` doesn't exist, instead of silently rendering an empty card.
 
 ## [2.20.0b1] - 2026-06-12
 
