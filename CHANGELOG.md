@@ -10,6 +10,10 @@ Button metric badges are fixed on **both** the main card and the button card (th
 - **`daily_count` now works for every event type** — previously only the pee and poop buttons showed a daily count; `walk`, `food`, `water`, `treat`, and custom event types showed nothing even though counts were available.
 - **`hours_since` now works** — the metric previously displayed nothing for any event type because the card read a value the integration never published. It now shows the hours since the most recent event of that type.
 - **`days_since` no longer leaks between event types that share a display name** — two event types both named e.g. "Shot" now each show their own value instead of both showing the first one's. Per-type metric values are now resolved by the language-independent event type rather than by matching button text.
+- **`days_since` no longer shows a negative value** — a future-dated event now reads `0d` instead of `-1d`.
+
+Other:
+- **The main card now shows a clear "Unknown dog" error** when its `dog:` is set to a name that doesn't exist, instead of rendering an empty card (matching the button card).
 
 ## [2.20.0b1] - 2026-06-12
 

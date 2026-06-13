@@ -322,12 +322,46 @@ export class PawsistantCard extends HTMLElement {
     return displayLabel(type, meta as Parameters<typeof displayLabel>[1]);
   }
 
+  _renderError(message: string) {
+    this.shadowRoot!.innerHTML = `
+      <style>
+        :host { display: block; }
+        .pc-error {
+          background: var(--ha-card-background, var(--card-background-color, #fff));
+          border-radius: var(--ha-card-border-radius, 12px);
+          border: 1px solid var(--error-color, #EF5350);
+          padding: 16px;
+          text-align: center;
+          color: var(--error-color, #EF5350);
+          font-size: 13px;
+        }
+      </style>
+      <ha-card class="pc-error">${message}</ha-card>
+    `;
+  }
+
   _render() {
     const hass = this._hass;
     if (!hass) return;
 
     const root = this.shadowRoot!;
     const cfg = this._config;
+
+    // Validate the configured dog exists, so a misconfigured `dog:` surfaces a
+    // clear error instead of an empty card (matches the button card).
+    const dogNameLower = (cfg.dog || '').toLowerCase();
+    let dogFound = false;
+    for (const state of Object.values(hass.states)) {
+      if (state.attributes?.dog?.toLowerCase() === dogNameLower) {
+        dogFound = true;
+        break;
+      }
+    }
+    if (!dogFound) {
+      this._renderError(`Unknown dog: "${_escapeHTML(cfg.dog)}"`);
+      return;
+    }
+
     const ent = this._entities();
     const dogName = cfg.dog;
     const { registry, metrics } = this._registry();

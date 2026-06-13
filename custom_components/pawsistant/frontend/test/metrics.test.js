@@ -67,6 +67,12 @@ describe('resolveMetricValue (shared by both cards)', () => {
     expect(resolveMetricValue(h, ent, 'Sharky', 'vaccine', 'days_since', 'lbs', registry)).toBe(12);
   });
 
+  it('days_since: clamps a negative (future-dated event) value to 0', () => {
+    const h = hass({ days_since: { vaccine: -0.1 } });
+    // Must not render "(-1d)".
+    expect(resolveMetricValue(h, ent, 'Sharky', 'vaccine', 'days_since', 'lbs', registry)).toBe(0);
+  });
+
   it('last_value: only the weight type returns a value (no leak)', () => {
     const h = hass();
     expect(resolveMetricValue(h, ent, 'Sharky', 'weight', 'last_value', 'lbs', registry)).toBe(80);

@@ -52,7 +52,7 @@ export function resolveMetricValue(
   }
   if (metric === 'days_since') {
     const d = daysSinceMap[eventType];
-    if (typeof d === 'number') return Math.floor(d);
+    if (typeof d === 'number') return Math.max(0, Math.floor(d));
     // Backward-compat: match the dedicated days-since sensor by friendly name.
     const meta = getMeta(eventType, registry);
     const daysLabel = `days since ${meta.label.toLowerCase()}`;
@@ -60,7 +60,7 @@ export function resolveMetricValue(
       if (st.attributes?.dog?.toLowerCase() === dog?.toLowerCase() &&
           (st.attributes?.friendly_name as string | undefined)?.toLowerCase().endsWith(daysLabel)) {
         const daysVal = parseFloat(st.state);
-        if (!isNaN(daysVal)) return Math.floor(daysVal);
+        if (!isNaN(daysVal)) return Math.max(0, Math.floor(daysVal));
       }
     }
     return null;
