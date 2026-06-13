@@ -11,6 +11,7 @@
 - Run: `pytest tests/ -v`
 - Only push when all tests pass.
 - **Update RELEASE.md and AGENTS.md** whenever there are architectural or workflow changes (new CI steps, build process changes, branch protection updates, etc.). These docs must stay accurate.
+- **Always post screenshots to the PR (never commit them) when a change adds, changes, or fixes UI.** Capture the relevant card/dashboard state (e.g. via the Playwright e2e harness in `tests/e2e/`) and attach the image(s) to the PR description or as a PR comment so reviewers can see the before/after. Do **not** commit screenshot files into the repo.
 
 ## Project Structure
 
