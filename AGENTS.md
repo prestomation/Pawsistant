@@ -11,6 +11,7 @@
 - Run: `pytest tests/ -v`
 - Only push when all tests pass.
 - **Update RELEASE.md and AGENTS.md** whenever there are architectural or workflow changes (new CI steps, build process changes, branch protection updates, etc.). These docs must stay accurate.
+- **Always post screenshots to the PR when a change adds, changes, or fixes UI.** Capture the relevant card/dashboard state with the Playwright e2e harness (see `tests/e2e/screenshots.capture.ts`), commit the PNG(s) under `docs/images/`, and embed them in the PR description (or a PR comment) via a `raw.githubusercontent.com/<owner>/<repo>/<commit-sha>/docs/images/<file>.png` URL pinned to the commit that added them — this is how reviewers see before/after without the GitHub web composer. (Example: PR #56.)
 
 ## Project Structure
 
@@ -45,7 +46,7 @@ When adding new sensors: always include `"dog": self._dog_name` in `extra_state_
 
 - **Backend** (config/options/services UI): `strings.json` is the source of truth; per-locale files live in `translations/<lang>.json`. They are kept in lockstep by `tests/unit/test_translations.py`, which enforces an identical key tree, non-empty values, and matching `{placeholder}` tokens for every locale. After editing `strings.json`, update every `translations/*.json` (the test will fail otherwise).
 - **Card frontend**: a dependency-free module at `frontend/src/i18n/`. `en.ts` is the typed source of truth (`TranslationKey`/`Dict`); each locale is a `Dict`; `locales.ts` is the registry. The card reads `hass.language` and calls `setLang()` in its `hass` setter; render code uses the ambient `T()`/`TP()` wrappers. `frontend/test/i18n.test.js` asserts every locale mirrors the English key set.
-- **Built-in event-type labels** are localized for **display only** (`_displayLabel`). The English label is still used for `days_since` sensor `friendly_name` matching — never localize that path.
+- **Built-in event-type labels** are localized for **display only** (`_displayLabel`). The button card reads per-type metric values (daily_count / days_since / hours_since) from the timeline sensor's `daily_counts` / `days_since` / `last_event_ts` map attributes, keyed by the language-independent `event_type`. A legacy `friendly_name`-suffix match for `days_since` remains only as a backward-compat fallback — it uses the English label, so never localize that fallback path.
 
 ## Browser e2e tests (Playwright)
 

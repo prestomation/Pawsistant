@@ -145,6 +145,81 @@ describe('PawsistantButtonCard', () => {
       const text = card._metricText('custom_thing');
       expect(text).toBe('');
     });
+
+    it('does not show the dog weight on non-weight buttons with last_value metric', () => {
+      // Regression: the weight (last_value) reads the dog's weight sensor,
+      // which is weight-specific. A non-weight button assigned last_value
+      // must not display the dog's weight (forum bug: weight shown on every
+      // button — Gewicht/Symptome/Tierarzt/Impfung all read "5.2 kg").
+      const card = new PawsistantButtonCard();
+      card.setConfig({
+        type: 'custom:pawsistant-button-card',
+        dog: 'Sharky',
+        buttons: [{ event_type: 'weight' }, { event_type: 'vaccine' }],
+      });
+      const hass = mockHass();
+      hass.states['sensor.sharky_recent_timeline'].attributes.button_metrics = {
+        weight: 'last_value',
+        vaccine: 'last_value',
+      };
+      card._hass = hass;
+
+      // The weight button still shows the weight…
+      expect(card._metricText('weight')).toBe('(80 lbs)');
+      // …but the vaccine button must not borrow it.
+      expect(card._metricText('vaccine')).toBe('');
+    });
+
+    it('shows daily_count for non-pee/poop and custom types from the daily_counts map', () => {
+      const card = new PawsistantButtonCard();
+      card.setConfig({
+        type: 'custom:pawsistant-button-card',
+        dog: 'Sharky',
+        buttons: [{ event_type: 'walk' }, { event_type: 'playtime' }],
+      });
+      const hass = mockHass();
+      const tl = hass.states['sensor.sharky_recent_timeline'].attributes;
+      tl.button_metrics = { walk: 'daily_count', playtime: 'daily_count' };
+      tl.daily_counts = { walk: 4, playtime: 1 };
+      card._hass = hass;
+      // Previously these silently showed nothing because the card only knew pee/poop.
+      expect(card._metricText('walk')).toBe('(4 today)');
+      expect(card._metricText('playtime')).toBe('(1 today)');
+    });
+
+    it('shows hours_since for any type from the last_event_ts map', () => {
+      const card = new PawsistantButtonCard();
+      card.setConfig({
+        type: 'custom:pawsistant-button-card',
+        dog: 'Sharky',
+        buttons: [{ event_type: 'playtime' }],
+      });
+      const hass = mockHass();
+      const tl = hass.states['sensor.sharky_recent_timeline'].attributes;
+      tl.button_metrics = { playtime: 'hours_since' };
+      tl.last_event_ts = { playtime: new Date(Date.now() - 3 * 3600000).toISOString() };
+      card._hass = hass;
+      // Previously hours_since read a last_<type>_ts attribute the backend never set.
+      expect(card._metricText('playtime')).toBe('(3 hours)');
+    });
+
+    it('resolves days_since per-type from the map without label collisions', () => {
+      // Two event types sharing a display name ("Shot") must show their own
+      // value, not the first matching sensor's (the old friendly-name match leaked).
+      const card = new PawsistantButtonCard();
+      card.setConfig({
+        type: 'custom:pawsistant-button-card',
+        dog: 'Sharky',
+        buttons: [{ event_type: 'rabies' }, { event_type: 'distemper' }],
+      });
+      const hass = mockHass(['Sharky'], { rabies: { name: 'Shot' }, distemper: { name: 'Shot' } });
+      const tl = hass.states['sensor.sharky_recent_timeline'].attributes;
+      tl.button_metrics = { rabies: 'days_since', distemper: 'days_since' };
+      tl.days_since = { rabies: 10.2, distemper: 99.8 };
+      card._hass = hass;
+      expect(card._metricText('rabies')).toBe('(10d)');
+      expect(card._metricText('distemper')).toBe('(99d)');
+    });
   });
 
   describe('error cards', () => {

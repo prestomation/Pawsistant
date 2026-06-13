@@ -10,10 +10,10 @@ import {
   EVENT_META, DEFAULT_SHOWN_TYPES,
   buildRegistry, getMeta, iconToEmoji
 } from './registry';
-import { METRIC_LABELS } from './metrics';
+import { METRIC_LABELS, resolveMetricValue } from './metrics';
 import { setupLongPress, withCooldown } from './interactions';
 import { logEvent, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services';
-import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, toDisplayWeight, getDogId } from './utils';
+import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, getDogId } from './utils';
 import { buildEventRowsHTML, displayLabel } from './timeline-render';
 
 /* ── Slugify helper for auto-generating event type keys ─────────────── */
@@ -322,18 +322,50 @@ export class PawsistantCard extends HTMLElement {
     return displayLabel(type, meta as Parameters<typeof displayLabel>[1]);
   }
 
+  _renderError(message: string) {
+    this.shadowRoot!.innerHTML = `
+      <style>
+        :host { display: block; }
+        .pc-error {
+          background: var(--ha-card-background, var(--card-background-color, #fff));
+          border-radius: var(--ha-card-border-radius, 12px);
+          border: 1px solid var(--error-color, #EF5350);
+          padding: 16px;
+          text-align: center;
+          color: var(--error-color, #EF5350);
+          font-size: 13px;
+        }
+      </style>
+      <ha-card class="pc-error">${message}</ha-card>
+    `;
+  }
+
   _render() {
     const hass = this._hass;
     if (!hass) return;
 
     const root = this.shadowRoot!;
     const cfg = this._config;
+
+    // Validate the configured dog exists, so a misconfigured `dog:` surfaces a
+    // clear error instead of an empty card (matches the button card).
+    const dogNameLower = (cfg.dog || '').toLowerCase();
+    let dogFound = false;
+    for (const state of Object.values(hass.states)) {
+      if (state.attributes?.dog?.toLowerCase() === dogNameLower) {
+        dogFound = true;
+        break;
+      }
+    }
+    if (!dogFound) {
+      this._renderError(`Unknown dog: "${_escapeHTML(cfg.dog)}"`);
+      return;
+    }
+
     const ent = this._entities();
     const dogName = cfg.dog;
     const { registry, metrics } = this._registry();
 
-    const peeCount = stateNum(hass, ent.pee_count);
-    const poopCount = stateNum(hass, ent.poop_count);
     const medDays = stateNum(hass, ent.medicine_days);
     // Use WS-fetched events if available; fall back to sensor attributes for backward compat
     const events: TimelineEvent[] = this._timelineFetched
@@ -376,34 +408,17 @@ export class PawsistantCard extends HTMLElement {
       const meta = getMeta(type, registry);
       const isWeight = type === 'weight';
 
-      /* Inline count/stat for supported types */
+      /* Inline count/stat for supported types. Per-type value resolution is
+       * shared with the button card (see metrics.ts); this card formats the
+       * value in its own compact style. */
       let countSuffix = '';
       const metric = metrics[type] || 'daily_count';
-      if (metric === 'daily_count') {
-        if (type === 'pee' && peeCount !== null) countSuffix = ` (${peeCount})`;
-        else if (type === 'poop' && poopCount !== null) countSuffix = ` (${poopCount})`;
-      } else if (metric === 'days_since') {
-        // Look up the days_since sensor for this specific event type
-        const daysLabel = `days since ${meta.label.toLowerCase()}`;
-        let daysVal: number | null = null;
-        for (const [eid, st] of Object.entries(hass.states)) {
-          if (st.attributes?.dog?.toLowerCase() === cfg.dog?.toLowerCase() &&
-              st.attributes?.friendly_name?.toLowerCase().endsWith(daysLabel)) {
-            daysVal = parseFloat(st.state);
-            if (!isNaN(daysVal)) break;
-          }
-        }
-        if (daysVal !== null && !isNaN(daysVal)) countSuffix = ` (${Math.floor(daysVal)}d)`;
-      } else if (metric === 'last_value') {
-        const w = toDisplayWeight(stateNum(hass, ent.weight), weightUnit);
-        if (w !== null) countSuffix = ` (${w} ${weightUnit})`;
-      } else if (metric === 'hours_since') {
-        // Show hours since most recent of this type
-        const lastTs = stateAttr(hass, ent.timeline, 'last_' + type + '_ts') as string | null;
-        if (lastTs) {
-          const hrs = Math.floor((Date.now() - new Date(lastTs).getTime()) / 3600000);
-          if (hrs >= 0) countSuffix = ` (${hrs}h)`;
-        }
+      const metricVal = resolveMetricValue(hass, ent, cfg.dog, type, metric, weightUnit, registry);
+      if (metricVal !== null) {
+        if (metric === 'daily_count') countSuffix = ` (${metricVal})`;
+        else if (metric === 'days_since') countSuffix = ` (${metricVal}d)`;
+        else if (metric === 'last_value') countSuffix = ` (${metricVal} ${weightUnit})`;
+        else if (metric === 'hours_since') countSuffix = ` (${metricVal}h)`;
       }
 
       const ariaLabel = isWeight

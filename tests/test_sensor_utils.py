@@ -9,7 +9,12 @@ import zoneinfo
 
 from homeassistant.util import dt as dt_util
 
-from custom_components.pawsistant.sensor import _to_datetime, _count_today, _get_most_recent_event
+from custom_components.pawsistant.sensor import (
+    _to_datetime,
+    _count_today,
+    _get_most_recent_event,
+    _per_type_metric_maps,
+)
 from custom_components.pawsistant.store import _parse_timestamp
 
 PACIFIC = zoneinfo.ZoneInfo("America/Los_Angeles")
@@ -73,6 +78,57 @@ class TestCountToday:
         with patch("custom_components.pawsistant.sensor.dt_util.now", return_value=pacific_11pm), \
              patch("custom_components.pawsistant.sensor.dt_util.DEFAULT_TIME_ZONE", PACIFIC):
             assert _count_today(events, "poop") == 1
+
+
+class TestPerTypeMetricMaps:
+    """The timeline sensor exposes per-type maps so the card can render
+    daily_count / days_since / hours_since for *every* event type (built-in
+    and custom), not just pee/poop."""
+
+    def test_covers_custom_and_builtin_types(self):
+        now_pacific = datetime.now(PACIFIC)
+        today_noon = now_pacific.replace(hour=12, minute=0, second=0, microsecond=0)
+        events = [
+            make_event("walk", today_noon.astimezone(timezone.utc)),
+            make_event("walk", today_noon.astimezone(timezone.utc) - timedelta(hours=1)),
+            make_event("playtime", today_noon.astimezone(timezone.utc)),  # custom type
+        ]
+        with patch("custom_components.pawsistant.sensor.dt_util.now", return_value=now_pacific), \
+             patch("custom_components.pawsistant.sensor.dt_util.DEFAULT_TIME_ZONE", PACIFIC):
+            daily_counts, days_since, last_event_ts = _per_type_metric_maps(events)
+        assert daily_counts == {"walk": 2, "playtime": 1}
+        # days_since ~0 (today) and present for both, including the custom type.
+        # (Exact value depends on wall-clock vs. the noon timestamp, so allow a
+        # sub-day window rather than asserting precisely 0.)
+        assert set(days_since) == {"walk", "playtime"}
+        assert abs(days_since["walk"]) < 1.0
+        assert set(last_event_ts) == {"walk", "playtime"}
+
+    def test_daily_count_zero_when_no_events_today(self):
+        now_pacific = datetime.now(PACIFIC)
+        yesterday = now_pacific - timedelta(days=1, hours=2)
+        events = [make_event("vaccine", yesterday.astimezone(timezone.utc))]
+        with patch("custom_components.pawsistant.sensor.dt_util.now", return_value=now_pacific), \
+             patch("custom_components.pawsistant.sensor.dt_util.DEFAULT_TIME_ZONE", PACIFIC):
+            daily_counts, days_since, last_event_ts = _per_type_metric_maps(events)
+        # Surfaced as 0 (not absent) so a daily_count badge reads "0 today".
+        assert daily_counts == {"vaccine": 0}
+        assert days_since["vaccine"] >= 1.0
+        assert "vaccine" in last_event_ts
+
+    def test_empty_events(self):
+        assert _per_type_metric_maps([]) == ({}, {}, {})
+
+    def test_most_recent_timestamp_per_type(self):
+        older = make_event("food", datetime(2026, 3, 15, 10, tzinfo=timezone.utc))
+        newer = make_event("food", datetime(2026, 3, 16, 10, tzinfo=timezone.utc))
+        with patch("custom_components.pawsistant.sensor.dt_util.now",
+                   return_value=datetime(2026, 3, 17, 10, tzinfo=timezone.utc)), \
+             patch("custom_components.pawsistant.sensor.dt_util.DEFAULT_TIME_ZONE", timezone.utc):
+            _, days_since, last_event_ts = _per_type_metric_maps([older, newer])
+        # Most recent (3/16) wins → ~1 day since, ts reflects the newer event.
+        assert days_since["food"] == 1.0
+        assert last_event_ts["food"].startswith("2026-03-16T10:00:00")
 
 
 class TestGetMostRecentEvent:

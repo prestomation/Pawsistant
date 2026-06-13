@@ -158,6 +158,51 @@ def _days_since(events: list[dict[str, Any]], event_type: str) -> float | None:
     return round(delta.total_seconds() / 86400, 1)
 
 
+def _per_type_metric_maps(
+    events: list[dict[str, Any]],
+) -> tuple[dict[str, int], dict[str, float], dict[str, str]]:
+    """Compute per-event-type metric maps in a single pass over *events*.
+
+    Returns three dicts keyed by event_type, covering every type present in
+    the dog's events so the card can render daily_count / days_since /
+    hours_since for *any* type (built-in or custom):
+
+    * ``daily_counts``  — count of events that occurred today (local tz)
+    * ``days_since``    — decimal days since the most recent event
+    * ``last_event_ts`` — ISO timestamp (local tz) of the most recent event
+
+    These power the button-card metric badges. Without them the card could
+    only show counts for pee/poop and could never show hours_since, and any
+    custom event type was unsupported.
+    """
+    now = dt_util.now()
+    today = now.date()
+    daily_counts: dict[str, int] = {}
+    most_recent: dict[str, datetime] = {}
+
+    for event in events:
+        etype = event.get("event_type")
+        if not etype:
+            continue
+        ts = _to_datetime(event.get("timestamp"))
+        local_ts = ts.astimezone(dt_util.DEFAULT_TIME_ZONE)
+        if local_ts.date() == today:
+            daily_counts[etype] = daily_counts.get(etype, 0) + 1
+        if etype not in most_recent or ts > most_recent[etype]:
+            most_recent[etype] = ts
+
+    days_since: dict[str, float] = {}
+    last_event_ts: dict[str, str] = {}
+    for etype, ts in most_recent.items():
+        days_since[etype] = round((now - ts).total_seconds() / 86400, 1)
+        last_event_ts[etype] = ts.astimezone(dt_util.DEFAULT_TIME_ZONE).isoformat()
+        # Surface a 0 for types that have events historically but none today,
+        # so a daily_count badge reads "0 today" rather than disappearing.
+        daily_counts.setdefault(etype, 0)
+
+    return daily_counts, days_since, last_event_ts
+
+
 # ---------------------------------------------------------------------------
 # Sensor descriptions (typed dataclasses)
 # ---------------------------------------------------------------------------
@@ -521,7 +566,13 @@ class PawsistantRecentTimelineSensor(_PawsistantSensorBase):
                 "note": e.get("note", ""),
                 "event_id": e.get("id", ""),
             })
+        daily_counts, days_since, last_event_ts = _per_type_metric_maps(
+            self._dog_events()
+        )
         return {
             **super().extra_state_attributes,
             "events": timeline,
+            "daily_counts": daily_counts,
+            "days_since": days_since,
+            "last_event_ts": last_event_ts,
         }
