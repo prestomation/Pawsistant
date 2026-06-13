@@ -87,6 +87,11 @@ export function buildHash(hass: HomeAssistant, cfg: PawsistantCardConfig): strin
     JSON.stringify(stateAttr(hass, tEnt, 'event_types') || {}),
     JSON.stringify(stateAttr(hass, tEnt, 'button_metrics') || {}),
     JSON.stringify(stateAttr(hass, tEnt, 'shown_types') || null),
+    // Per-type metric maps drive the button badges (daily_count / days_since /
+    // hours_since); include them so the card re-renders when they change.
+    JSON.stringify(stateAttr(hass, tEnt, 'daily_counts') || {}),
+    JSON.stringify(stateAttr(hass, tEnt, 'days_since') || {}),
+    JSON.stringify(stateAttr(hass, tEnt, 'last_event_ts') || {}),
   ];
   return parts.join('|');
 }
