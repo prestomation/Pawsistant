@@ -99,19 +99,22 @@ export class PawsistantButtonCard extends HTMLElement {
       JSON.stringify(cfg.buttons.map(b => b.event_type)),
       JSON.stringify(stateAttr(hass, ent.timeline, 'event_types') || {}),
       JSON.stringify(stateAttr(hass, ent.timeline, 'button_metrics') || {}),
+      // Per-type metric maps drive every badge except weight's last_value.
+      JSON.stringify(stateAttr(hass, ent.timeline, 'daily_counts') || {}),
+      JSON.stringify(stateAttr(hass, ent.timeline, 'days_since') || {}),
+      JSON.stringify(stateAttr(hass, ent.timeline, 'last_event_ts') || {}),
     ];
-    // Include relevant entity states for metric computation per button
+    // Include relevant entity states for metric computation per button.
     for (const btn of cfg.buttons) {
       const metric = this._getMetric(btn.event_type);
       if (metric === 'daily_count') {
+        // Backward-compat sensors (covered by daily_counts map on newer backends).
         if (btn.event_type === 'pee') parts.push(String(stateNum(hass, ent.pee_count) ?? ''));
         else if (btn.event_type === 'poop') parts.push(String(stateNum(hass, ent.poop_count) ?? ''));
       } else if (metric === 'days_since') {
         parts.push(String(stateNum(hass, ent.medicine_days) ?? ''));
       } else if (metric === 'last_value' && btn.event_type === 'weight') {
         parts.push(String(stateNum(hass, ent.weight) ?? ''));
-      } else if (metric === 'hours_since') {
-        parts.push(String(stateAttr(hass, ent.timeline, 'last_' + btn.event_type + '_ts') ?? ''));
       }
     }
     return parts.join('|');
@@ -132,15 +135,25 @@ export class PawsistantButtonCard extends HTMLElement {
     const weightUnit = cfg.weight_unit === 'kg' ? 'kg' : 'lbs';
     const metric = this._getMetric(eventType);
 
+    // Per-type metric maps exposed by the timeline sensor. These cover every
+    // event type (built-in and custom), so daily_count / days_since /
+    // hours_since work uniformly instead of being hardcoded to a few types.
+    const dailyCounts = (stateAttr(hass, ent.timeline, 'daily_counts') as Record<string, number> | null) || {};
+    const daysSinceMap = (stateAttr(hass, ent.timeline, 'days_since') as Record<string, number> | null) || {};
+    const lastEventTs = (stateAttr(hass, ent.timeline, 'last_event_ts') as Record<string, string> | null) || {};
+
     if (metric === 'daily_count') {
-      if (eventType === 'pee') {
-        const n = stateNum(hass, ent.pee_count);
-        if (n !== null) return `(${T('metric.daily_count', { n })})`;
-      } else if (eventType === 'poop') {
-        const n = stateNum(hass, ent.poop_count);
-        if (n !== null) return `(${T('metric.daily_count', { n })})`;
+      let n: number | null = typeof dailyCounts[eventType] === 'number' ? dailyCounts[eventType] : null;
+      if (n === null) {
+        // Backward-compat: older backends only expose dedicated pee/poop sensors.
+        if (eventType === 'pee') n = stateNum(hass, ent.pee_count);
+        else if (eventType === 'poop') n = stateNum(hass, ent.poop_count);
       }
+      if (n !== null) return `(${T('metric.daily_count', { n })})`;
     } else if (metric === 'days_since') {
+      const d = daysSinceMap[eventType];
+      if (typeof d === 'number') return `(${Math.floor(d)}d)`;
+      // Backward-compat: match the dedicated days-since sensor by friendly name.
       const { registry } = buildRegistry(hass);
       const meta = getMeta(eventType, registry);
       const daysLabel = `days since ${meta.label.toLowerCase()}`;
@@ -160,7 +173,8 @@ export class PawsistantButtonCard extends HTMLElement {
         if (w !== null) return `(${T('metric.last_value', { v: w, unit: ' ' + weightUnit })})`;
       }
     } else if (metric === 'hours_since') {
-      const lastTs = stateAttr(hass, ent.timeline, 'last_' + eventType + '_ts') as string | null;
+      const lastTs = lastEventTs[eventType]
+        || (stateAttr(hass, ent.timeline, 'last_' + eventType + '_ts') as string | null);
       if (lastTs) {
         const hrs = Math.floor((Date.now() - new Date(lastTs).getTime()) / 3600000);
         if (hrs >= 0) return `(${T('metric.hours_since', { n: hrs })})`;

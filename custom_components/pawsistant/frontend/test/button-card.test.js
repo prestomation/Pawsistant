@@ -169,6 +169,57 @@ describe('PawsistantButtonCard', () => {
       // …but the vaccine button must not borrow it.
       expect(card._metricText('vaccine')).toBe('');
     });
+
+    it('shows daily_count for non-pee/poop and custom types from the daily_counts map', () => {
+      const card = new PawsistantButtonCard();
+      card.setConfig({
+        type: 'custom:pawsistant-button-card',
+        dog: 'Sharky',
+        buttons: [{ event_type: 'walk' }, { event_type: 'playtime' }],
+      });
+      const hass = mockHass();
+      const tl = hass.states['sensor.sharky_recent_timeline'].attributes;
+      tl.button_metrics = { walk: 'daily_count', playtime: 'daily_count' };
+      tl.daily_counts = { walk: 4, playtime: 1 };
+      card._hass = hass;
+      // Previously these silently showed nothing because the card only knew pee/poop.
+      expect(card._metricText('walk')).toBe('(4 today)');
+      expect(card._metricText('playtime')).toBe('(1 today)');
+    });
+
+    it('shows hours_since for any type from the last_event_ts map', () => {
+      const card = new PawsistantButtonCard();
+      card.setConfig({
+        type: 'custom:pawsistant-button-card',
+        dog: 'Sharky',
+        buttons: [{ event_type: 'playtime' }],
+      });
+      const hass = mockHass();
+      const tl = hass.states['sensor.sharky_recent_timeline'].attributes;
+      tl.button_metrics = { playtime: 'hours_since' };
+      tl.last_event_ts = { playtime: new Date(Date.now() - 3 * 3600000).toISOString() };
+      card._hass = hass;
+      // Previously hours_since read a last_<type>_ts attribute the backend never set.
+      expect(card._metricText('playtime')).toBe('(3 hours)');
+    });
+
+    it('resolves days_since per-type from the map without label collisions', () => {
+      // Two event types sharing a display name ("Shot") must show their own
+      // value, not the first matching sensor's (the old friendly-name match leaked).
+      const card = new PawsistantButtonCard();
+      card.setConfig({
+        type: 'custom:pawsistant-button-card',
+        dog: 'Sharky',
+        buttons: [{ event_type: 'rabies' }, { event_type: 'distemper' }],
+      });
+      const hass = mockHass(['Sharky'], { rabies: { name: 'Shot' }, distemper: { name: 'Shot' } });
+      const tl = hass.states['sensor.sharky_recent_timeline'].attributes;
+      tl.button_metrics = { rabies: 'days_since', distemper: 'days_since' };
+      tl.days_since = { rabies: 10.2, distemper: 99.8 };
+      card._hass = hass;
+      expect(card._metricText('rabies')).toBe('(10d)');
+      expect(card._metricText('distemper')).toBe('(99d)');
+    });
   });
 
   describe('error cards', () => {
