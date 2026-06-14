@@ -20,15 +20,14 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntry
 
-from homeassistant.core import Event, HomeAssistant, ServiceCall, SupportsResponse, callback
-from homeassistant.helpers.start import async_at_started
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, callback
 from homeassistant.util import dt as dt_util
 try:
     from homeassistant.components.http import StaticPathConfig
@@ -58,6 +57,9 @@ from .const import (
 from . import care_link
 from .coordinator import PawsistantCoordinator
 from .store import PawsistantStore, _parse_timestamp
+
+if TYPE_CHECKING:
+    from homeassistant.core import Event
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -968,6 +970,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Self-heal care schedules once Home Keeper has had a chance to start (recreate
     # tasks a user deleted, or that were configured while Home Keeper was absent).
+    from homeassistant.helpers.start import async_at_started
+
     @callback
     def _schedule_reconcile(_hass: HomeAssistant) -> None:
         async def _run() -> None:
