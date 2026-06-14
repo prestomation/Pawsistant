@@ -10,6 +10,8 @@ Home Keeper is a git test dependency (see requirements-test.txt); if it isn't
 installed the test skips rather than fails, so the rest of the suite still runs.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 pytestmark = pytest.mark.real_ha
@@ -29,8 +31,17 @@ async def _setup_pawsistant(hass) -> MockConfigEntry:
         data={"initial_dog": {"name": "Buddy"}},
     )
     entry.add_to_hass(hass)
-    assert await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
+    # Pawsistant's manifest depends on `frontend` (for its Lovelace card), which needs
+    # the compiled `hass_frontend` package that isn't installed in the test env. We
+    # don't exercise the card here, so mark http/frontend as already set up and stub
+    # the card registration so setup focuses on the store/coordinator/services.
+    hass.config.components.add("http")
+    hass.config.components.add("frontend")
+    with patch(
+        "custom_components.pawsistant._ensure_frontend_registered", new=AsyncMock()
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
     return entry
 
 
