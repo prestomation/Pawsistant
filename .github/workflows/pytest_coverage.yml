@@ -40,14 +40,19 @@ jobs:
           pip install -r requirements-test.txt
           # Unit tests need HA pytest fixtures + mocks (which pulls in pytest-socket)
           pip install pytest-homeassistant-custom-component
+          # Home Keeper's test fake, for tests/test_cross_integration.py only. Kept
+          # separate so a git-availability hiccup can't break other jobs; the test
+          # skips if the import is unavailable.
+          pip install -r requirements-cross-integration.txt
 
       - name: Run unit tests with coverage
         run: |
           # Run real-HA tests first (before any mock contamination)
-          python -m pytest tests/test_sensor_utils.py \
+          python -m pytest tests/test_sensor_utils.py tests/test_cross_integration.py \
             --cov=custom_components/pawsistant --cov-report=term-missing
           # Run all remaining unit tests (use HA mocks), appending coverage
           python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_sensor_utils.py \
+            --ignore=tests/test_cross_integration.py \
             --cov=custom_components/pawsistant --cov-append --cov-report=term-missing
 
       - name: "Generate coverage Comment (and possibly Post to PR)"

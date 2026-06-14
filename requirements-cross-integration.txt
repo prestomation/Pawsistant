@@ -1,0 +1,11 @@
+# Optional test dependency for tests/test_cross_integration.py only.
+#
+# Home Keeper's test fake (home_keeper.testing) lets us verify the two-way task
+# sync against the real contract. Installed straight from git — no PyPI publish
+# required. Kept in its OWN file (not requirements-test.txt) so a git/availability
+# hiccup can't break the unrelated Docker integration job; only the cross-integration
+# test depends on it, and that test skips if the import is missing.
+#
+# Pinned to the feature branch during co-development; switch to main or a tag once
+# prestomation/ha-home-keeper PR #6 merges.
+home-keeper @ git+https://github.com/prestomation/ha-home-keeper@claude/cross-integration-tasks-plan-8uzxul
