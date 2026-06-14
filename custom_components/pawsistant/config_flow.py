@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from typing import Any
 
 import voluptuous as vol
@@ -33,7 +34,8 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from .const import CONF_SPECIES, DEFAULT_SPECIES, DOMAIN, CONF_EVENT_TYPES, CONF_BUTTON_METRICS, DEFAULT_EVENT_TYPES, DEFAULT_BUTTON_METRICS
+from . import care_link
+from .const import CONF_SPECIES, DEFAULT_SPECIES, DOMAIN, CONF_EVENT_TYPES, CONF_BUTTON_METRICS, DEFAULT_EVENT_TYPES, DEFAULT_BUTTON_METRICS, CARE_UNITS, CARE_FREQS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,6 +53,7 @@ ACTION_ADD_DOG = "add_dog"
 ACTION_REMOVE_DOG = "remove_dog"
 ACTION_DONE = "done"
 ACTION_EDIT_EVENT_TYPES = "edit_event_types"
+ACTION_MANAGE_CARE = "manage_care_schedules"
 
 # Allowed button metric values
 VALID_BUTTON_METRICS = ["daily_count", "days_since", "last_value", "hours_since"]
@@ -178,6 +181,8 @@ class PawsistantOptionsFlow(OptionsFlow):
                 return await self.async_step_remove_dog()
             if action == ACTION_EDIT_EVENT_TYPES:
                 return await self.async_step_manage_event_types()
+            if action == ACTION_MANAGE_CARE:
+                return await self.async_step_manage_care_schedules()
             # ACTION_DONE or anything else — close the dialog
             return self.async_create_entry(title="", data={})
 
@@ -198,16 +203,24 @@ class PawsistantOptionsFlow(OptionsFlow):
         # Build a translatable select selector.  Option labels are localized by
         # HA via strings.json -> selector.init_action.options.<value>, so we do
         # NOT pass hardcoded English labels here.
+        options = [
+            SelectOptionDict(value=ACTION_ADD_DOG, label=ACTION_ADD_DOG),
+            SelectOptionDict(value=ACTION_REMOVE_DOG, label=ACTION_REMOVE_DOG),
+            SelectOptionDict(
+                value=ACTION_EDIT_EVENT_TYPES, label=ACTION_EDIT_EVENT_TYPES
+            ),
+        ]
+        # Only surface the Home Keeper care-schedule manager when Home Keeper is
+        # actually installed — Pawsistant works fine without it.
+        if care_link.home_keeper_available(self.hass):
+            options.append(
+                SelectOptionDict(value=ACTION_MANAGE_CARE, label=ACTION_MANAGE_CARE)
+            )
+        options.append(SelectOptionDict(value=ACTION_DONE, label=ACTION_DONE))
+
         action_selector = SelectSelector(
             SelectSelectorConfig(
-                options=[
-                    SelectOptionDict(value=ACTION_ADD_DOG, label=ACTION_ADD_DOG),
-                    SelectOptionDict(value=ACTION_REMOVE_DOG, label=ACTION_REMOVE_DOG),
-                    SelectOptionDict(
-                        value=ACTION_EDIT_EVENT_TYPES, label=ACTION_EDIT_EVENT_TYPES
-                    ),
-                    SelectOptionDict(value=ACTION_DONE, label=ACTION_DONE),
-                ],
+                options=options,
                 mode=SelectSelectorMode.DROPDOWN,
                 translation_key="init_action",
             )
@@ -427,6 +440,132 @@ class PawsistantOptionsFlow(OptionsFlow):
         actions["done"] = "Done"
 
         return vol.Schema({vol.Required("action", default="done"): vol.In(actions)})
+
+    # ------------------------------------------------------------------
+    # Care schedules (Home Keeper cross-integration link)
+    # ------------------------------------------------------------------
+
+    def _care_schedule_label(self, store, schedule: dict[str, Any]) -> str:
+        """Human-readable one-line summary of a care schedule."""
+        dog = store.get_dogs().get(schedule.get("dog_id"), {})
+        et = store.get_event_types().get(schedule.get("event_type"), {})
+        dog_name = dog.get("name", schedule.get("dog_id", "?"))
+        et_name = et.get("name", schedule.get("event_type", "?"))
+        if schedule.get("recurrence_type") == "fixed":
+            cadence = f"{schedule.get('freq', '?')} ×{schedule.get('interval', 1)}"
+        else:
+            cadence = f"every {schedule.get('interval', 1)} {schedule.get('unit', '?')}"
+        return f"{dog_name} · {et_name} — {cadence}"
+
+    async def async_step_manage_care_schedules(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """List care schedules with Add/Delete/Done actions."""
+        store, _ = self._get_store_and_coord()
+        if store is None:
+            return self.async_create_entry(title="", data={})
+
+        schedules = store.get_care_schedules()
+
+        if user_input is not None:
+            action = user_input.get("action", "")
+            if action == "add":
+                return await self.async_step_add_care_schedule()
+            if action == "done":
+                return self.async_create_entry(title="", data={})
+            if action.startswith("delete_"):
+                schedule_id = action[len("delete_") :]
+                removed = await store.remove_care_schedule(schedule_id)
+                if removed is not None:
+                    await care_link.delete_task(self.hass, removed.get("task_id"))
+                return await self.async_step_manage_care_schedules()
+
+        actions = {
+            f"delete_{schedule_id}": f"Delete {self._care_schedule_label(store, schedule)}"
+            for schedule_id, schedule in schedules.items()
+        }
+        actions["add"] = "+ Add care schedule"
+        actions["done"] = "Done"
+
+        return self.async_show_form(
+            step_id="manage_care_schedules",
+            data_schema=vol.Schema(
+                {vol.Required("action", default="done"): vol.In(actions)}
+            ),
+            description_placeholders={"count": str(len(schedules))},
+        )
+
+    async def async_step_add_care_schedule(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Create a care schedule and its linked Home Keeper task."""
+        store, coord = self._get_store_and_coord()
+        if store is None:
+            return self.async_create_entry(title="", data={})
+
+        dogs = store.get_dogs()
+        event_types = store.get_event_types()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            dog_id = user_input.get("dog")
+            event_type = user_input.get("event_type")
+            recurrence_type = user_input.get("recurrence_type", "floating")
+            interval = int(user_input.get("interval", 1) or 1)
+
+            if dog_id not in dogs or event_type not in event_types:
+                errors["base"] = "dog_not_found"
+            elif store.find_care_schedule(dog_id, event_type) is not None:
+                errors["base"] = "schedule_already_exists"
+            elif recurrence_type == "fixed" and not (user_input.get("anchor") or "").strip():
+                errors["anchor"] = "anchor_required"
+
+            if not errors:
+                schedule: dict[str, Any] = {
+                    "dog_id": dog_id,
+                    "event_type": event_type,
+                    "recurrence_type": recurrence_type,
+                    "interval": interval,
+                }
+                if recurrence_type == "fixed":
+                    schedule["freq"] = user_input.get("freq", "MONTHLY")
+                    schedule["anchor"] = user_input["anchor"].strip()
+                else:
+                    schedule["unit"] = user_input.get("unit", "weeks")
+
+                schedule_id = uuid.uuid4().hex
+                schedule["task_id"] = await care_link.create_task(
+                    self.hass, store, schedule_id, schedule
+                )
+                await store.add_care_schedule(schedule_id, schedule)
+                if coord is not None:
+                    await coord.async_refresh()
+                return self.async_create_entry(title="", data={})
+
+        dog_options = {dog_id: dog.get("name", dog_id) for dog_id, dog in dogs.items()}
+        event_type_options = {
+            key: meta.get("name", key) for key, meta in sorted(event_types.items())
+        }
+
+        return self.async_show_form(
+            step_id="add_care_schedule",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("dog"): vol.In(dog_options),
+                    vol.Required("event_type"): vol.In(event_type_options),
+                    vol.Required("recurrence_type", default="floating"): vol.In(
+                        ["floating", "fixed"]
+                    ),
+                    vol.Required("interval", default=1): vol.All(
+                        vol.Coerce(int), vol.Range(min=1)
+                    ),
+                    vol.Optional("unit", default="weeks"): vol.In(CARE_UNITS),
+                    vol.Optional("freq", default="MONTHLY"): vol.In(CARE_FREQS),
+                    vol.Optional("anchor", default=""): str,
+                }
+            ),
+            errors=errors,
+        )
 
     # ------------------------------------------------------------------
     # Step 5: edit_event_type — add or edit a single event type

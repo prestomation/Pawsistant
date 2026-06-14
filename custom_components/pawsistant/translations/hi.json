@@ -89,6 +89,26 @@
           "icon": "mdi: या hass: से शुरू होना चाहिए (जैसे mdi:walk)",
           "metric": "सेंसर बटन पर क्या दिखाना है। daily_count = \"आज 3\", days_since = \"2 दिन\", last_value = \"28.5 lbs\", hours_since = \"5 घंटे\""
         }
+      },
+      "manage_care_schedules": {
+        "title": "Care schedules",
+        "description": "{count} care schedules linked to Home Keeper. Logging the activity and completing the Home Keeper task stay in sync.",
+        "data": {
+          "action": "Select an action"
+        }
+      },
+      "add_care_schedule": {
+        "title": "Add care schedule",
+        "description": "Create a recurring Home Keeper task for a pet activity. Completing it in either place keeps both in sync.",
+        "data": {
+          "dog": "Pet",
+          "event_type": "Activity",
+          "recurrence_type": "Recurrence (floating = from completion, fixed = calendar)",
+          "interval": "Repeat every",
+          "unit": "Unit (floating)",
+          "freq": "Frequency (fixed)",
+          "anchor": "First occurrence, ISO datetime (fixed) e.g. 2026-01-01T08:00:00"
+        }
       }
     },
     "error": {
@@ -103,7 +123,9 @@
       "key_already_exists": "इस ID वाला इवेंट प्रकार पहले से मौजूद है।",
       "invalid_icon_format": "आइकन mdi: या hass: से शुरू होना चाहिए (जैसे mdi:walk)।",
       "invalid_color_format": "रंग एक मान्य hex कोड होना चाहिए (जैसे #4CAF50)।",
-      "invalid_metric": "बटन मेट्रिक इनमें से एक होनी चाहिए: daily_count, days_since, last_value, hours_since।"
+      "invalid_metric": "बटन मेट्रिक इनमें से एक होनी चाहिए: daily_count, days_since, last_value, hours_since।",
+      "schedule_already_exists": "This pet already has a schedule for that activity.",
+      "anchor_required": "A first-occurrence datetime is required for a fixed schedule."
     }
   },
   "selector": {
@@ -112,7 +134,8 @@
         "add_dog": "पालतू जानवर जोड़ें",
         "remove_dog": "पालतू जानवर हटाएं",
         "edit_event_types": "इवेंट प्रकार संपादित करें",
-        "done": "हो गया"
+        "done": "हो गया",
+        "manage_care_schedules": "Manage care schedules"
       }
     }
   },

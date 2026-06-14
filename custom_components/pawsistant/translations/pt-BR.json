@@ -89,6 +89,26 @@
           "icon": "Deve começar com mdi: ou hass: (ex.: mdi:walk)",
           "metric": "O que mostrar no botão do sensor. daily_count = \"3 hoje\", days_since = \"há 2 dias\", last_value = \"28.5 lbs\", hours_since = \"há 5 horas\""
         }
+      },
+      "manage_care_schedules": {
+        "title": "Care schedules",
+        "description": "{count} care schedules linked to Home Keeper. Logging the activity and completing the Home Keeper task stay in sync.",
+        "data": {
+          "action": "Select an action"
+        }
+      },
+      "add_care_schedule": {
+        "title": "Add care schedule",
+        "description": "Create a recurring Home Keeper task for a pet activity. Completing it in either place keeps both in sync.",
+        "data": {
+          "dog": "Pet",
+          "event_type": "Activity",
+          "recurrence_type": "Recurrence (floating = from completion, fixed = calendar)",
+          "interval": "Repeat every",
+          "unit": "Unit (floating)",
+          "freq": "Frequency (fixed)",
+          "anchor": "First occurrence, ISO datetime (fixed) e.g. 2026-01-01T08:00:00"
+        }
       }
     },
     "error": {
@@ -103,7 +123,9 @@
       "key_already_exists": "Já existe um tipo de evento com este ID.",
       "invalid_icon_format": "O ícone deve começar com mdi: ou hass: (ex.: mdi:walk).",
       "invalid_color_format": "A cor deve ser um código hexadecimal válido (ex.: #4CAF50).",
-      "invalid_metric": "A métrica do botão deve ser uma destas: daily_count, days_since, last_value, hours_since."
+      "invalid_metric": "A métrica do botão deve ser uma destas: daily_count, days_since, last_value, hours_since.",
+      "schedule_already_exists": "This pet already has a schedule for that activity.",
+      "anchor_required": "A first-occurrence datetime is required for a fixed schedule."
     }
   },
   "selector": {
@@ -112,7 +134,8 @@
         "add_dog": "Adicionar um pet",
         "remove_dog": "Remover um pet",
         "edit_event_types": "Editar tipos de evento",
-        "done": "Concluído"
+        "done": "Concluído",
+        "manage_care_schedules": "Manage care schedules"
       }
     }
   },

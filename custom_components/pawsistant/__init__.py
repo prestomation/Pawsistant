@@ -20,14 +20,14 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntry
 
-from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, callback
 from homeassistant.util import dt as dt_util
 try:
     from homeassistant.components.http import StaticPathConfig
@@ -54,8 +54,12 @@ from .const import (
     DEFAULT_EVENT_TYPES,
     DEFAULT_BUTTON_METRICS,
 )
+from . import care_link
 from .coordinator import PawsistantCoordinator
 from .store import PawsistantStore, _parse_timestamp
+
+if TYPE_CHECKING:
+    from homeassistant.core import Event
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -452,6 +456,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         await coord.async_refresh()
 
+        # Cross-integration: if this activity has a care schedule, mark the linked
+        # Home Keeper task done too ("the same button"). care_link passes our origin
+        # marker so the resulting completion event is ignored by our own listener.
+        found = store.find_care_schedule(dog_id, event_type)
+        if found:
+            await care_link.complete_task(
+                hass, found[1].get("task_id"), event["timestamp"]
+            )
+
     hass.services.async_register(
         DOMAIN, "log_event", handle_log_event, schema=LOG_EVENT_SCHEMA
     )
@@ -559,6 +572,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         entity_entry.entity_id,
                         dog_name,
                     )
+
+        # Tear down any care schedules (and their Home Keeper tasks) for this dog
+        # before removing it, so no orphaned tasks linger in Home Keeper.
+        for schedule in await store.remove_care_schedules_for_dog(dog_id):
+            await care_link.delete_task(hass, schedule.get("task_id"))
 
         await store.remove_dog(dog_id)
         _LOGGER.info("Removed dog '%s' via service", dog_name)
@@ -864,6 +882,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "Deleted %d historic '%s' events", total_removed, event_type
                 )
 
+        # Tear down any care schedules (and their Home Keeper tasks) that targeted
+        # this event type.
+        for schedule in await store.remove_care_schedules_for_event_type(event_type):
+            await care_link.delete_task(hass, schedule.get("task_id"))
+
         store.sync_save_meta()
         _LOGGER.info("Deleted event type '%s'", event_type)
         await coord.async_refresh()
@@ -905,6 +928,59 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         handle_set_shown_types,
         schema=SET_SHOWN_TYPES_SCHEMA,
     )
+
+    # ------------------------------------------------------------------
+    # Cross-integration: mirror Home Keeper task completions back into events
+    # (Direction B). The opposite direction lives in handle_log_event.
+    # ------------------------------------------------------------------
+
+    async def _mirror_hk_completion(link: dict[str, Any]) -> None:
+        store, coord = _get_store_and_coord()
+        dog_id = link.get("dog_id")
+        event_type = link.get("event_type")
+        schedule_id = link.get("schedule_id")
+        # Prefer the live schedule (robust if the user edited/recreated the task).
+        schedule = store.get_care_schedule(schedule_id) if schedule_id else None
+        if schedule:
+            dog_id = schedule.get("dog_id", dog_id)
+            event_type = schedule.get("event_type", event_type)
+        if not dog_id or not event_type:
+            return
+        if dog_id not in store.get_dogs() or event_type not in store.get_event_types():
+            return  # stale task referencing a removed pet/activity
+        # Write straight to the store, bypassing the log_event service handler — that
+        # is the structural guard that stops this from completing the task again.
+        await store.add_event(
+            dog_id=dog_id,
+            event_type=event_type,
+            note="via Home Keeper",
+            timestamp=link.get("completed_at"),
+        )
+        await coord.async_refresh()
+
+    @callback
+    def _on_hk_task_completed(event: Event) -> None:
+        link = care_link.parse_completion_event(event)
+        if link is not None:
+            hass.async_create_task(_mirror_hk_completion(link))
+
+    entry.async_on_unload(
+        hass.bus.async_listen(care_link.HK_EVENT_TASK_COMPLETED, _on_hk_task_completed)
+    )
+
+    # Self-heal care schedules once Home Keeper has had a chance to start (recreate
+    # tasks a user deleted, or that were configured while Home Keeper was absent).
+    from homeassistant.helpers.start import async_at_started
+
+    @callback
+    def _schedule_reconcile(_hass: HomeAssistant) -> None:
+        async def _run() -> None:
+            store, _coord = _get_store_and_coord()
+            await care_link.reconcile(hass, store)
+
+        hass.async_create_task(_run())
+
+    entry.async_on_unload(async_at_started(hass, _schedule_reconcile))
 
     # Register WebSocket command for paginated timeline (safe to re-register on reload)
     websocket_api.async_register_command(hass, _ws_handle_get_events)

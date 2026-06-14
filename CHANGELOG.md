@@ -4,6 +4,14 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+## [2.21.0b1] - 2026-06-14
+
+### Added
+- **Recurring care schedules with Home Keeper.** When the [Home Keeper](https://github.com/prestomation/ha-home-keeper) task tracker is installed, you can attach a recurring schedule to any pet activity — nail trims, medicine, grooming, and so on — from Pawsistant's options (**Settings → Devices & Services → Pawsistant → Configure → Manage care schedules**). Choose a floating interval ("every N days/weeks/months", which resets when you mark it done) or a fixed calendar schedule. Pawsistant creates the matching Home Keeper task and attaches it to the pet's device, so the task's next-due/overdue/mark-done entities show up right on the pet's page. Completion stays in two-way sync — logging the activity in Pawsistant checks the task off in Home Keeper, and completing it in Home Keeper logs the activity back in Pawsistant, so it's "the same button" in both places. If Home Keeper isn't installed, nothing changes.
+
+### Notes
+- Beta release — feedback on the Home Keeper care-schedule integration welcome before the stable 2.21.0 release.
+
 ## [2.20.0] - 2026-06-14
 
 ### Added

@@ -5,7 +5,7 @@ import re
 DOMAIN = "pawsistant"
 PLATFORMS = ["sensor"]
 URL_BASE = "/pawsistant"
-CARD_VERSION = "2.20.0"
+CARD_VERSION = "2.21.0b1"
 
 # ── Validation constants ──────────────────────────────────────────────────
 MDI_ICON_RE = re.compile(r"^(mdi|hass):[a-z0-9-]+$")
@@ -21,6 +21,15 @@ DEFAULT_SPECIES = "Dog"
 # Config entry option keys
 CONF_EVENT_TYPES = "event_types"
 CONF_BUTTON_METRICS = "button_metrics"
+# Care schedules link a pet activity to a recurring task in the Home Keeper
+# integration (an optional, separate integration). See care_link.py.
+CONF_CARE_SCHEDULES = "care_schedules"
+
+# Recurrence options offered when scheduling a care activity. These mirror Home
+# Keeper's own recurrence model (floating = measured from completion; fixed =
+# anchored calendar schedule).
+CARE_UNITS = ["days", "weeks", "months"]      # floating
+CARE_FREQS = ["DAILY", "WEEKLY", "MONTHLY"]   # fixed
 
 # ── Default event type registry ─────────────────────────────────────────────
 # 14 built-in event types.  All are user-editable: a user may rename "walk" to
