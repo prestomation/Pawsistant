@@ -207,7 +207,23 @@ def _inject_stubs() -> None:
         "weight":   "last_value",
         "vaccine":  "days_since",
     }
+    _const.CONF_CARE_SCHEDULES = "care_schedules"
+    _const.CARE_UNITS = ["days", "weeks", "months"]
+    _const.CARE_FREQS = ["DAILY", "WEEKLY", "MONTHLY"]
     sys.modules["custom_components.pawsistant.const"] = _const
+
+    # custom_components.pawsistant.care_link — stub the optional Home Keeper link.
+    # Defaults make Home Keeper appear absent so existing flow tests are unaffected;
+    # care-schedule tests override these on the stub.
+    _care_link = types.ModuleType("custom_components.pawsistant.care_link")
+    _care_link.HK_EVENT_TASK_COMPLETED = "home_keeper_task_completed"
+    _care_link.ORIGIN = "pawsistant"
+    _care_link.SOURCE_NS = "pawsistant"
+    _care_link.home_keeper_available = MagicMock(return_value=False)
+    _care_link.create_task = AsyncMock(return_value="hk-task-id")
+    _care_link.delete_task = AsyncMock(return_value=None)
+    _care_link.complete_task = AsyncMock(return_value=None)
+    sys.modules["custom_components.pawsistant.care_link"] = _care_link
 
     # custom_components.pawsistant — always stub to prevent __init__.py from
     # being executed when config_flow.py is loaded via importlib.
@@ -254,6 +270,7 @@ _cf_mod = _load_config_flow()
 PawsistantOptionsFlow = _cf_mod.PawsistantOptionsFlow
 ACTION_ADD_DOG = _cf_mod.ACTION_ADD_DOG
 ACTION_REMOVE_DOG = _cf_mod.ACTION_REMOVE_DOG
+ACTION_MANAGE_CARE = _cf_mod.ACTION_MANAGE_CARE
 _slugify_event_key = _cf_mod._slugify_event_key
 ACTION_DONE = _cf_mod.ACTION_DONE
 
@@ -580,3 +597,136 @@ class TestEventTypeStepTitles:
         assert result["type"] == "form"
         assert result["step_id"] == "edit_event_type"
         assert "mode" not in result["description_placeholders"]
+
+
+# ---------------------------------------------------------------------------
+# Tests: care schedules (Home Keeper cross-integration link)
+# ---------------------------------------------------------------------------
+
+
+def _care_link_stub():
+    """Return the stubbed care_link module bound by config_flow, with mocks reset."""
+    cl = _cf_mod.care_link
+    cl.home_keeper_available.reset_mock(return_value=True)
+    cl.create_task.reset_mock(return_value=True)
+    cl.delete_task.reset_mock(return_value=True)
+    cl.create_task.return_value = "hk-task-id"
+    cl.delete_task.return_value = None
+    return cl
+
+
+def _make_care_flow():
+    """A flow whose store is wired for care-schedule methods."""
+    flow, store, coord, hass = _make_flow(SAMPLE_DOGS)
+    store.get_event_types.return_value = {
+        "medicine": {"name": "Medicine"},
+        "grooming": {"name": "Grooming"},
+    }
+    store.get_care_schedules.return_value = {}
+    store.find_care_schedule.return_value = None
+    store.add_care_schedule = AsyncMock()
+    store.remove_care_schedule = AsyncMock(return_value={"task_id": "hk-task-id"})
+    return flow, store, coord, hass
+
+
+class TestCareSchedules:
+    @pytest.mark.asyncio
+    async def test_init_offers_care_option_when_home_keeper_present(self):
+        flow, store, coord, hass = _make_flow(SAMPLE_DOGS)
+        cl = _care_link_stub()
+        cl.home_keeper_available.return_value = True
+        result = await flow.async_step_init()
+        assert result["type"] == "form"
+        cl.home_keeper_available.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_init_routes_to_manage_care(self):
+        flow, store, coord, hass = _make_care_flow()
+        _care_link_stub()
+        result = await flow.async_step_init(
+            user_input={"action": ACTION_MANAGE_CARE}
+        )
+        assert result["type"] == "form"
+        assert result["step_id"] == "manage_care_schedules"
+
+    @pytest.mark.asyncio
+    async def test_add_care_schedule_creates_and_links(self):
+        flow, store, coord, hass = _make_care_flow()
+        cl = _care_link_stub()
+        result = await flow.async_step_add_care_schedule(
+            user_input={
+                "dog": "dog-1",
+                "event_type": "medicine",
+                "recurrence_type": "floating",
+                "interval": 2,
+                "unit": "weeks",
+            }
+        )
+        assert result["type"] == "create_entry"
+        cl.create_task.assert_awaited_once()
+        store.add_care_schedule.assert_awaited_once()
+        # The persisted schedule carries the resolved task_id from Home Keeper.
+        _schedule_id, schedule = store.add_care_schedule.await_args.args
+        assert schedule["dog_id"] == "dog-1"
+        assert schedule["event_type"] == "medicine"
+        assert schedule["recurrence_type"] == "floating"
+        assert schedule["interval"] == 2
+        assert schedule["unit"] == "weeks"
+        assert schedule["task_id"] == "hk-task-id"
+
+    @pytest.mark.asyncio
+    async def test_add_care_schedule_rejects_duplicate(self):
+        flow, store, coord, hass = _make_care_flow()
+        _care_link_stub()
+        store.find_care_schedule.return_value = ("existing-id", {"task_id": "x"})
+        result = await flow.async_step_add_care_schedule(
+            user_input={
+                "dog": "dog-1",
+                "event_type": "medicine",
+                "recurrence_type": "floating",
+                "interval": 1,
+                "unit": "weeks",
+            }
+        )
+        assert result["type"] == "form"
+        assert result["errors"]["base"] == "schedule_already_exists"
+        store.add_care_schedule.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_add_fixed_schedule_requires_anchor(self):
+        flow, store, coord, hass = _make_care_flow()
+        _care_link_stub()
+        result = await flow.async_step_add_care_schedule(
+            user_input={
+                "dog": "dog-1",
+                "event_type": "medicine",
+                "recurrence_type": "fixed",
+                "interval": 1,
+                "freq": "MONTHLY",
+                "anchor": "",
+            }
+        )
+        assert result["type"] == "form"
+        assert result["errors"]["anchor"] == "anchor_required"
+        store.add_care_schedule.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_manage_care_delete_removes_task(self):
+        flow, store, coord, hass = _make_care_flow()
+        cl = _care_link_stub()
+        store.get_care_schedules.return_value = {
+            "sched-1": {
+                "dog_id": "dog-1",
+                "event_type": "medicine",
+                "recurrence_type": "floating",
+                "interval": 2,
+                "unit": "weeks",
+                "task_id": "hk-task-id",
+            }
+        }
+        result = await flow.async_step_manage_care_schedules(
+            user_input={"action": "delete_sched-1"}
+        )
+        assert result["type"] == "form"
+        store.remove_care_schedule.assert_awaited_once_with("sched-1")
+        cl.delete_task.assert_awaited_once_with(hass, "hk-task-id")

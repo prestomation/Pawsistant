@@ -89,6 +89,26 @@
           "icon": "يجب أن يبدأ بـ mdi: أو hass: (مثلاً: mdi:walk)",
           "metric": "ما يظهر على زر المستشعر. daily_count = \"3 اليوم\"، days_since = \"2 أيام\"، last_value = \"28.5 lbs\"، hours_since = \"5 ساعات\""
         }
+      },
+      "manage_care_schedules": {
+        "title": "Care schedules",
+        "description": "{count} care schedules linked to Home Keeper. Logging the activity and completing the Home Keeper task stay in sync.",
+        "data": {
+          "action": "Select an action"
+        }
+      },
+      "add_care_schedule": {
+        "title": "Add care schedule",
+        "description": "Create a recurring Home Keeper task for a pet activity. Completing it in either place keeps both in sync.",
+        "data": {
+          "dog": "Pet",
+          "event_type": "Activity",
+          "recurrence_type": "Recurrence (floating = from completion, fixed = calendar)",
+          "interval": "Repeat every",
+          "unit": "Unit (floating)",
+          "freq": "Frequency (fixed)",
+          "anchor": "First occurrence, ISO datetime (fixed) e.g. 2026-01-01T08:00:00"
+        }
       }
     },
     "error": {
@@ -103,7 +123,9 @@
       "key_already_exists": "يوجد بالفعل نوع حدث بهذا المعرّف.",
       "invalid_icon_format": "يجب أن تبدأ الأيقونة بـ mdi: أو hass: (مثلاً: mdi:walk).",
       "invalid_color_format": "يجب أن يكون اللون رمز hex صالحاً (مثلاً: #4CAF50).",
-      "invalid_metric": "يجب أن يكون مقياس الزر أحد القيم التالية: daily_count, days_since, last_value, hours_since."
+      "invalid_metric": "يجب أن يكون مقياس الزر أحد القيم التالية: daily_count, days_since, last_value, hours_since.",
+      "schedule_already_exists": "This pet already has a schedule for that activity.",
+      "anchor_required": "A first-occurrence datetime is required for a fixed schedule."
     }
   },
   "selector": {
@@ -112,7 +134,8 @@
         "add_dog": "إضافة حيوان أليف",
         "remove_dog": "إزالة حيوان أليف",
         "edit_event_types": "تعديل أنواع الأحداث",
-        "done": "تم"
+        "done": "تم",
+        "manage_care_schedules": "Manage care schedules"
       }
     }
   },

@@ -89,6 +89,26 @@
           "icon": "Doit commencer par mdi: ou hass: (p. ex. mdi:walk)",
           "metric": "Ce qui s'affiche sur le bouton du capteur. daily_count = « 3 aujourd'hui », days_since = « il y a 2 jours », last_value = « 28.5 lbs », hours_since = « il y a 5 heures »"
         }
+      },
+      "manage_care_schedules": {
+        "title": "Care schedules",
+        "description": "{count} care schedules linked to Home Keeper. Logging the activity and completing the Home Keeper task stay in sync.",
+        "data": {
+          "action": "Select an action"
+        }
+      },
+      "add_care_schedule": {
+        "title": "Add care schedule",
+        "description": "Create a recurring Home Keeper task for a pet activity. Completing it in either place keeps both in sync.",
+        "data": {
+          "dog": "Pet",
+          "event_type": "Activity",
+          "recurrence_type": "Recurrence (floating = from completion, fixed = calendar)",
+          "interval": "Repeat every",
+          "unit": "Unit (floating)",
+          "freq": "Frequency (fixed)",
+          "anchor": "First occurrence, ISO datetime (fixed) e.g. 2026-01-01T08:00:00"
+        }
       }
     },
     "error": {
@@ -103,7 +123,9 @@
       "key_already_exists": "Un type d'événement avec cet ID existe déjà.",
       "invalid_icon_format": "L'icône doit commencer par mdi: ou hass: (p. ex. mdi:walk).",
       "invalid_color_format": "La couleur doit être un code hexadécimal valide (p. ex. #4CAF50).",
-      "invalid_metric": "La métrique du bouton doit être l'une des suivantes : daily_count, days_since, last_value, hours_since."
+      "invalid_metric": "La métrique du bouton doit être l'une des suivantes : daily_count, days_since, last_value, hours_since.",
+      "schedule_already_exists": "This pet already has a schedule for that activity.",
+      "anchor_required": "A first-occurrence datetime is required for a fixed schedule."
     }
   },
   "selector": {
@@ -112,7 +134,8 @@
         "add_dog": "Ajouter un animal",
         "remove_dog": "Supprimer un animal",
         "edit_event_types": "Modifier les types d'événement",
-        "done": "Terminé"
+        "done": "Terminé",
+        "manage_care_schedules": "Manage care schedules"
       }
     }
   },

@@ -89,6 +89,26 @@
           "icon": "mdi: または hass: で始まる必要があります（例：mdi:walk）",
           "metric": "センサーボタンに表示する内容。daily_count = \"今日 3 回\"、days_since = \"2 日前\"、last_value = \"28.5 lbs\"、hours_since = \"5 時間前\""
         }
+      },
+      "manage_care_schedules": {
+        "title": "Care schedules",
+        "description": "{count} care schedules linked to Home Keeper. Logging the activity and completing the Home Keeper task stay in sync.",
+        "data": {
+          "action": "Select an action"
+        }
+      },
+      "add_care_schedule": {
+        "title": "Add care schedule",
+        "description": "Create a recurring Home Keeper task for a pet activity. Completing it in either place keeps both in sync.",
+        "data": {
+          "dog": "Pet",
+          "event_type": "Activity",
+          "recurrence_type": "Recurrence (floating = from completion, fixed = calendar)",
+          "interval": "Repeat every",
+          "unit": "Unit (floating)",
+          "freq": "Frequency (fixed)",
+          "anchor": "First occurrence, ISO datetime (fixed) e.g. 2026-01-01T08:00:00"
+        }
       }
     },
     "error": {
@@ -103,7 +123,9 @@
       "key_already_exists": "このIDのイベントタイプはすでに存在します。",
       "invalid_icon_format": "アイコンは mdi: または hass: で始まる必要があります（例：mdi:walk）。",
       "invalid_color_format": "色は有効な16進数コードである必要があります（例：#4CAF50）。",
-      "invalid_metric": "ボタンメトリクスは次のいずれかである必要があります：daily_count、days_since、last_value、hours_since。"
+      "invalid_metric": "ボタンメトリクスは次のいずれかである必要があります：daily_count、days_since、last_value、hours_since。",
+      "schedule_already_exists": "This pet already has a schedule for that activity.",
+      "anchor_required": "A first-occurrence datetime is required for a fixed schedule."
     }
   },
   "selector": {
@@ -112,7 +134,8 @@
         "add_dog": "ペットを追加",
         "remove_dog": "ペットを削除",
         "edit_event_types": "イベントタイプを編集",
-        "done": "完了"
+        "done": "完了",
+        "manage_care_schedules": "Manage care schedules"
       }
     }
   },

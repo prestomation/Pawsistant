@@ -89,6 +89,26 @@
           "icon": "mdi: 또는 hass:로 시작해야 합니다 (예: mdi:walk)",
           "metric": "센서 버튼에 표시할 내용. daily_count = \"오늘 3회\", days_since = \"2일\", last_value = \"28.5 lbs\", hours_since = \"5시간\""
         }
+      },
+      "manage_care_schedules": {
+        "title": "Care schedules",
+        "description": "{count} care schedules linked to Home Keeper. Logging the activity and completing the Home Keeper task stay in sync.",
+        "data": {
+          "action": "Select an action"
+        }
+      },
+      "add_care_schedule": {
+        "title": "Add care schedule",
+        "description": "Create a recurring Home Keeper task for a pet activity. Completing it in either place keeps both in sync.",
+        "data": {
+          "dog": "Pet",
+          "event_type": "Activity",
+          "recurrence_type": "Recurrence (floating = from completion, fixed = calendar)",
+          "interval": "Repeat every",
+          "unit": "Unit (floating)",
+          "freq": "Frequency (fixed)",
+          "anchor": "First occurrence, ISO datetime (fixed) e.g. 2026-01-01T08:00:00"
+        }
       }
     },
     "error": {
@@ -103,7 +123,9 @@
       "key_already_exists": "이 ID를 가진 이벤트 유형이 이미 존재합니다.",
       "invalid_icon_format": "아이콘은 mdi: 또는 hass:로 시작해야 합니다 (예: mdi:walk).",
       "invalid_color_format": "색상은 유효한 hex 코드여야 합니다 (예: #4CAF50).",
-      "invalid_metric": "버튼 메트릭은 daily_count, days_since, last_value, hours_since 중 하나여야 합니다."
+      "invalid_metric": "버튼 메트릭은 daily_count, days_since, last_value, hours_since 중 하나여야 합니다.",
+      "schedule_already_exists": "This pet already has a schedule for that activity.",
+      "anchor_required": "A first-occurrence datetime is required for a fixed schedule."
     }
   },
   "selector": {
@@ -112,7 +134,8 @@
         "add_dog": "반려동물 추가",
         "remove_dog": "반려동물 제거",
         "edit_event_types": "이벤트 유형 편집",
-        "done": "완료"
+        "done": "완료",
+        "manage_care_schedules": "Manage care schedules"
       }
     }
   },

@@ -89,6 +89,26 @@
           "icon": "Muss mit mdi: oder hass: beginnen (z. B. mdi:walk)",
           "metric": "Was auf der Sensor-Schaltfläche angezeigt wird. daily_count = „3 heute“, days_since = „vor 2 Tagen“, last_value = „28.5 lbs“, hours_since = „vor 5 Stunden“"
         }
+      },
+      "manage_care_schedules": {
+        "title": "Care schedules",
+        "description": "{count} care schedules linked to Home Keeper. Logging the activity and completing the Home Keeper task stay in sync.",
+        "data": {
+          "action": "Select an action"
+        }
+      },
+      "add_care_schedule": {
+        "title": "Add care schedule",
+        "description": "Create a recurring Home Keeper task for a pet activity. Completing it in either place keeps both in sync.",
+        "data": {
+          "dog": "Pet",
+          "event_type": "Activity",
+          "recurrence_type": "Recurrence (floating = from completion, fixed = calendar)",
+          "interval": "Repeat every",
+          "unit": "Unit (floating)",
+          "freq": "Frequency (fixed)",
+          "anchor": "First occurrence, ISO datetime (fixed) e.g. 2026-01-01T08:00:00"
+        }
       }
     },
     "error": {
@@ -103,7 +123,9 @@
       "key_already_exists": "Ein Ereignistyp mit dieser ID existiert bereits.",
       "invalid_icon_format": "Das Symbol muss mit mdi: oder hass: beginnen (z. B. mdi:walk).",
       "invalid_color_format": "Die Farbe muss ein gültiger Hex-Code sein (z. B. #4CAF50).",
-      "invalid_metric": "Die Schaltflächen-Metrik muss eine der folgenden sein: daily_count, days_since, last_value, hours_since."
+      "invalid_metric": "Die Schaltflächen-Metrik muss eine der folgenden sein: daily_count, days_since, last_value, hours_since.",
+      "schedule_already_exists": "This pet already has a schedule for that activity.",
+      "anchor_required": "A first-occurrence datetime is required for a fixed schedule."
     }
   },
   "selector": {
@@ -112,7 +134,8 @@
         "add_dog": "Haustier hinzufügen",
         "remove_dog": "Haustier entfernen",
         "edit_event_types": "Ereignistypen bearbeiten",
-        "done": "Fertig"
+        "done": "Fertig",
+        "manage_care_schedules": "Manage care schedules"
       }
     }
   },

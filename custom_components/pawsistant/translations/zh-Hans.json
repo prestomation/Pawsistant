@@ -89,6 +89,26 @@
           "icon": "必须以 mdi: 或 hass: 开头（例如 mdi:walk）",
           "metric": "传感器按钮上显示的内容。daily_count = \"今日 3 次\"，days_since = \"2 天前\"，last_value = \"28.5 lbs\"，hours_since = \"5 小时前\""
         }
+      },
+      "manage_care_schedules": {
+        "title": "Care schedules",
+        "description": "{count} care schedules linked to Home Keeper. Logging the activity and completing the Home Keeper task stay in sync.",
+        "data": {
+          "action": "Select an action"
+        }
+      },
+      "add_care_schedule": {
+        "title": "Add care schedule",
+        "description": "Create a recurring Home Keeper task for a pet activity. Completing it in either place keeps both in sync.",
+        "data": {
+          "dog": "Pet",
+          "event_type": "Activity",
+          "recurrence_type": "Recurrence (floating = from completion, fixed = calendar)",
+          "interval": "Repeat every",
+          "unit": "Unit (floating)",
+          "freq": "Frequency (fixed)",
+          "anchor": "First occurrence, ISO datetime (fixed) e.g. 2026-01-01T08:00:00"
+        }
       }
     },
     "error": {
@@ -103,7 +123,9 @@
       "key_already_exists": "已存在具有此 ID 的事件类型。",
       "invalid_icon_format": "图标必须以 mdi: 或 hass: 开头（例如 mdi:walk）。",
       "invalid_color_format": "颜色必须是有效的十六进制代码（例如 #4CAF50）。",
-      "invalid_metric": "按钮指标必须是以下之一：daily_count、days_since、last_value、hours_since。"
+      "invalid_metric": "按钮指标必须是以下之一：daily_count、days_since、last_value、hours_since。",
+      "schedule_already_exists": "This pet already has a schedule for that activity.",
+      "anchor_required": "A first-occurrence datetime is required for a fixed schedule."
     }
   },
   "selector": {
@@ -112,7 +134,8 @@
         "add_dog": "添加宠物",
         "remove_dog": "移除宠物",
         "edit_event_types": "编辑事件类型",
-        "done": "完成"
+        "done": "完成",
+        "manage_care_schedules": "Manage care schedules"
       }
     }
   },

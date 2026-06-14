@@ -89,6 +89,26 @@
           "icon": "Musi zaczynać się od mdi: lub hass: (np. mdi:walk)",
           "metric": "Co wyświetlać na przycisku czujnika. daily_count = '3 dzisiaj', days_since = '2 dni', last_value = '28.5 lbs', hours_since = '5 godzin'"
         }
+      },
+      "manage_care_schedules": {
+        "title": "Care schedules",
+        "description": "{count} care schedules linked to Home Keeper. Logging the activity and completing the Home Keeper task stay in sync.",
+        "data": {
+          "action": "Select an action"
+        }
+      },
+      "add_care_schedule": {
+        "title": "Add care schedule",
+        "description": "Create a recurring Home Keeper task for a pet activity. Completing it in either place keeps both in sync.",
+        "data": {
+          "dog": "Pet",
+          "event_type": "Activity",
+          "recurrence_type": "Recurrence (floating = from completion, fixed = calendar)",
+          "interval": "Repeat every",
+          "unit": "Unit (floating)",
+          "freq": "Frequency (fixed)",
+          "anchor": "First occurrence, ISO datetime (fixed) e.g. 2026-01-01T08:00:00"
+        }
       }
     },
     "error": {
@@ -103,7 +123,9 @@
       "key_already_exists": "Typ zdarzenia o tym ID już istnieje.",
       "invalid_icon_format": "Ikona musi zaczynać się od mdi: lub hass: (np. mdi:walk).",
       "invalid_color_format": "Kolor musi być prawidłowym kodem hex (np. #4CAF50).",
-      "invalid_metric": "Metryka przycisku musi być jedną z: daily_count, days_since, last_value, hours_since."
+      "invalid_metric": "Metryka przycisku musi być jedną z: daily_count, days_since, last_value, hours_since.",
+      "schedule_already_exists": "This pet already has a schedule for that activity.",
+      "anchor_required": "A first-occurrence datetime is required for a fixed schedule."
     }
   },
   "selector": {
@@ -112,7 +134,8 @@
         "add_dog": "Dodaj pupila",
         "remove_dog": "Usuń pupila",
         "edit_event_types": "Edytuj typy zdarzeń",
-        "done": "Gotowe"
+        "done": "Gotowe",
+        "manage_care_schedules": "Manage care schedules"
       }
     }
   },

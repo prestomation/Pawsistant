@@ -89,6 +89,26 @@
           "icon": "Должен начинаться с mdi: или hass: (например, mdi:walk)",
           "metric": "Что отображается на кнопке датчика. daily_count = «3 сегодня», days_since = «2 дня», last_value = «28.5 lbs», hours_since = «5 часов»"
         }
+      },
+      "manage_care_schedules": {
+        "title": "Care schedules",
+        "description": "{count} care schedules linked to Home Keeper. Logging the activity and completing the Home Keeper task stay in sync.",
+        "data": {
+          "action": "Select an action"
+        }
+      },
+      "add_care_schedule": {
+        "title": "Add care schedule",
+        "description": "Create a recurring Home Keeper task for a pet activity. Completing it in either place keeps both in sync.",
+        "data": {
+          "dog": "Pet",
+          "event_type": "Activity",
+          "recurrence_type": "Recurrence (floating = from completion, fixed = calendar)",
+          "interval": "Repeat every",
+          "unit": "Unit (floating)",
+          "freq": "Frequency (fixed)",
+          "anchor": "First occurrence, ISO datetime (fixed) e.g. 2026-01-01T08:00:00"
+        }
       }
     },
     "error": {
@@ -103,7 +123,9 @@
       "key_already_exists": "Тип события с таким идентификатором уже существует.",
       "invalid_icon_format": "Значок должен начинаться с mdi: или hass: (например, mdi:walk).",
       "invalid_color_format": "Цвет должен быть корректным hex-кодом (например, #4CAF50).",
-      "invalid_metric": "Метрика кнопки должна быть одной из: daily_count, days_since, last_value, hours_since."
+      "invalid_metric": "Метрика кнопки должна быть одной из: daily_count, days_since, last_value, hours_since.",
+      "schedule_already_exists": "This pet already has a schedule for that activity.",
+      "anchor_required": "A first-occurrence datetime is required for a fixed schedule."
     }
   },
   "selector": {
@@ -112,7 +134,8 @@
         "add_dog": "Добавить питомца",
         "remove_dog": "Удалить питомца",
         "edit_event_types": "Редактировать типы событий",
-        "done": "Готово"
+        "done": "Готово",
+        "manage_care_schedules": "Manage care schedules"
       }
     }
   },

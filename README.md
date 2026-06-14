@@ -66,6 +66,19 @@ A local-only dog activity tracker for Home Assistant. Log walks, bathroom breaks
 3. Enter your first dog's name (required), breed, and birth date (both optional)
 4. HA creates sensors for your dog and auto-registers the Pawsistant card as a Lovelace resource
 
+### Care schedules (Home Keeper integration)
+
+If you also run the [Home Keeper](https://github.com/prestomation/ha-home-keeper)
+task tracker, Pawsistant's options (**Settings → Devices & Services → Pawsistant →
+Configure → Manage care schedules**) let you attach a recurring schedule to any pet
+activity — nail trims, medicine, grooming, etc.
+
+Pawsistant creates the matching recurring task in Home Keeper (attached to the pet's
+device) and keeps the two in sync: logging the activity in Pawsistant marks the Home
+Keeper task done, and completing the task in Home Keeper logs the activity in
+Pawsistant — so they behave like the same button. The option only appears when Home
+Keeper is installed.
+
 ---
 
 ## Lovelace Card
