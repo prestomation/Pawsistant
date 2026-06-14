@@ -85,8 +85,7 @@ async def create_task(
     """Create the Home Keeper task for *schedule* and return its task_id (or None).
 
     The task is tagged with an opaque ``source`` namespaced under :data:`SOURCE_NS`
-    so we can find it again. ``add_task`` returns nothing, so the new id is fetched
-    back via ``list_tasks``.
+    so we can find it again; ``add_task`` returns the new id in its service response.
     """
     if not _has(hass, "add_task"):
         return None
@@ -106,29 +105,13 @@ async def create_task(
     }
     data = {k: v for k, v in data.items() if v is not None}
     try:
-        await hass.services.async_call(HK_DOMAIN, "add_task", data, blocking=True)
+        resp = await hass.services.async_call(
+            HK_DOMAIN, "add_task", data, blocking=True, return_response=True
+        )
     except Exception as err:  # noqa: BLE001 — never let an HK error break our flow
         _LOGGER.warning("Home Keeper add_task failed for schedule %s: %s", schedule_id, err)
         return None
-    return await find_task_id(hass, schedule_id)
-
-
-async def find_task_id(hass: HomeAssistant, schedule_id: str) -> str | None:
-    """Return the Home Keeper task id whose source matches *schedule_id*, or None."""
-    if not _has(hass, "list_tasks"):
-        return None
-    try:
-        resp = await hass.services.async_call(
-            HK_DOMAIN, "list_tasks", {}, blocking=True, return_response=True
-        )
-    except Exception as err:  # noqa: BLE001
-        _LOGGER.warning("Home Keeper list_tasks failed: %s", err)
-        return None
-    for task in (resp or {}).get("tasks", []):
-        src = (task.get("source") or {}).get(SOURCE_NS)
-        if isinstance(src, dict) and src.get("schedule_id") == schedule_id:
-            return task.get("id")
-    return None
+    return (resp or {}).get("task_id")
 
 
 async def complete_task(hass: HomeAssistant, task_id: str, completed_at: str | None) -> None:
