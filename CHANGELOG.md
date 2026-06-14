@@ -4,6 +4,16 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+## [2.20.0] - 2026-06-14
+
+### Added
+- **Event log popup for the button card** — the compact button card can now open the full event timeline in a popup, matching the big card's functionality (day headers, load-more pagination, edit, and two-tap delete). Enable it with the new opt-in `show_event_log` option (also available as a checkbox in the card editor); a 📋 button then appears in the card header. The popup is keyboard accessible (focus trap, Escape/backdrop/✕ to close) and localized in all 16 languages.
+
+### Fixed
+- **Button metric badges now show correct values on both the main card and the button card.** Several metrics were broken or misleading: the dog's weight showed up on every button, and `daily_count`, `hours_since`, and `days_since` either did nothing or only worked for a few event types. All four now compute correctly for every event type, and `days_since` no longer leaks between two event types that share a display name.
+- **Future-dated events no longer show a negative age** — `days_since` now reads `0d` instead of `-1d`.
+- **The main card now shows a clear "Unknown dog" error** when its configured `dog` doesn't exist, instead of silently rendering an empty card.
+
 ## [2.20.0b2] - 2026-06-13
 
 ### Fixed
