@@ -6,6 +6,7 @@
 # hiccup can't break the unrelated Docker integration job; only the cross-integration
 # test depends on it, and that test skips if the import is missing.
 #
-# Pinned to the feature branch during co-development; switch to main or a tag once
-# prestomation/ha-home-keeper PR #6 merges.
-home-keeper @ git+https://github.com/prestomation/ha-home-keeper@claude/cross-integration-tasks-plan-8uzxul
+# Pinned to an exact ha-home-keeper commit during co-development: a branch ref can be
+# served stale from pip's cache and wouldn't re-trigger this repo's CI, whereas bumping
+# the SHA does both. Switch to main or a tag once prestomation/ha-home-keeper PR #6 merges.
+home-keeper @ git+https://github.com/prestomation/ha-home-keeper@0ff6e1c16d26dac186d92ffa1b56aa1810d25399
