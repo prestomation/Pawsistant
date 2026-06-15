@@ -79,6 +79,21 @@ def _task_name(store, dog_id: str, event_type: str) -> str:
     return f"{dog.get('name', 'Pet')}: {et_meta.get('name', event_type)}"
 
 
+def _config_entry_id(hass: HomeAssistant) -> str | None:
+    """Return our config entry id for Home Keeper's orphan-detection and deep-link."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    return entries[0].entry_id if entries else None
+
+
+def _completion_prompt(store, dog_id: str, event_type: str) -> str:
+    """Short hint shown in Home Keeper near the Done button."""
+    dog = store.get_dogs().get(dog_id, {})
+    et_meta = store.get_event_types().get(event_type, {})
+    dog_name = dog.get("name", "Pet")
+    event_name = et_meta.get("name", event_type)
+    return f"Log as {dog_name}'s {event_name.lower()}?"
+
+
 async def create_task(
     hass: HomeAssistant, store, schedule_id: str, schedule: dict[str, Any]
 ) -> str | None:
@@ -86,6 +101,8 @@ async def create_task(
 
     The task is tagged with an opaque ``source`` namespaced under :data:`SOURCE_NS`
     so we can find it again; ``add_task`` returns the new id in its service response.
+    A ``managed_by`` block declares Pawsistant as the owner so Home Keeper shows a
+    "Managed by Pawsistant" chip and locks the device/name fields.
     """
     if not _has(hass, "add_task"):
         return None
@@ -100,6 +117,15 @@ async def create_task(
                 "event_type": event_type,
                 "schedule_id": schedule_id,
             }
+        },
+        "managed_by": {
+            "integration": SOURCE_NS,
+            "display_name": "Pawsistant",
+            "icon": "mdi:paw",
+            "locked_fields": ["device_id", "name"],
+            "config_entry_id": _config_entry_id(hass),
+            "completion_prompt": _completion_prompt(store, dog_id, event_type),
+            "deletion_protected": True,
         },
         **_recurrence_payload(schedule),
     }
