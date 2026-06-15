@@ -155,15 +155,16 @@ async def create_task(
             HK_DOMAIN, "add_task", data, blocking=True, return_response=True
         )
     except Exception as err:  # noqa: BLE001 — never let an HK error break our flow
-        # An older Home Keeper's add_task doesn't know the last_completed seed and its
-        # strict schema rejects the whole call. Don't lose the task over a nicety:
-        # retry once without the seed so the task is still created (due-now instead of
-        # measured from the last occurrence). Any other failure is reported as before.
-        if "last_completed" in data:
+        # Retry without the seed ONLY when the failure is an older Home Keeper's
+        # strict add_task schema rejecting the unknown ``last_completed`` key
+        # (detected by the key name in the error). Retrying on any other failure is
+        # unsafe: Home Keeper persists the task *before* it reloads the entry, so a
+        # post-persist error would otherwise make us create a second, duplicate task.
+        if "last_completed" in data and "last_completed" in str(err):
             data.pop("last_completed")
             _LOGGER.debug(
-                "Home Keeper add_task rejected last_completed seed for schedule %s; "
-                "retrying without it (older Home Keeper?)",
+                "Home Keeper add_task rejected the last_completed seed for schedule "
+                "%s; retrying without it (older Home Keeper?)",
                 schedule_id,
             )
             try:

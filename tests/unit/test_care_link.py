@@ -210,7 +210,7 @@ class TestCreateTaskSeed:
 
     async def test_retries_without_seed_when_rejected(self):
         # Simulate an older Home Keeper whose strict schema rejects last_completed:
-        # the first call raises, the retry without the seed succeeds.
+        # the first call raises an error naming the key, the retry without it succeeds.
         def behavior(data):
             if "last_completed" in data:
                 raise ValueError("extra keys not allowed @ data['last_completed']")
@@ -236,3 +236,18 @@ class TestCreateTaskSeed:
         task_id = await care_link.create_task(hass, _Store(), "s1", dict(_SCHEDULE))
         assert task_id is None
         assert len(services.calls) == 1
+
+    async def test_no_retry_when_seed_present_but_error_unrelated(self):
+        # Home Keeper persists the task before reloading the entry, so a failure that
+        # ISN'T about last_completed (e.g. a post-persist reload error) must NOT be
+        # retried — retrying would create a second, duplicate task.
+        def behavior(data):
+            raise RuntimeError("config entry reload failed")
+
+        services = _Services(behavior)
+        hass = _Hass(services)
+        task_id = await care_link.create_task(
+            hass, _Store(), "s1", dict(_SCHEDULE), last_completed="2026-06-01T09:00:00"
+        )
+        assert task_id is None
+        assert len(services.calls) == 1  # no retry

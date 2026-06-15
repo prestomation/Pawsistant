@@ -501,11 +501,13 @@ class PawsistantOptionsFlow(OptionsFlow):
         """ISO timestamp of the pet's most recent logged event of this type, if any.
 
         Used to prefill the schedule's reference date so the user rarely has to type
-        it. Best-effort: ``get_events`` returns newest-first, so the head is the most
-        recent occurrence; any error just means no prefill.
+        it. ``get_all_events`` loads every year file (newest-first) — important for
+        long-cadence activities like an annual vaccination, whose last occurrence can
+        be more than a year ago and would be missed by the lazy current/previous-year
+        search. Best-effort: any error just means no prefill.
         """
         try:
-            events = await store.get_events(dog_id, event_type)
+            events = await store.get_all_events(dog_id, event_type)
         except Exception:  # noqa: BLE001 — prefill is best-effort, never block the flow
             return None
         return events[0].get("timestamp") if events else None

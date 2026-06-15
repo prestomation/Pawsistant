@@ -649,7 +649,8 @@ def _make_care_flow():
     store.add_care_schedule = AsyncMock()
     store.remove_care_schedule = AsyncMock(return_value={"task_id": "hk-task-id"})
     # No prior logged events by default -> the date step has nothing to prefill.
-    store.get_events = AsyncMock(return_value=[])
+    # The date step prefills via get_all_events (searches every year file).
+    store.get_all_events = AsyncMock(return_value=[])
     return flow, store, coord, hass
 
 
@@ -747,10 +748,11 @@ class TestCareSchedules:
         # The date step defaults to the pet's most recent logged event of this type.
         flow, store, coord, hass = _make_care_flow()
         _care_link_stub()
-        store.get_events = AsyncMock(
+        store.get_all_events = AsyncMock(
             return_value=[{"timestamp": "2026-06-01T08:30:00-04:00"}]
         )
-        # Step 1 auto-advances into the date form, which reads the last occurrence.
+        # Step 1 auto-advances into the date form, which reads the last occurrence
+        # across every year file (so long-cadence activities prefill correctly).
         result = await flow.async_step_add_care_schedule(
             user_input={
                 "dog": "dog-1",
@@ -762,7 +764,7 @@ class TestCareSchedules:
         )
         assert result["type"] == "form"
         assert result["step_id"] == "add_care_schedule_date"
-        store.get_events.assert_awaited_once_with("dog-1", "medicine")
+        store.get_all_events.assert_awaited_once_with("dog-1", "medicine")
 
     @pytest.mark.asyncio
     async def test_add_care_schedule_rejects_duplicate(self):
