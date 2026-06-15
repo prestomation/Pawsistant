@@ -108,6 +108,20 @@ async def create_task(
         return None
     dog_id = schedule["dog_id"]
     event_type = schedule["event_type"]
+    managed_by: dict[str, Any] = {
+        "integration": SOURCE_NS,
+        "display_name": "Pawsistant",
+        "icon": "mdi:paw",
+        "locked_fields": ["device_id", "name"],
+        "completion_prompt": _completion_prompt(store, dog_id, event_type),
+    }
+    # Home Keeper requires a config_entry_id before it will honour deletion
+    # protection (it's how it detects us going away and lets the user clean up).
+    # Only opt into protection when we can supply one.
+    entry_id = _config_entry_id(hass)
+    if entry_id:
+        managed_by["config_entry_id"] = entry_id
+        managed_by["deletion_protected"] = True
     data: dict[str, Any] = {
         "name": _task_name(store, dog_id, event_type),
         "device_id": _device_id_for_dog(hass, dog_id),
@@ -118,15 +132,7 @@ async def create_task(
                 "schedule_id": schedule_id,
             }
         },
-        "managed_by": {
-            "integration": SOURCE_NS,
-            "display_name": "Pawsistant",
-            "icon": "mdi:paw",
-            "locked_fields": ["device_id", "name"],
-            "config_entry_id": _config_entry_id(hass),
-            "completion_prompt": _completion_prompt(store, dog_id, event_type),
-            "deletion_protected": True,
-        },
+        "managed_by": managed_by,
         **_recurrence_payload(schedule),
     }
     data = {k: v for k, v in data.items() if v is not None}
