@@ -4,6 +4,11 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+## [2.21.0b2] - 2026-06-15
+
+### Added
+- **Care-schedule tasks are now "managed" in Home Keeper.** Tasks Pawsistant creates declare themselves as managed by Pawsistant, so Home Keeper shows a **"Managed by Pawsistant"** chip, locks the pet device and task name so they can't be edited out of sync, surfaces a per-pet completion prompt, and offers a deep link back to Pawsistant. If Pawsistant is removed, Home Keeper marks those tasks **"Integration offline"** and lets you clean them up. Requires Home Keeper 0.2.0b1 or later; older versions simply ignore the extra metadata.
+
 ## [2.21.0b1] - 2026-06-14
 
 ### Added
