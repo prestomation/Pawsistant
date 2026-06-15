@@ -106,8 +106,14 @@
           "recurrence_type": "Recurrence (floating = from completion, fixed = calendar)",
           "interval": "Repeat every",
           "unit": "Unit (floating)",
-          "freq": "Frequency (fixed)",
-          "anchor": "First occurrence, ISO datetime (fixed) e.g. 2026-01-01T08:00:00"
+          "freq": "Frequency (fixed)"
+        }
+      },
+      "add_care_schedule_date": {
+        "title": "Add care schedule (2 of 2)",
+        "description": "When was {activity} last done for {pet}? This is prefilled with the most recent log — adjust it if needed. Leave it blank if it hasn't been done yet and it'll show as due now. For a fixed calendar schedule this sets the first occurrence.",
+        "data": {
+          "when": "Last done (or first occurrence for a fixed schedule)"
         }
       }
     },

@@ -95,7 +95,12 @@ def _completion_prompt(store, dog_id: str, event_type: str) -> str:
 
 
 async def create_task(
-    hass: HomeAssistant, store, schedule_id: str, schedule: dict[str, Any]
+    hass: HomeAssistant,
+    store,
+    schedule_id: str,
+    schedule: dict[str, Any],
+    *,
+    last_completed: str | None = None,
 ) -> str | None:
     """Create the Home Keeper task for *schedule* and return its task_id (or None).
 
@@ -103,6 +108,14 @@ async def create_task(
     so we can find it again; ``add_task`` returns the new id in its service response.
     A ``managed_by`` block declares Pawsistant as the owner so Home Keeper shows a
     "Managed by Pawsistant" chip and locks the device/name fields.
+
+    ``last_completed`` is an optional "last done" seed (the pet's most recent logged
+    event of this type). When given, Home Keeper measures the first due date from it
+    rather than treating the task as due now. Only passed at initial creation — the
+    reconcile path recreates a missing task without it, so a task deleted in Home
+    Keeper comes back as due-now rather than re-seeded from a stale date. Older Home
+    Keeper versions that don't know the field will reject the call; the task is simply
+    created without a schedule link until Home Keeper is updated.
     """
     if not _has(hass, "add_task"):
         return None
@@ -133,6 +146,7 @@ async def create_task(
             }
         },
         "managed_by": managed_by,
+        "last_completed": last_completed,
         **_recurrence_payload(schedule),
     }
     data = {k: v for k, v in data.items() if v is not None}
@@ -141,8 +155,31 @@ async def create_task(
             HK_DOMAIN, "add_task", data, blocking=True, return_response=True
         )
     except Exception as err:  # noqa: BLE001 — never let an HK error break our flow
-        _LOGGER.warning("Home Keeper add_task failed for schedule %s: %s", schedule_id, err)
-        return None
+        # An older Home Keeper's add_task doesn't know the last_completed seed and its
+        # strict schema rejects the whole call. Don't lose the task over a nicety:
+        # retry once without the seed so the task is still created (due-now instead of
+        # measured from the last occurrence). Any other failure is reported as before.
+        if "last_completed" in data:
+            data.pop("last_completed")
+            _LOGGER.debug(
+                "Home Keeper add_task rejected last_completed seed for schedule %s; "
+                "retrying without it (older Home Keeper?)",
+                schedule_id,
+            )
+            try:
+                resp = await hass.services.async_call(
+                    HK_DOMAIN, "add_task", data, blocking=True, return_response=True
+                )
+            except Exception as err2:  # noqa: BLE001
+                _LOGGER.warning(
+                    "Home Keeper add_task failed for schedule %s: %s", schedule_id, err2
+                )
+                return None
+        else:
+            _LOGGER.warning(
+                "Home Keeper add_task failed for schedule %s: %s", schedule_id, err
+            )
+            return None
     return (resp or {}).get("task_id")
 
 
