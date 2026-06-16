@@ -27,6 +27,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    DateSelector,
     DateTimeSelector,
     IconSelector,
     SelectSelector,
@@ -514,21 +515,39 @@ class PawsistantOptionsFlow(OptionsFlow):
 
     @staticmethod
     def _normalize_flow_datetime(value: Any) -> str | None:
-        """Turn a DateTimeSelector value into an ISO string (or None when blank)."""
+        """Turn a Date/DateTime selector value into an ISO string (None when blank).
+
+        Accepts both a ``DateSelector`` value (``YYYY-MM-DD``) and a
+        ``DateTimeSelector`` value (``YYYY-MM-DD HH:MM:SS``); a date-only value
+        round-trips as an ISO date, which Home Keeper reads as midnight.
+        """
         if not value:
             return None
-        parsed = dt_util.parse_datetime(value) if isinstance(value, str) else value
+        if isinstance(value, str):
+            parsed = dt_util.parse_datetime(value) or dt_util.parse_date(value)
+        else:
+            parsed = value
         return parsed.isoformat() if parsed else None
 
     @staticmethod
-    def _to_selector_dt(iso_str: str | None) -> str | None:
-        """Format an ISO timestamp as the ``YYYY-MM-DD HH:MM:SS`` a picker expects."""
+    def _to_selector_dt(iso_str: str | None, *, with_time: bool) -> str | None:
+        """Format an ISO timestamp for a picker default.
+
+        ``with_time`` picks the format the control expects: ``YYYY-MM-DD HH:MM:SS``
+        for a ``DateTimeSelector`` (fixed schedules) or ``YYYY-MM-DD`` for a
+        ``DateSelector`` (floating schedules — time-of-day is irrelevant there).
+        """
+        if not iso_str:
+            return None
         parsed = dt_util.parse_datetime(iso_str) if isinstance(iso_str, str) else iso_str
         if parsed is None:
-            return None
+            date_only = dt_util.parse_date(iso_str) if isinstance(iso_str, str) else None
+            if date_only is None:
+                return None
+            return date_only.strftime("%Y-%m-%d 00:00:00" if with_time else "%Y-%m-%d")
         if parsed.tzinfo is not None:
             parsed = dt_util.as_local(parsed)
-        return parsed.strftime("%Y-%m-%d %H:%M:%S")
+        return parsed.strftime("%Y-%m-%d %H:%M:%S" if with_time else "%Y-%m-%d")
 
     async def async_step_add_care_schedule(
         self, user_input: dict[str, Any] | None = None
@@ -648,13 +667,15 @@ class PawsistantOptionsFlow(OptionsFlow):
                 return self.async_create_entry(title="", data={})
 
         # Prefill from the most recent logged event; fixed schedules fall back to now
-        # so the required field is never empty.
+        # so the required field is never empty. Floating "last done" uses a date-only
+        # picker (one clean box — time-of-day is meaningless for it); fixed uses a
+        # date+time picker because the anchor's time controls when reminders land.
         last_iso = await self._last_occurrence(
             store, pending["dog_id"], pending["event_type"]
         )
-        default_when = self._to_selector_dt(last_iso)
+        default_when = self._to_selector_dt(last_iso, with_time=is_fixed)
         if is_fixed and not default_when:
-            default_when = self._to_selector_dt(dt_util.now().isoformat())
+            default_when = self._to_selector_dt(dt_util.now().isoformat(), with_time=True)
 
         if is_fixed:
             when_key: Any = vol.Required("when", default=default_when)
@@ -663,11 +684,12 @@ class PawsistantOptionsFlow(OptionsFlow):
         else:
             when_key = vol.Optional("when")
 
+        when_selector = DateTimeSelector() if is_fixed else DateSelector()
         dog = store.get_dogs().get(pending["dog_id"], {})
         et = store.get_event_types().get(pending["event_type"], {})
         return self.async_show_form(
             step_id="add_care_schedule_date",
-            data_schema=vol.Schema({when_key: DateTimeSelector()}),
+            data_schema=vol.Schema({when_key: when_selector}),
             errors=errors,
             description_placeholders={
                 "pet": dog.get("name", pending["dog_id"]),

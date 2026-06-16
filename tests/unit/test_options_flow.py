@@ -160,6 +160,7 @@ def _inject_stubs() -> None:
     selector_mod.SelectSelectorMode = _SelectSelectorMode
     selector_mod.SelectOptionDict = _select_option_dict
     selector_mod.DateTimeSelector = lambda config=None: ("DateTimeSelector", config)
+    selector_mod.DateSelector = lambda config=None: ("DateSelector", config)
     sys.modules["homeassistant.helpers.selector"] = selector_mod
 
     # homeassistant.util.dt — config_flow uses parse_datetime / as_local / now to
@@ -171,12 +172,22 @@ def _inject_stubs() -> None:
     dt_mod = types.ModuleType("homeassistant.util.dt")
 
     def _parse_datetime(value):
+        # Mirror HA: parse_datetime needs a time component; a bare date returns None.
+        if not isinstance(value, str) or ":" not in value:
+            return None
         try:
             return _datetime.datetime.fromisoformat(value)
         except (TypeError, ValueError):
             return None
 
+    def _parse_date(value):
+        try:
+            return _datetime.date.fromisoformat(value)
+        except (TypeError, ValueError):
+            return None
+
     dt_mod.parse_datetime = _parse_datetime
+    dt_mod.parse_date = _parse_date
     dt_mod.as_local = lambda value: value
     dt_mod.now = lambda: _datetime.datetime(2026, 6, 15, 12, 0, 0)
     util_mod.dt = dt_mod
@@ -707,13 +718,15 @@ class TestCareSchedules:
                 "unit": "weeks",
             }
         )
+        # Floating uses a date-only picker, so the value is a bare date.
         result = await flow.async_step_add_care_schedule_date(
-            user_input={"when": "2026-06-08 09:00:00"}
+            user_input={"when": "2026-06-08"}
         )
         assert result["type"] == "create_entry"
         cl.create_task.assert_awaited_once()
-        # The "last done" date is passed to Home Keeper as the last_completed seed.
-        assert cl.create_task.await_args.kwargs["last_completed"] == "2026-06-08T09:00:00"
+        # The "last done" date is passed to Home Keeper as the last_completed seed
+        # (a bare date, which Home Keeper reads as midnight).
+        assert cl.create_task.await_args.kwargs["last_completed"] == "2026-06-08"
         store.add_care_schedule.assert_awaited_once()
         _schedule_id, schedule = store.add_care_schedule.await_args.args
         assert schedule["dog_id"] == "dog-1"
