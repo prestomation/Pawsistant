@@ -4,7 +4,14 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
-## [2.21.0b2] - 2026-06-15
+## [2.21.0b3] - 2026-06-15
+
+### Changed
+- **Setting a care schedule's date is now a date-and-time picker, prefilled from the last log.** Adding a care schedule is now two quick steps: pick the pet, activity, and cadence, then confirm the date. The date field uses a real picker instead of asking you to type an ISO timestamp, and it's prefilled with the most recent time you logged that activity for that pet — so the common case is one tap. For a *floating* schedule the date is "when it was last done" and seeds Home Keeper's first due date (next due = last done + interval); leave it blank if it's never been done and Home Keeper shows it as due now. For a *fixed* calendar schedule it's the first occurrence, as before.
+
+### Notes
+- Best paired with **Home Keeper 0.2.0b2 or later**: that version accepts the "last done" seed and treats a never-done task as due now. With an older Home Keeper the schedule and task are still created (the seed is dropped and the task starts due now).
+
 
 ### Added
 - **Care-schedule tasks are now "managed" in Home Keeper.** Tasks Pawsistant creates declare themselves as managed by Pawsistant, so Home Keeper shows a **"Managed by Pawsistant"** chip, locks the pet device and task name so they can't be edited out of sync, surfaces a per-pet completion prompt, and offers a deep link back to Pawsistant. If Pawsistant is removed, Home Keeper marks those tasks **"Integration offline"** and lets you clean them up. Requires Home Keeper 0.2.0b1 or later; older versions simply ignore the extra metadata.

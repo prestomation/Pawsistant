@@ -27,12 +27,15 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    DateSelector,
+    DateTimeSelector,
     IconSelector,
     SelectSelector,
     SelectSelectorConfig,
     SelectOptionDict,
     SelectSelectorMode,
 )
+from homeassistant.util import dt as dt_util
 
 from . import care_link
 from .const import CONF_SPECIES, DEFAULT_SPECIES, DOMAIN, CONF_EVENT_TYPES, CONF_BUTTON_METRICS, DEFAULT_EVENT_TYPES, DEFAULT_BUTTON_METRICS, CARE_UNITS, CARE_FREQS
@@ -495,11 +498,67 @@ class PawsistantOptionsFlow(OptionsFlow):
             description_placeholders={"count": str(len(schedules))},
         )
 
+    async def _last_occurrence(self, store, dog_id: str, event_type: str) -> str | None:
+        """ISO timestamp of the pet's most recent logged event of this type, if any.
+
+        Used to prefill the schedule's reference date so the user rarely has to type
+        it. ``get_all_events`` loads every year file (newest-first) — important for
+        long-cadence activities like an annual vaccination, whose last occurrence can
+        be more than a year ago and would be missed by the lazy current/previous-year
+        search. Best-effort: any error just means no prefill.
+        """
+        try:
+            events = await store.get_all_events(dog_id, event_type)
+        except Exception:  # noqa: BLE001 — prefill is best-effort, never block the flow
+            return None
+        return events[0].get("timestamp") if events else None
+
+    @staticmethod
+    def _normalize_flow_datetime(value: Any) -> str | None:
+        """Turn a Date/DateTime selector value into an ISO string (None when blank).
+
+        Accepts both a ``DateSelector`` value (``YYYY-MM-DD``) and a
+        ``DateTimeSelector`` value (``YYYY-MM-DD HH:MM:SS``); a date-only value
+        round-trips as an ISO date, which Home Keeper reads as midnight.
+        """
+        if not value:
+            return None
+        if isinstance(value, str):
+            parsed = dt_util.parse_datetime(value) or dt_util.parse_date(value)
+        else:
+            parsed = value
+        return parsed.isoformat() if parsed else None
+
+    @staticmethod
+    def _to_selector_dt(iso_str: str | None, *, with_time: bool) -> str | None:
+        """Format an ISO timestamp for a picker default.
+
+        ``with_time`` picks the format the control expects: ``YYYY-MM-DD HH:MM:SS``
+        for a ``DateTimeSelector`` (fixed schedules) or ``YYYY-MM-DD`` for a
+        ``DateSelector`` (floating schedules — time-of-day is irrelevant there).
+        """
+        if not iso_str:
+            return None
+        parsed = dt_util.parse_datetime(iso_str) if isinstance(iso_str, str) else iso_str
+        if parsed is None:
+            date_only = dt_util.parse_date(iso_str) if isinstance(iso_str, str) else None
+            if date_only is None:
+                return None
+            return date_only.strftime("%Y-%m-%d 00:00:00" if with_time else "%Y-%m-%d")
+        if parsed.tzinfo is not None:
+            parsed = dt_util.as_local(parsed)
+        return parsed.strftime("%Y-%m-%d %H:%M:%S" if with_time else "%Y-%m-%d")
+
     async def async_step_add_care_schedule(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Create a care schedule and its linked Home Keeper task."""
-        store, coord = self._get_store_and_coord()
+        """Step 1 of adding a care schedule: choose the pet, activity, and cadence.
+
+        The reference date is collected in :meth:`async_step_add_care_schedule_date`,
+        a second step, so it can be prefilled from the pet's last logged event of this
+        type — which we only know once the pet and activity have been picked here.
+        """
+        store, _ = self._get_store_and_coord()
         if store is None:
             return self.async_create_entry(title="", data={})
 
@@ -517,30 +576,17 @@ class PawsistantOptionsFlow(OptionsFlow):
                 errors["base"] = "dog_not_found"
             elif store.find_care_schedule(dog_id, event_type) is not None:
                 errors["base"] = "schedule_already_exists"
-            elif recurrence_type == "fixed" and not (user_input.get("anchor") or "").strip():
-                errors["anchor"] = "anchor_required"
 
             if not errors:
-                schedule: dict[str, Any] = {
+                self._pending_care = {
                     "dog_id": dog_id,
                     "event_type": event_type,
                     "recurrence_type": recurrence_type,
                     "interval": interval,
+                    "unit": user_input.get("unit", "weeks"),
+                    "freq": user_input.get("freq", "MONTHLY"),
                 }
-                if recurrence_type == "fixed":
-                    schedule["freq"] = user_input.get("freq", "MONTHLY")
-                    schedule["anchor"] = user_input["anchor"].strip()
-                else:
-                    schedule["unit"] = user_input.get("unit", "weeks")
-
-                schedule_id = uuid.uuid4().hex
-                schedule["task_id"] = await care_link.create_task(
-                    self.hass, store, schedule_id, schedule
-                )
-                await store.add_care_schedule(schedule_id, schedule)
-                if coord is not None:
-                    await coord.async_refresh()
-                return self.async_create_entry(title="", data={})
+                return await self.async_step_add_care_schedule_date()
 
         dog_options = {dog_id: dog.get("name", dog_id) for dog_id, dog in dogs.items()}
         event_type_options = {
@@ -561,10 +607,94 @@ class PawsistantOptionsFlow(OptionsFlow):
                     ),
                     vol.Optional("unit", default="weeks"): vol.In(CARE_UNITS),
                     vol.Optional("freq", default="MONTHLY"): vol.In(CARE_FREQS),
-                    vol.Optional("anchor", default=""): str,
                 }
             ),
             errors=errors,
+        )
+
+    async def async_step_add_care_schedule_date(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 2: set the schedule's reference date with a picker, then create it.
+
+        * **floating** — the date is *when it was last done*; it seeds Home Keeper's
+          first due date (next due = last done + interval). Leaving it blank means the
+          task has never been done, so Home Keeper shows it as due now.
+        * **fixed** — the date is the *first occurrence* (anchor) of the calendar
+          schedule and is required.
+
+        Either way the field is prefilled with the pet's most recent logged event of
+        this type, so the common case is one tap to confirm.
+        """
+        store, coord = self._get_store_and_coord()
+        pending = getattr(self, "_pending_care", None)
+        if store is None or not pending:
+            return self.async_create_entry(title="", data={})
+
+        is_fixed = pending["recurrence_type"] == "fixed"
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            when_iso = self._normalize_flow_datetime(user_input.get("when"))
+            if is_fixed and not when_iso:
+                errors["when"] = "anchor_required"
+
+            if not errors:
+                schedule: dict[str, Any] = {
+                    "dog_id": pending["dog_id"],
+                    "event_type": pending["event_type"],
+                    "recurrence_type": pending["recurrence_type"],
+                    "interval": pending["interval"],
+                }
+                last_completed: str | None = None
+                if is_fixed:
+                    schedule["freq"] = pending["freq"]
+                    schedule["anchor"] = when_iso
+                else:
+                    schedule["unit"] = pending["unit"]
+                    # Floating: the date is "last done" — seed it so Home Keeper
+                    # measures the first due date from it. Blank => due now.
+                    last_completed = when_iso
+
+                schedule_id = uuid.uuid4().hex
+                schedule["task_id"] = await care_link.create_task(
+                    self.hass, store, schedule_id, schedule, last_completed=last_completed
+                )
+                await store.add_care_schedule(schedule_id, schedule)
+                self._pending_care = None
+                if coord is not None:
+                    await coord.async_refresh()
+                return self.async_create_entry(title="", data={})
+
+        # Prefill from the most recent logged event; fixed schedules fall back to now
+        # so the required field is never empty. Floating "last done" uses a date-only
+        # picker (one clean box — time-of-day is meaningless for it); fixed uses a
+        # date+time picker because the anchor's time controls when reminders land.
+        last_iso = await self._last_occurrence(
+            store, pending["dog_id"], pending["event_type"]
+        )
+        default_when = self._to_selector_dt(last_iso, with_time=is_fixed)
+        if is_fixed and not default_when:
+            default_when = self._to_selector_dt(dt_util.now().isoformat(), with_time=True)
+
+        if is_fixed:
+            when_key: Any = vol.Required("when", default=default_when)
+        elif default_when:
+            when_key = vol.Optional("when", default=default_when)
+        else:
+            when_key = vol.Optional("when")
+
+        when_selector = DateTimeSelector() if is_fixed else DateSelector()
+        dog = store.get_dogs().get(pending["dog_id"], {})
+        et = store.get_event_types().get(pending["event_type"], {})
+        return self.async_show_form(
+            step_id="add_care_schedule_date",
+            data_schema=vol.Schema({when_key: when_selector}),
+            errors=errors,
+            description_placeholders={
+                "pet": dog.get("name", pending["dog_id"]),
+                "activity": et.get("name", pending["event_type"]),
+            },
         )
 
     # ------------------------------------------------------------------

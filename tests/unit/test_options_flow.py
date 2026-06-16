@@ -159,7 +159,40 @@ def _inject_stubs() -> None:
     selector_mod.SelectSelectorConfig = _SelectSelectorConfig
     selector_mod.SelectSelectorMode = _SelectSelectorMode
     selector_mod.SelectOptionDict = _select_option_dict
+    selector_mod.DateTimeSelector = lambda config=None: ("DateTimeSelector", config)
+    selector_mod.DateSelector = lambda config=None: ("DateSelector", config)
     sys.modules["homeassistant.helpers.selector"] = selector_mod
+
+    # homeassistant.util.dt — config_flow uses parse_datetime / as_local / now to
+    # normalize the care-schedule date picker. Lightweight real-datetime stubs are
+    # enough for the schema-building / value-passthrough the unit tests exercise.
+    import datetime as _datetime
+
+    util_mod = types.ModuleType("homeassistant.util")
+    dt_mod = types.ModuleType("homeassistant.util.dt")
+
+    def _parse_datetime(value):
+        # Mirror HA: parse_datetime needs a time component; a bare date returns None.
+        if not isinstance(value, str) or ":" not in value:
+            return None
+        try:
+            return _datetime.datetime.fromisoformat(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _parse_date(value):
+        try:
+            return _datetime.date.fromisoformat(value)
+        except (TypeError, ValueError):
+            return None
+
+    dt_mod.parse_datetime = _parse_datetime
+    dt_mod.parse_date = _parse_date
+    dt_mod.as_local = lambda value: value
+    dt_mod.now = lambda: _datetime.datetime(2026, 6, 15, 12, 0, 0)
+    util_mod.dt = dt_mod
+    sys.modules["homeassistant.util"] = util_mod
+    sys.modules["homeassistant.util.dt"] = dt_mod
 
     # re module (needed by config_flow.py)
     import re
@@ -626,6 +659,9 @@ def _make_care_flow():
     store.find_care_schedule.return_value = None
     store.add_care_schedule = AsyncMock()
     store.remove_care_schedule = AsyncMock(return_value={"task_id": "hk-task-id"})
+    # No prior logged events by default -> the date step has nothing to prefill.
+    # The date step prefills via get_all_events (searches every year file).
+    store.get_all_events = AsyncMock(return_value=[])
     return flow, store, coord, hass
 
 
@@ -650,7 +686,8 @@ class TestCareSchedules:
         assert result["step_id"] == "manage_care_schedules"
 
     @pytest.mark.asyncio
-    async def test_add_care_schedule_creates_and_links(self):
+    async def test_add_care_schedule_step1_advances_to_date(self):
+        # Step 1 collects the cadence and routes to the date step (no create yet).
         flow, store, coord, hass = _make_care_flow()
         cl = _care_link_stub()
         result = await flow.async_step_add_care_schedule(
@@ -662,10 +699,35 @@ class TestCareSchedules:
                 "unit": "weeks",
             }
         )
+        assert result["type"] == "form"
+        assert result["step_id"] == "add_care_schedule_date"
+        cl.create_task.assert_not_awaited()
+        store.add_care_schedule.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_add_floating_schedule_seeds_last_done(self):
+        # Step 1 then step 2: a "last done" date is seeded to Home Keeper.
+        flow, store, coord, hass = _make_care_flow()
+        cl = _care_link_stub()
+        await flow.async_step_add_care_schedule(
+            user_input={
+                "dog": "dog-1",
+                "event_type": "medicine",
+                "recurrence_type": "floating",
+                "interval": 2,
+                "unit": "weeks",
+            }
+        )
+        # Floating uses a date-only picker, so the value is a bare date.
+        result = await flow.async_step_add_care_schedule_date(
+            user_input={"when": "2026-06-08"}
+        )
         assert result["type"] == "create_entry"
         cl.create_task.assert_awaited_once()
+        # The "last done" date is passed to Home Keeper as the last_completed seed
+        # (a bare date, which Home Keeper reads as midnight).
+        assert cl.create_task.await_args.kwargs["last_completed"] == "2026-06-08"
         store.add_care_schedule.assert_awaited_once()
-        # The persisted schedule carries the resolved task_id from Home Keeper.
         _schedule_id, schedule = store.add_care_schedule.await_args.args
         assert schedule["dog_id"] == "dog-1"
         assert schedule["event_type"] == "medicine"
@@ -673,11 +735,54 @@ class TestCareSchedules:
         assert schedule["interval"] == 2
         assert schedule["unit"] == "weeks"
         assert schedule["task_id"] == "hk-task-id"
+        # Floating schedules don't store an anchor.
+        assert "anchor" not in schedule
+
+    @pytest.mark.asyncio
+    async def test_add_floating_schedule_blank_date_is_due_now(self):
+        # Leaving the date blank seeds nothing -> Home Keeper treats it as due now.
+        flow, store, coord, hass = _make_care_flow()
+        cl = _care_link_stub()
+        await flow.async_step_add_care_schedule(
+            user_input={
+                "dog": "dog-1",
+                "event_type": "medicine",
+                "recurrence_type": "floating",
+                "interval": 1,
+                "unit": "weeks",
+            }
+        )
+        result = await flow.async_step_add_care_schedule_date(user_input={})
+        assert result["type"] == "create_entry"
+        assert cl.create_task.await_args.kwargs["last_completed"] is None
+
+    @pytest.mark.asyncio
+    async def test_add_care_schedule_prefills_last_occurrence(self):
+        # The date step defaults to the pet's most recent logged event of this type.
+        flow, store, coord, hass = _make_care_flow()
+        _care_link_stub()
+        store.get_all_events = AsyncMock(
+            return_value=[{"timestamp": "2026-06-01T08:30:00-04:00"}]
+        )
+        # Step 1 auto-advances into the date form, which reads the last occurrence
+        # across every year file (so long-cadence activities prefill correctly).
+        result = await flow.async_step_add_care_schedule(
+            user_input={
+                "dog": "dog-1",
+                "event_type": "medicine",
+                "recurrence_type": "floating",
+                "interval": 1,
+                "unit": "weeks",
+            }
+        )
+        assert result["type"] == "form"
+        assert result["step_id"] == "add_care_schedule_date"
+        store.get_all_events.assert_awaited_once_with("dog-1", "medicine")
 
     @pytest.mark.asyncio
     async def test_add_care_schedule_rejects_duplicate(self):
         flow, store, coord, hass = _make_care_flow()
-        _care_link_stub()
+        cl = _care_link_stub()
         store.find_care_schedule.return_value = ("existing-id", {"task_id": "x"})
         result = await flow.async_step_add_care_schedule(
             user_input={
@@ -690,25 +795,52 @@ class TestCareSchedules:
         )
         assert result["type"] == "form"
         assert result["errors"]["base"] == "schedule_already_exists"
+        cl.create_task.assert_not_awaited()
         store.add_care_schedule.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_add_fixed_schedule_requires_anchor(self):
+        # The anchor (first occurrence) is now collected on the date step and required.
         flow, store, coord, hass = _make_care_flow()
-        _care_link_stub()
-        result = await flow.async_step_add_care_schedule(
+        cl = _care_link_stub()
+        await flow.async_step_add_care_schedule(
             user_input={
                 "dog": "dog-1",
                 "event_type": "medicine",
                 "recurrence_type": "fixed",
                 "interval": 1,
                 "freq": "MONTHLY",
-                "anchor": "",
             }
         )
+        result = await flow.async_step_add_care_schedule_date(user_input={"when": ""})
         assert result["type"] == "form"
-        assert result["errors"]["anchor"] == "anchor_required"
+        assert result["errors"]["when"] == "anchor_required"
+        cl.create_task.assert_not_awaited()
         store.add_care_schedule.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_add_fixed_schedule_sets_anchor(self):
+        flow, store, coord, hass = _make_care_flow()
+        cl = _care_link_stub()
+        await flow.async_step_add_care_schedule(
+            user_input={
+                "dog": "dog-1",
+                "event_type": "medicine",
+                "recurrence_type": "fixed",
+                "interval": 1,
+                "freq": "MONTHLY",
+            }
+        )
+        result = await flow.async_step_add_care_schedule_date(
+            user_input={"when": "2026-01-01 08:00:00"}
+        )
+        assert result["type"] == "create_entry"
+        _schedule_id, schedule = store.add_care_schedule.await_args.args
+        assert schedule["recurrence_type"] == "fixed"
+        assert schedule["freq"] == "MONTHLY"
+        assert schedule["anchor"] == "2026-01-01T08:00:00"
+        # A fixed schedule sends its anchor, not a last_completed seed.
+        assert cl.create_task.await_args.kwargs["last_completed"] is None
 
     @pytest.mark.asyncio
     async def test_manage_care_delete_removes_task(self):

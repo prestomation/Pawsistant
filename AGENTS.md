@@ -12,6 +12,7 @@
 - Only push when all tests pass.
 - **Update RELEASE.md and AGENTS.md** whenever there are architectural or workflow changes (new CI steps, build process changes, branch protection updates, etc.). These docs must stay accurate.
 - **Always post screenshots to the PR when a change adds, changes, or fixes UI.** Capture the relevant card/dashboard state with the Playwright e2e harness (see `tests/e2e/screenshots.capture.ts`), commit the PNG(s) under `docs/images/`, and embed them in the PR description (or a PR comment) via a `raw.githubusercontent.com/<owner>/<repo>/<commit-sha>/docs/images/<file>.png` URL pinned to the commit that added them — this is how reviewers see before/after without the GitHub web composer. (Example: PR #56.)
+  - **Embed PR-body screenshots with an HTML `<img src="…" alt="…" width="820">` tag, not markdown `![](…)`.** The `update_pull_request` path can silently wrap a markdown image URL in double backticks (turning it into a code span), so the image renders broken — and it may hit only some of several otherwise-identical lines. HTML `<img>` avoids markdown link parsing. Pin the `src` to a commit SHA (branch names contain slashes and are ambiguous for `raw.githubusercontent.com`). After updating the body, re-read it with `pull_request_read` to confirm the URLs weren't mangled, and check each returns HTTP 200.
 
 ## Project Structure
 
