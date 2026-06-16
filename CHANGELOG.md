@@ -4,6 +4,18 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-06-16
+
+### Added
+- **Recurring care schedules with Home Keeper.** When the [Home Keeper](https://github.com/prestomation/ha-home-keeper) task tracker is installed, you can attach a recurring schedule to any pet activity — nail trims, medicine, grooming, and so on — from Pawsistant's options (**Settings → Devices & Services → Pawsistant → Configure → Manage care schedules**). Choose a floating interval ("every N days/weeks/months", which resets when you mark it done) or a fixed calendar schedule. Pawsistant creates the matching Home Keeper task and attaches it to the pet's device, so the task's next-due/overdue/mark-done entities show up right on the pet's page. Completion stays in two-way sync — logging the activity in Pawsistant checks the task off in Home Keeper, and completing it in Home Keeper logs the activity back in Pawsistant, so it's "the same button" in both places. If Home Keeper isn't installed, nothing changes.
+- **Care-schedule tasks are "managed" in Home Keeper.** Tasks Pawsistant creates declare themselves as managed by Pawsistant, so Home Keeper shows a **"Managed by Pawsistant"** chip, locks the pet device and task name so they can't be edited out of sync, surfaces a per-pet completion prompt, and offers a deep link back to Pawsistant. If Pawsistant is removed, Home Keeper marks those tasks **"Integration offline"** and lets you clean them up.
+
+### Changed
+- **Setting a care schedule's date is a date picker, prefilled from the last log.** Adding a care schedule is two quick steps: pick the pet, activity, and cadence, then confirm the date with a real picker (no more typing an ISO timestamp), prefilled with the most recent time you logged that activity for that pet. For a *floating* schedule the date is "when it was last done" and seeds Home Keeper's first due date (next due = last done + interval); leave it blank if it's never been done and Home Keeper shows it as due now. For a *fixed* calendar schedule it's the first occurrence.
+
+### Notes
+- The Home Keeper care-schedule integration needs **Home Keeper 0.2.0 or later**. With an older Home Keeper the schedule and task are still created (the "last done" seed is dropped and the task starts due now).
+
 ## [2.21.0b3] - 2026-06-15
 
 ### Changed
