@@ -4,6 +4,9 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Pawsistant now announces itself to Home Keeper's companion discovery.** When Home Keeper is installed, Pawsistant registers itself (via Home Keeper's `register_companion` service) so it shows up under Home Keeper's **Settings → Companions** section as a connected integration — with a **Configure** button that opens Pawsistant's own settings page (where the care schedules live). This means people who have both installed find out they work together from inside Home Keeper, instead of having to already know. Entirely best-effort: if Home Keeper isn't installed (or is an older version without companion discovery), nothing changes.
+
 ## [2.21.0] - 2026-06-16
 
 ### Added

@@ -79,6 +79,11 @@ Keeper task done, and completing the task in Home Keeper logs the activity in
 Pawsistant — so they behave like the same button. The option only appears when Home
 Keeper is installed.
 
+Pawsistant also **announces itself to Home Keeper** so it appears under Home Keeper's
+**Settings → Companions** section, with a *Configure* link to Pawsistant's settings
+page (where the care schedules above live) — so if you have both, you'll discover they
+pair up from either side.
+
 ---
 
 ## Lovelace Card
