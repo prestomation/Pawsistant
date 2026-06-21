@@ -968,6 +968,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.bus.async_listen(care_link.HK_EVENT_TASK_COMPLETED, _on_hk_task_completed)
     )
 
+    # Announce Pawsistant to Home Keeper's companion discovery so it surfaces under
+    # Home Keeper's Settings → Companions (best-effort; a no-op without Home Keeper).
+    # Register now (covers Home Keeper already being up) and whenever Home Keeper
+    # asks companions to re-announce (covers Home Keeper starting after us).
+    @callback
+    def _register_with_home_keeper(*_args: Any) -> None:
+        hass.async_create_task(care_link.register_companion(hass, entry.entry_id))
+
+    _register_with_home_keeper()
+    entry.async_on_unload(
+        hass.bus.async_listen(
+            care_link.HK_EVENT_REGISTER_COMPANIONS, _register_with_home_keeper
+        )
+    )
+
     # Self-heal care schedules once Home Keeper has had a chance to start (recreate
     # tasks a user deleted, or that were configured while Home Keeper was absent).
     from homeassistant.helpers.start import async_at_started

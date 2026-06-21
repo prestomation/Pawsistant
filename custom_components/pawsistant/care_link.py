@@ -34,6 +34,10 @@ _LOGGER = logging.getLogger(__name__)
 # Home Keeper's public contract.
 HK_DOMAIN = "home_keeper"
 HK_EVENT_TASK_COMPLETED = "home_keeper_task_completed"
+# Home Keeper fires this (at its setup and on reload) to ask companion integrations
+# to (re-)announce themselves to its discovery registry. We both register at our own
+# setup and respond to this ping, so discovery works regardless of startup order.
+HK_EVENT_REGISTER_COMPANIONS = "home_keeper_register_companions"
 # Marker we pass to home_keeper.complete_task so we can ignore the resulting event.
 ORIGIN = "pawsistant"
 # Namespace under a Home Keeper task's opaque ``source`` dict that we own.
@@ -43,6 +47,38 @@ SOURCE_NS = "pawsistant"
 def home_keeper_available(hass: HomeAssistant) -> bool:
     """Return True if a Home Keeper config entry is set up."""
     return bool(hass.config_entries.async_entries(HK_DOMAIN))
+
+
+async def register_companion(hass: HomeAssistant, entry_id: str) -> None:
+    """Announce Pawsistant to Home Keeper's companion discovery registry.
+
+    Best-effort and entirely optional: if Home Keeper isn't installed (or is an
+    older version without the ``register_companion`` service) this is a no-op.
+    Registering makes Pawsistant show up under Home Keeper's Settings → Companions,
+    with a "Configure" link back to our own options (where care schedules live).
+    """
+    if not _has(hass, "register_companion"):
+        return
+    try:
+        await hass.services.async_call(
+            HK_DOMAIN,
+            "register_companion",
+            {
+                "domain": DOMAIN,
+                "name": "Pawsistant",
+                "icon": "mdi:paw",
+                "description": (
+                    "Pet care tracker — logs walks, meals, meds and weight, and can "
+                    "schedule recurring pet-care chores as Home Keeper tasks."
+                ),
+                "config_entry_id": entry_id,
+                "docs_url": "https://github.com/prestomation/Pawsistant",
+                "capabilities": ["care_schedules"],
+            },
+            blocking=False,
+        )
+    except Exception:  # noqa: BLE001 — discovery is best-effort; never break setup
+        _LOGGER.debug("Home Keeper companion registration failed", exc_info=True)
 
 
 def _has(hass: HomeAssistant, service: str) -> bool:
