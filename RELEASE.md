@@ -46,6 +46,28 @@ Betas go through the *exact same flow* as a stable release — the only differen
 
 Iterate with `2.19.0b2`, `2.19.0b3`, … as needed — each is its own PR, release, and `## [2.19.0bN]` changelog section, so `CHANGELOG.md` keeps an accurate record of every cut.
 
+## Preview releases (test a PR build without merging)
+
+Sometimes you want to **install and try a PR's build via HACS** before merging it —
+without bumping the version or cutting a real release. Add the **`preview-release`**
+label to the PR and `preview-release.yml` builds the card + `pawsistant.zip` from the
+PR head, stamps a synthetic version (`X.Y.Z.dev<pr>`) into the zip's manifest, and
+publishes an **ephemeral GitHub pre-release** with the zip attached. Install it from
+HACS: open *Pawsistant* → ⋮ → **Redownload**, enable **Show beta versions**, and pick
+`X.Y.Z.dev<pr>` (or download `pawsistant.zip` from the release and unzip into
+`config/custom_components/pawsistant/`).
+
+- **Opt-in only** — nothing happens without the label (and only users with write
+  access can label).
+- **Same-repo PRs only** — fork PRs get no token and are not built this way.
+- **Owner approval** — the publish job runs in the `preview-release` GitHub
+  Environment; add **Required reviewers** to it (Settings → Environments) to make each
+  build wait for an explicit approval.
+- **Ephemeral & low-noise** — it's a **pre-release** (`prerelease: true`), so it's
+  offered only to users who enabled *Show beta versions*; the `.dev<pr>` version sorts
+  *below* the real `X.Y.Z` release so it never nags anyone as an update; it's
+  re-published on each push and **deleted automatically when the PR closes**.
+
 ## Why this design
 
 - **Single source of truth for version**: `manifest.json`. The tag name is derived from it, not typed by hand.
