@@ -4,6 +4,14 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+## [2.23.0] - 2026-06-29
+
+### Added
+- **Backdate events by any amount of time.** The backdate and edit forms now include an **"Earlier date…** toggle that swaps the minutes slider for a native date-and-time picker, so you can log or move an event to any point in the past — not just within the last 8 hours. The minutes slider stays for the common recent case; the picker appears on demand and is capped at the current time so future timestamps can't be entered.
+
+### Fixed
+- **Editing an event older than 8 hours no longer silently resets the time to "8 hours ago".** The form now opens directly in date-picker mode showing the event's real timestamp when editing an event outside the slider range.
+
 ## [2.22.0] - 2026-06-26
 
 ### Added
