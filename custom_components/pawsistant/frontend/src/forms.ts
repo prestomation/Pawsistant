@@ -6,9 +6,10 @@
  */
 
 import type { PawsistantCard } from './index';
-import { T, TP } from './i18n';
+import { T } from './i18n';
 import { getMeta } from './registry';
 import { logEvent, updateEvent } from './services';
+import { mountTimeChooser } from './time-chooser';
 import { stateNum, _escapeHTML, toDisplayWeight } from './utils';
 
 /* ── Backdate form ─────────────────────────────────────────────────── */
@@ -27,13 +28,7 @@ export function openBackdateForm(
   /* U10 — proper <label for> on all inputs */
   formEl.innerHTML = `
       <div class="form-title">${meta.emoji} ${T('form.log_title', { label: _escapeHTML(meta.label) })}</div>
-      <div class="form-field">
-        <div class="form-label-row">
-          <label class="form-label" for="minutes-slider">${T('form.minutes_ago')}</label>
-          <span class="slider-value" id="slider-display">${T('time.now')}</span>
-        </div>
-        <input type="range" id="minutes-slider" min="0" max="480" step="1" value="0" aria-label="${T('form.minutes_ago')}" />
-      </div>
+      <div id="time-chooser-slot"></div>
       <div class="form-field">
         <label class="form-label" for="backdate-note">${T('form.note_optional')}</label>
         <input type="text" id="backdate-note" placeholder="${_escapeHTML(T('form.note_placeholder'))}" />
@@ -45,22 +40,14 @@ export function openBackdateForm(
       </div>
     `;
 
-  const slider = formEl.querySelector<HTMLInputElement>('#minutes-slider')!;
-  const display = formEl.querySelector<HTMLElement>('#slider-display')!;
-  const _updateSliderDisplay = () => {
-    const v = parseInt(slider.value, 10);
-    const t = new Date(Date.now() - v * 60000);
-    const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    display.textContent = (v === 0 ? T('time.now') : TP('time.min_ago', v)) + ` · ${timeStr}`;
-  };
-  slider.addEventListener('input', _updateSliderDisplay);
-  _updateSliderDisplay();
+  const chooser = mountTimeChooser(formEl.querySelector<HTMLElement>('#time-chooser-slot')!, {
+    idPrefix: 'bd',
+  });
 
   formEl.querySelector('#form-cancel')!.addEventListener('click', () => closeForm(card));
   formEl.querySelector('#form-submit')!.addEventListener('click', () => {
-    const minutesAgo = parseInt(slider.value, 10);
     const note = formEl.querySelector<HTMLInputElement>('#backdate-note')!.value.trim();
-    const timestamp = new Date(Date.now() - minutesAgo * 60000).toISOString();
+    const timestamp = chooser.getTimestamp();
     submitBackdate(card, activeBtn || null, type || '', timestamp, note || undefined);
   });
 
@@ -133,13 +120,6 @@ export function openEditForm(
   const isWeight = eventType === 'weight';
   const unit = card._weightUnit();
 
-  // Calculate minutes ago from timestamp
-  let minutesAgo = 0;
-  if (timestamp) {
-    const diff = Date.now() - new Date(timestamp).getTime();
-    minutesAgo = Math.max(0, Math.round(diff / 60000));
-  }
-
   const formEl = card.shadowRoot!.getElementById('inline-form')!;
 
   if (isWeight) {
@@ -177,13 +157,7 @@ export function openEditForm(
   } else {
     formEl.innerHTML = `
         <div class="form-title">${meta.emoji} ${T('form.edit_title', { label: _escapeHTML(meta.label) })}</div>
-        <div class="form-field">
-          <div class="form-label-row">
-            <label class="form-label" for="minutes-slider">${T('form.minutes_ago')}</label>
-            <span class="slider-value" id="slider-display">${T('time.now')}</span>
-          </div>
-          <input type="range" id="minutes-slider" min="0" max="480" step="1" value="${minutesAgo}" aria-label="${T('form.minutes_ago')}" />
-        </div>
+        <div id="time-chooser-slot"></div>
         <div class="form-field">
           <label class="form-label" for="backdate-note">${T('form.note_optional')}</label>
           <input type="text" id="backdate-note" placeholder="${_escapeHTML(T('form.note_placeholder'))}" value="${_escapeHTML(note || '')}" />
@@ -195,22 +169,15 @@ export function openEditForm(
         </div>
       `;
 
-    const slider = formEl.querySelector<HTMLInputElement>('#minutes-slider')!;
-    const display = formEl.querySelector<HTMLElement>('#slider-display')!;
-    const _updateSliderDisplay = () => {
-      const v = parseInt(slider.value, 10);
-      const t = new Date(Date.now() - v * 60000);
-      const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      display.textContent = (v === 0 ? T('time.now') : TP('time.min_ago', v)) + ` · ${timeStr}`;
-    };
-    slider.addEventListener('input', _updateSliderDisplay);
-    _updateSliderDisplay();
+    const chooser = mountTimeChooser(formEl.querySelector<HTMLElement>('#time-chooser-slot')!, {
+      idPrefix: 'ed',
+      initialTimestamp: timestamp,
+    });
 
     formEl.querySelector('#form-cancel')!.addEventListener('click', () => closeForm(card));
     formEl.querySelector('#form-submit')!.addEventListener('click', () => {
-      const minutesAgoVal = parseInt(slider.value, 10);
       const noteVal = formEl.querySelector<HTMLInputElement>('#backdate-note')!.value.trim();
-      const ts = new Date(Date.now() - minutesAgoVal * 60000).toISOString();
+      const ts = chooser.getTimestamp();
       const updates: Record<string, unknown> = { timestamp: ts };
       if (noteVal) updates['note'] = noteVal;
       else updates['note'] = '';  // clear note if empty

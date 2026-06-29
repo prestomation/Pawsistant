@@ -618,7 +618,7 @@ export class PawsistantCard extends HTMLElement {
           accent-color: var(--primary-color, #2196f3);
           cursor: pointer;
         }
-        input[type="text"], input[type="number"] {
+        input[type="text"], input[type="number"], input[type="datetime-local"] {
           width: 100%;
           box-sizing: border-box;
           padding: 10px 12px;
@@ -630,9 +630,22 @@ export class PawsistantCard extends HTMLElement {
           font-family: inherit;
           min-height: 44px;
         }
-        input[type="text"]:focus, input[type="number"]:focus {
+        input[type="text"]:focus, input[type="number"]:focus, input[type="datetime-local"]:focus {
           outline: 2px solid var(--primary-color, #2196f3);
           border-color: transparent;
+        }
+        .time-mode-toggle {
+          align-self: flex-start;
+          margin-top: 6px;
+          padding: 2px 0;
+          border: none;
+          background: none;
+          color: var(--primary-color, #2196f3);
+          font-size: 12px;
+          font-family: inherit;
+          font-weight: 600;
+          cursor: pointer;
+          text-decoration: underline;
         }
         .form-actions {
           display: flex;

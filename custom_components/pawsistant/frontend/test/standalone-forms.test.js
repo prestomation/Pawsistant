@@ -145,7 +145,8 @@ describe('openEditForm', () => {
 
     const noteInput = container.querySelector('#pbc-edit-note');
     expect(noteInput.value).toBe('at park');
-    const slider = container.querySelector('#pbc-edit-minutes-slider');
+    // The shared time-chooser starts in slider mode for recent events.
+    const slider = container.querySelector('#pbc-ed-minutes-slider');
     expect(slider.value).toBe('5');
 
     container.querySelector('#pbc-edit-form-submit').click();
