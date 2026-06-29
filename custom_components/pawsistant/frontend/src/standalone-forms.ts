@@ -7,8 +7,9 @@
 
 import type { HomeAssistant, EventMeta, BackdateFormResult, WeightFormResult, EditFormResult } from './types';
 import { logEvent, updateEvent } from './services';
+import { mountTimeChooser } from './time-chooser';
 import { _escapeHTML, toDisplayWeight } from './utils';
-import { T, TP } from './i18n';
+import { T } from './i18n';
 
 /* ── Form CSS (injected once per shadow root) ───────────────────────── */
 
@@ -54,7 +55,7 @@ const FORM_STYLES = `
     accent-color: var(--primary-color, #2196f3);
     cursor: pointer;
   }
-  input[type="text"], input[type="number"] {
+  input[type="text"], input[type="number"], input[type="datetime-local"] {
     width: 100%;
     box-sizing: border-box;
     padding: 10px 12px;
@@ -66,9 +67,22 @@ const FORM_STYLES = `
     font-family: inherit;
     min-height: 44px;
   }
-  input[type="text"]:focus, input[type="number"]:focus {
+  input[type="text"]:focus, input[type="number"]:focus, input[type="datetime-local"]:focus {
     outline: 2px solid var(--primary-color, #2196f3);
     border-color: transparent;
+  }
+  .time-mode-toggle {
+    align-self: flex-start;
+    margin-top: 6px;
+    padding: 2px 0;
+    border: none;
+    background: none;
+    color: var(--primary-color, #2196f3);
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
   }
   .form-actions {
     display: flex;
@@ -159,13 +173,7 @@ export function openBackdateForm(opts: BackdateFormOptions): Promise<BackdateFor
   formWrap.className = 'inline-form';
   formWrap.innerHTML = `
     <div class="form-title">${meta.emoji} ${T('form.log_title', { label: _escapeHTML(meta.label) })}</div>
-    <div class="form-field">
-      <div class="form-label-row">
-        <label class="form-label" for="pbc-minutes-slider">${T('form.minutes_ago')}</label>
-        <span class="slider-value" id="pbc-slider-display">${T('time.now')}</span>
-      </div>
-      <input type="range" id="pbc-minutes-slider" min="0" max="480" step="1" value="0" aria-label="${T('form.minutes_ago')}" />
-    </div>
+    <div id="pbc-time-chooser-slot"></div>
     <div class="form-field">
       <label class="form-label" for="pbc-backdate-note">${T('form.note_optional')}</label>
       <input type="text" id="pbc-backdate-note" placeholder="${T('form.note_placeholder')}" />
@@ -178,17 +186,9 @@ export function openBackdateForm(opts: BackdateFormOptions): Promise<BackdateFor
   `;
   root.appendChild(formWrap);
 
-  const slider = formWrap.querySelector<HTMLInputElement>('#pbc-minutes-slider')!;
-  const display = formWrap.querySelector<HTMLElement>('#pbc-slider-display')!;
-
-  const updateDisplay = (): void => {
-    const v = parseInt(slider.value, 10);
-    const t = new Date(Date.now() - v * 60000);
-    const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    display.textContent = (v === 0 ? T('time.now') : TP('time.min_ago', v)) + ` \u00b7 ${timeStr}`;
-  };
-  slider.addEventListener('input', updateDisplay);
-  updateDisplay();
+  const chooser = mountTimeChooser(formWrap.querySelector<HTMLElement>('#pbc-time-chooser-slot')!, {
+    idPrefix: 'pbc-bd',
+  });
 
   const cleanup = (): void => {
     formWrap.remove();
@@ -201,9 +201,8 @@ export function openBackdateForm(opts: BackdateFormOptions): Promise<BackdateFor
     });
 
     formWrap.querySelector('#pbc-form-submit')!.addEventListener('click', () => {
-      const minutesAgo = parseInt(slider.value, 10);
       const note = formWrap.querySelector<HTMLInputElement>('#pbc-backdate-note')!.value.trim();
-      const timestamp = new Date(Date.now() - minutesAgo * 60000).toISOString();
+      const timestamp = chooser.getTimestamp();
 
       const extra: Record<string, unknown> = { timestamp };
       if (note) extra['note'] = note;
@@ -335,13 +334,6 @@ export function openEditForm(opts: EditFormOptions): Promise<EditFormResult | nu
 
   _ensureFormStyles(root as ShadowRoot);
 
-  // Calculate minutes ago from timestamp
-  let minutesAgo = 0;
-  if (opts.timestamp) {
-    const diff = Date.now() - new Date(opts.timestamp).getTime();
-    minutesAgo = Math.max(0, Math.round(diff / 60000));
-  }
-
   const formWrap = document.createElement('div');
   formWrap.className = 'inline-form';
 
@@ -370,13 +362,7 @@ export function openEditForm(opts: EditFormOptions): Promise<EditFormResult | nu
   } else {
     formWrap.innerHTML = `
       <div class="form-title">${meta.emoji} ${T('form.edit_title', { label: _escapeHTML(meta.label) })}</div>
-      <div class="form-field">
-        <div class="form-label-row">
-          <label class="form-label" for="pbc-edit-minutes-slider">${T('form.minutes_ago')}</label>
-          <span class="slider-value" id="pbc-edit-slider-display">${T('time.now')}</span>
-        </div>
-        <input type="range" id="pbc-edit-minutes-slider" min="0" max="480" step="1" value="${minutesAgo}" aria-label="${T('form.minutes_ago')}" />
-      </div>
+      <div id="pbc-edit-time-chooser-slot"></div>
       <div class="form-field">
         <label class="form-label" for="pbc-edit-note">${T('form.note_optional')}</label>
         <input type="text" id="pbc-edit-note" placeholder="${_escapeHTML(T('form.note_placeholder'))}" value="${_escapeHTML(opts.note || '')}" />
@@ -402,18 +388,12 @@ export function openEditForm(opts: EditFormOptions): Promise<EditFormResult | nu
     }
   };
 
-  if (!isWeight) {
-    const slider = formWrap.querySelector<HTMLInputElement>('#pbc-edit-minutes-slider')!;
-    const display = formWrap.querySelector<HTMLElement>('#pbc-edit-slider-display')!;
-    const updateDisplay = (): void => {
-      const v = parseInt(slider.value, 10);
-      const t = new Date(Date.now() - v * 60000);
-      const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      display.textContent = (v === 0 ? T('time.now') : TP('time.min_ago', v)) + ` · ${timeStr}`;
-    };
-    slider.addEventListener('input', updateDisplay);
-    updateDisplay();
-  }
+  const chooser = isWeight
+    ? null
+    : mountTimeChooser(formWrap.querySelector<HTMLElement>('#pbc-edit-time-chooser-slot')!, {
+        idPrefix: 'pbc-ed',
+        initialTimestamp: opts.timestamp,
+      });
 
   return new Promise<EditFormResult | null>((resolve) => {
     formWrap.querySelector('#pbc-edit-form-cancel')!.addEventListener('click', () => {
@@ -439,10 +419,8 @@ export function openEditForm(opts: EditFormOptions): Promise<EditFormResult | nu
             console.error('[pawsistant-button-card] update weight failed:', err);
           });
       } else {
-        const slider = formWrap.querySelector<HTMLInputElement>('#pbc-edit-minutes-slider')!;
-        const minutes = parseInt(slider.value, 10);
         const note = formWrap.querySelector<HTMLInputElement>('#pbc-edit-note')!.value.trim();
-        const timestamp = new Date(Date.now() - minutes * 60000).toISOString();
+        const timestamp = chooser!.getTimestamp();
         // note is always sent — empty string clears an existing note
         updateEvent(hass, eventId, { timestamp, note })
           .then(() => resolve({ cleanup }))
