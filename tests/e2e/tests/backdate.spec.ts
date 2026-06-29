@@ -40,8 +40,8 @@ test.describe('Pawsistant card — arbitrary backdating', () => {
     await card.locator('#bd-datetime').fill(localInput(target));
     await card.locator('#form-submit').click();
 
-    // The form closes on success.
-    await expect(card.locator('#bd-datetime')).toHaveCount(0);
+    // The inline form collapses on success (the wrap drops its `open` class).
+    await expect(card.locator('#inline-form-wrap')).not.toHaveClass(/open/);
 
     // Verify via the backend that an event landed ~10 days ago — well beyond
     // the old 8-hour ceiling.
