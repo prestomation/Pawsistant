@@ -11,6 +11,7 @@
 [![License][license-shield]](LICENSE)
 [![hacs][hacsbadge]][hacs]
 ![Project Maintenance][maintenance-shield]
+[![ko-fi][kofi-shield]][kofi]
 [![HACS Validation][hacs-validation-shield]][hacs-validation]
 [![HA Version][ha-version-shield]][ha-version]
 
@@ -235,3 +236,5 @@ MIT
 [hacs-validation]: https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml
 [ha-version-shield]: https://img.shields.io/badge/Home%20Assistant-2024.4%2B-blue.svg?style=for-the-badge
 [ha-version]: https://www.home-assistant.io/
+[kofi-shield]: https://img.shields.io/badge/Ko--fi-donate-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white
+[kofi]: https://ko-fi.com/prestomation
