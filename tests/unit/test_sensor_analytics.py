@@ -81,7 +81,10 @@ class TestComputeWeightTrend:
         result = compute_weight_trend(events)
         assert result["trend"] == "unknown"
         assert result["change_pct"] is None
-        assert result["sample_count"] is None
+        # sample_count reports the true number of readings even when there are
+        # too few to judge, so the sensor can explain the "unknown" instead of
+        # just showing a blank.
+        assert result["sample_count"] == 1
 
     def test_stable_weight(self) -> None:
         events = [_ev("weight", _ts(i * 7), value=50.0) for i in range(5)]
@@ -126,6 +129,191 @@ class TestComputeWeightTrend:
         assert result["sample_count"] == 3
         assert result["oldest_value"] == 50.0
         assert result["newest_value"] == 54.0
+
+
+# ---------------------------------------------------------------------------
+# TestWeightTrendWindow
+# ---------------------------------------------------------------------------
+
+
+class TestWeightTrendWindow:
+    """The trend is measured over a configurable recent window.
+
+    Comparing oldest-to-newest across all history gets less useful the longer
+    an integration runs: a dog that lost weight and regained it reads "stable",
+    and the comparison span silently widens forever. The headline trend is
+    therefore windowed, with the full-history figures kept as `lifetime_*`.
+
+    The window is strict — readings outside it are excluded even when that
+    leaves too few points to judge. Widening it automatically would override
+    the interval the user deliberately chose.
+    """
+
+    def test_window_excludes_older_readings(self) -> None:
+        now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        events = [
+            # Old, heavier readings — outside a 30-day window.
+            _ev("weight", _ts(200, ref=now), value=80.0),
+            _ev("weight", _ts(150, ref=now), value=75.0),
+            # Recent readings, gaining.
+            _ev("weight", _ts(20, ref=now), value=50.0),
+            _ev("weight", _ts(10, ref=now), value=53.0),
+            _ev("weight", _ts(1, ref=now), value=56.0),
+        ]
+        result = compute_weight_trend(events, window_days=30, now=now)
+        assert result["trend"] == "gaining", (
+            "window should be measured over recent readings only"
+        )
+        assert result["sample_count"] == 3
+        assert result["oldest_value"] == 50.0
+        assert result["newest_value"] == 56.0
+
+    def test_lifetime_figures_reported_alongside_window(self) -> None:
+        """Full history stays available — nothing is lost by windowing."""
+        now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        events = [
+            _ev("weight", _ts(300, ref=now), value=50.0),
+            _ev("weight", _ts(200, ref=now), value=50.0),
+            _ev("weight", _ts(20, ref=now), value=50.0),
+            _ev("weight", _ts(10, ref=now), value=53.0),
+            _ev("weight", _ts(1, ref=now), value=56.0),
+        ]
+        result = compute_weight_trend(events, window_days=30, now=now)
+        assert result["trend"] == "gaining"
+        # Across all history the net change is +12%, but the shape differs and
+        # the span is 299 days rather than 19.
+        assert result["lifetime_sample_count"] == 5
+        assert result["lifetime_oldest_value"] == 50.0
+        assert result["lifetime_newest_value"] == 56.0
+        assert result["lifetime_over_days"] == pytest.approx(299.0, abs=1.0)
+
+    def test_recovered_weight_reads_stable_lifetime_but_gaining_recently(self) -> None:
+        """The exact case that motivated windowing.
+
+        A dog that dropped weight and recovered nets out flat across all
+        history, hiding an active upward trend.
+        """
+        now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        events = [
+            _ev("weight", _ts(300, ref=now), value=60.0),
+            _ev("weight", _ts(200, ref=now), value=50.0),
+            _ev("weight", _ts(20, ref=now), value=54.0),
+            _ev("weight", _ts(10, ref=now), value=57.0),
+            _ev("weight", _ts(1, ref=now), value=60.0),
+        ]
+        result = compute_weight_trend(events, window_days=30, now=now)
+        assert result["trend"] == "gaining"
+        assert result["lifetime_trend"] == "stable"
+
+    def test_sparse_window_returns_unknown_without_widening(self) -> None:
+        """A strict window must not silently expand to find enough points."""
+        now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        events = [
+            _ev("weight", _ts(200, ref=now), value=50.0),
+            _ev("weight", _ts(150, ref=now), value=52.0),
+            _ev("weight", _ts(100, ref=now), value=54.0),
+            _ev("weight", _ts(5, ref=now), value=60.0),
+        ]
+        result = compute_weight_trend(events, window_days=30, now=now)
+        assert result["trend"] == "unknown"
+        assert result["change_pct"] is None
+        # Attributes must explain WHY it is unknown, so a blank sensor is
+        # legible as "not enough readings in your window" rather than broken.
+        assert result["sample_count"] == 1
+        assert result["window_days"] == 30
+        # Lifetime figures still resolve — the history exists.
+        assert result["lifetime_trend"] == "gaining"
+        assert result["lifetime_sample_count"] == 4
+
+    def test_reading_exactly_on_window_boundary_is_included(self) -> None:
+        now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        events = [
+            _ev("weight", _ts(30, ref=now), value=50.0),
+            _ev("weight", _ts(15, ref=now), value=53.0),
+            _ev("weight", _ts(1, ref=now), value=56.0),
+        ]
+        result = compute_weight_trend(events, window_days=30, now=now)
+        assert result["sample_count"] == 3, "boundary reading should be inside"
+        assert result["trend"] == "gaining"
+
+    def test_window_days_none_means_all_history(self) -> None:
+        """Opting out of windowing keeps the original behaviour."""
+        now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        events = [
+            _ev("weight", _ts(900, ref=now), value=50.0),
+            _ev("weight", _ts(500, ref=now), value=52.0),
+            _ev("weight", _ts(1, ref=now), value=54.0),
+        ]
+        result = compute_weight_trend(events, window_days=None, now=now)
+        assert result["sample_count"] == 3
+        assert result["trend"] == "gaining"
+        assert result["window_days"] is None
+
+
+class TestWeightTrendThreshold:
+    """The gaining/losing band is configurable, and defaults by window length.
+
+    A 5% shift over a year is unremarkable growth; the same 5% inside a week
+    warrants a vet call. A single fixed threshold would under-report change on
+    short windows, so the default scales with the window.
+    """
+
+    def test_explicit_threshold_is_honoured(self) -> None:
+        now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        events = [
+            _ev("weight", _ts(20, ref=now), value=50.0),
+            _ev("weight", _ts(10, ref=now), value=50.5),
+            _ev("weight", _ts(1, ref=now), value=51.0),
+        ]
+        # +2% — under the 5% default, over an explicit 1%.
+        assert compute_weight_trend(
+            events, window_days=30, now=now
+        )["trend"] == "stable"
+        assert compute_weight_trend(
+            events, window_days=30, threshold_pct=1.0, now=now
+        )["trend"] == "gaining"
+
+    def test_threshold_is_reported(self) -> None:
+        now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        events = [_ev("weight", _ts(i, ref=now), value=50.0) for i in (20, 10, 1)]
+        result = compute_weight_trend(
+            events, window_days=30, threshold_pct=2.5, now=now
+        )
+        assert result["threshold_pct"] == 2.5
+
+    @pytest.mark.parametrize(
+        ("window_days", "expected"),
+        [
+            (7, 2.0),
+            (14, 2.0),
+            (30, 3.0),
+            (90, 3.0),
+            (180, 5.0),
+            (365, 5.0),
+            (None, 5.0),
+        ],
+    )
+    def test_default_threshold_scales_with_window(
+        self, window_days: int | None, expected: float
+    ) -> None:
+        now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        events = [_ev("weight", _ts(i, ref=now), value=50.0) for i in (3, 2, 1)]
+        result = compute_weight_trend(events, window_days=window_days, now=now)
+        assert result["threshold_pct"] == expected
+
+    def test_short_window_flags_change_a_fixed_5pct_band_would_miss(self) -> None:
+        """Regression guard for the under-reporting the scaling prevents."""
+        now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        events = [
+            _ev("weight", _ts(6, ref=now), value=50.0),
+            _ev("weight", _ts(3, ref=now), value=49.0),
+            _ev("weight", _ts(1, ref=now), value=48.5),
+        ]
+        # -3% in under a week: inside a flat 5% band, outside the 2% default
+        # that a 7-day window gets.
+        result = compute_weight_trend(events, window_days=7, now=now)
+        assert result["trend"] == "losing"
+        assert result["change_pct"] == pytest.approx(-3.0, abs=0.01)
 
 
 # ---------------------------------------------------------------------------
