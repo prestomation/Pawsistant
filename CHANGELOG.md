@@ -4,6 +4,11 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+## [2.23.1] - 2026-08-03
+
+### Fixed
+- **Long-press haptic feedback now works on the Android Companion app.** The card was dispatching `detail: { haptic: type }` but HA's contract is that `detail` is the bare `HapticType` string. The Companion app received a nested object, failed to deserialize it, and silently dropped the haptic — so haptics have been dead since they shipped in v2.18.0. The card now sends the bare type string, and a contract test replicates HA's window listener to prevent regression.
+
 ## [2.23.0] - 2026-06-29
 
 ### Added
