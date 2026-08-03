@@ -115,6 +115,25 @@
         "data": {
           "when": "Date"
         }
+      },
+      "select_analytics_dog": {
+        "title": "Analiz ayarları",
+        "description": "Analiz ayarlarını değiştirmek istediğiniz evcil hayvanı seçin.",
+        "data": {
+          "dog": "Evcil hayvan"
+        }
+      },
+      "edit_analytics": {
+        "title": "Kilo eğilimi ayarları",
+        "description": "{dog_name} için ayarlar. Kilo eğilimi, son dönem içindeki en eski ve en yeni ölçümü karşılaştırır; bu nedenle bu hayvanı ne sıklıkla tarttığınıza uygun bir dönem seçin. Tüm geçmişe ait değerler sensör özelliği olarak kullanılabilir kalır.",
+        "data": {
+          "weight_window_days": "Son dönem",
+          "weight_threshold_pct": "Değişim eşiği (%)"
+        },
+        "data_description": {
+          "weight_window_days": "Bundan daha eski ölçümler yok sayılır. Dönemde üçten az ölçüm varsa eğilim bilinmiyor olarak gösterilir.",
+          "weight_threshold_pct": "Kilonun artış veya kayıp sayılması için ne kadar değişmesi gerektiği. Döneme göre otomatik ölçeklenmesi için 0 bırakın."
+        }
       }
     },
     "error": {
@@ -141,7 +160,20 @@
         "remove_dog": "Evcil hayvanı kaldır",
         "edit_event_types": "Olay türlerini düzenle",
         "done": "Tamamlandı",
-        "manage_care_schedules": "Manage care schedules"
+        "manage_care_schedules": "Manage care schedules",
+        "edit_analytics": "Analiz ayarları"
+      }
+    },
+    "weight_window_days": {
+      "options": {
+        "7": "Son 7 gün",
+        "14": "Son 14 gün",
+        "30": "Son 30 gün",
+        "60": "Son 60 gün",
+        "90": "Son 90 gün",
+        "180": "Son 180 gün",
+        "365": "Son bir yıl",
+        "0": "Tüm geçmiş"
       }
     }
   },

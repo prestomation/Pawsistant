@@ -115,6 +115,25 @@
         "data": {
           "when": "Date"
         }
+      },
+      "select_analytics_dog": {
+        "title": "분석 설정",
+        "description": "분석 설정을 변경할 반려동물을 선택하세요.",
+        "data": {
+          "dog": "반려동물"
+        }
+      },
+      "edit_analytics": {
+        "title": "체중 추세 설정",
+        "description": "{dog_name}의 설정입니다. 체중 추세는 최근 기간 안에서 가장 오래된 측정값과 가장 최근 측정값을 비교합니다. 따라서 이 반려동물의 체중을 재는 빈도에 맞는 기간을 선택하세요. 전체 기록 수치는 센서 속성으로 계속 제공됩니다.",
+        "data": {
+          "weight_window_days": "최근 기간",
+          "weight_threshold_pct": "변화 기준값 (%)"
+        },
+        "data_description": {
+          "weight_window_days": "이보다 오래된 측정값은 무시됩니다. 기간에 측정값이 3개 미만이면 추세가 알 수 없음으로 표시됩니다.",
+          "weight_threshold_pct": "증가 또는 감소로 판단하기 위해 체중이 변해야 하는 정도입니다. 0으로 두면 기간에 따라 자동으로 조정됩니다."
+        }
       }
     },
     "error": {
@@ -141,7 +160,20 @@
         "remove_dog": "반려동물 제거",
         "edit_event_types": "이벤트 유형 편집",
         "done": "완료",
-        "manage_care_schedules": "Manage care schedules"
+        "manage_care_schedules": "Manage care schedules",
+        "edit_analytics": "분석 설정"
+      }
+    },
+    "weight_window_days": {
+      "options": {
+        "7": "최근 7일",
+        "14": "최근 14일",
+        "30": "최근 30일",
+        "60": "최근 60일",
+        "90": "최근 90일",
+        "180": "최근 180일",
+        "365": "최근 1년",
+        "0": "전체 기록"
       }
     }
   },
