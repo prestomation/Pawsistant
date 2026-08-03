@@ -14,9 +14,29 @@ from typing import Any
 # Tuning constants
 # ---------------------------------------------------------------------------
 
-# @todo: make configurable per-dog via options flow if needed
 WEIGHT_TREND_MIN_POINTS = 3
 WEIGHT_TREND_SIGNIFICANT_CHANGE_PCT = 5.0
+
+# Default recent window, in days, when a dog has no per-dog override.
+# 90 days suits the common case of a weigh-in at each vet visit (every 2-3
+# months) while still excluding readings old enough to be a different chapter
+# of the pet's life.
+WEIGHT_TREND_DEFAULT_WINDOW_DAYS = 90
+
+# Default gaining/losing band, chosen by window length.
+#
+# A fixed band cannot serve every window: 5% over a year is unremarkable
+# growth, whereas the same 5% inside a week warrants a vet call. Each entry is
+# (max_window_days, threshold_pct), consulted in order; a window longer than
+# every entry (or no window at all) falls back to
+# WEIGHT_TREND_SIGNIFICANT_CHANGE_PCT.
+#
+# Users can override the threshold per dog; these are the defaults that make
+# that unnecessary for most people.
+WEIGHT_TREND_THRESHOLD_BY_WINDOW: list[tuple[int, float]] = [
+    (14, 2.0),
+    (90, 3.0),
+]
 
 SICK_FREQUENCY_LOOKBACK_DAYS = 30
 SICK_FREQUENCY_PREVIOUS_WINDOW_DAYS = 30
@@ -84,41 +104,40 @@ def _parse_ts(ts: Any) -> datetime:
 # ---------------------------------------------------------------------------
 
 
-def compute_weight_trend(events: list[dict[str, Any]]) -> dict[str, Any]:
-    """Analyse weight events and return a trend summary.
+def default_weight_threshold_pct(window_days: int | None) -> float:
+    """Return the default gaining/losing band for a window of *window_days*.
 
-    Args:
-        events: List of event dicts (any mix of event types).
-
-    Returns:
-        Dict with keys:
-            trend        -- "gaining", "losing", "stable", or "unknown"
-            change_pct   -- percentage change oldest->newest (or None)
-            sample_count -- number of weight data points (or None)
-            oldest_value -- first recorded weight (or None)
-            newest_value -- last recorded weight (or None)
-            over_days    -- span in days between oldest and newest (or None)
+    Shorter windows get tighter bands — see
+    ``WEIGHT_TREND_THRESHOLD_BY_WINDOW`` for the reasoning.
     """
-    weight_events = [
-        e
-        for e in events
-        if e.get("event_type") == "weight"
-        and _safe_float(e.get("value")) is not None
-    ]
+    if window_days is not None:
+        for max_days, threshold in WEIGHT_TREND_THRESHOLD_BY_WINDOW:
+            if window_days <= max_days:
+                return threshold
+    return WEIGHT_TREND_SIGNIFICANT_CHANGE_PCT
 
-    weight_events.sort(key=lambda e: _parse_ts(e.get("timestamp")))
 
+def _trend_over(
+    weight_events: list[dict[str, Any]], threshold_pct: float
+) -> dict[str, Any]:
+    """Summarise an already-filtered, chronologically sorted weight series.
+
+    Returns the trend plus the supporting figures, or an all-None summary when
+    there are fewer than ``WEIGHT_TREND_MIN_POINTS`` readings. ``sample_count``
+    is always the true number of readings so callers can explain an "unknown"
+    result rather than just reporting a blank.
+    """
     if len(weight_events) < WEIGHT_TREND_MIN_POINTS:
         return {
             "trend": "unknown",
             "change_pct": None,
-            "sample_count": None,
+            "sample_count": len(weight_events),
             "oldest_value": None,
             "newest_value": None,
             "over_days": None,
         }
 
-    # _safe_float is guaranteed non-None here thanks to the filter above
+    # _safe_float is guaranteed non-None here thanks to the caller's filter.
     oldest_value: float = _safe_float(weight_events[0]["value"])  # type: ignore[assignment]
     newest_value: float = _safe_float(weight_events[-1]["value"])  # type: ignore[assignment]
 
@@ -131,9 +150,9 @@ def compute_weight_trend(events: list[dict[str, Any]]) -> dict[str, Any]:
     else:
         change_pct = round(((newest_value - oldest_value) / oldest_value) * 100, 2)
 
-    if change_pct > WEIGHT_TREND_SIGNIFICANT_CHANGE_PCT:
+    if change_pct > threshold_pct:
         trend = "gaining"
-    elif change_pct < -WEIGHT_TREND_SIGNIFICANT_CHANGE_PCT:
+    elif change_pct < -threshold_pct:
         trend = "losing"
     else:
         trend = "stable"
@@ -145,6 +164,90 @@ def compute_weight_trend(events: list[dict[str, Any]]) -> dict[str, Any]:
         "oldest_value": oldest_value,
         "newest_value": newest_value,
         "over_days": over_days,
+    }
+
+
+def compute_weight_trend(
+    events: list[dict[str, Any]],
+    *,
+    window_days: int | None = WEIGHT_TREND_DEFAULT_WINDOW_DAYS,
+    threshold_pct: float | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Analyse weight events and return a trend summary.
+
+    The headline trend covers a recent window rather than all recorded history.
+    Comparing the oldest reading to the newest gets steadily less informative
+    as history accumulates: a dog that lost weight and then regained it nets
+    out "stable", and the comparison span widens forever. Full-history figures
+    remain available under the ``lifetime_*`` keys.
+
+    The window is applied strictly. When it holds fewer than
+    ``WEIGHT_TREND_MIN_POINTS`` readings the trend is "unknown" — the window is
+    never widened to find more, because that would override the interval the
+    user deliberately configured. ``sample_count`` and ``window_days`` are
+    always populated so an "unknown" reads as "not enough readings in your
+    window" rather than as a malfunction.
+
+    Args:
+        events:        List of event dicts (any mix of event types).
+        window_days:   Recent window in days, or None to use all history for
+                       the headline trend too.
+        threshold_pct: Percentage change that counts as gaining/losing. When
+                       None, defaults by window length via
+                       :func:`default_weight_threshold_pct`.
+        now:           Optional reference timestamp for "now". Defaults to
+                       ``datetime.now(tz=timezone.utc)``; overridable for
+                       deterministic testing.
+
+    Returns:
+        Dict with keys:
+            trend         -- "gaining", "losing", "stable", or "unknown"
+            change_pct    -- percentage change oldest->newest in window (or None)
+            sample_count  -- weight readings inside the window
+            oldest_value  -- first reading in the window (or None)
+            newest_value  -- last reading in the window (or None)
+            over_days     -- span in days covered by the window's readings
+            window_days   -- the window applied (echoed back; None = all history)
+            threshold_pct -- the gaining/losing band applied
+            lifetime_*    -- the same trend figures computed over all history
+                             (trend, change_pct, sample_count, oldest_value,
+                             newest_value, over_days)
+    """
+    if now is None:
+        now = datetime.now(tz=timezone.utc)
+    if threshold_pct is None:
+        threshold_pct = default_weight_threshold_pct(window_days)
+
+    weight_events = [
+        e
+        for e in events
+        if e.get("event_type") == "weight"
+        and _safe_float(e.get("value")) is not None
+    ]
+    weight_events.sort(key=lambda e: _parse_ts(e.get("timestamp")))
+
+    lifetime = _trend_over(weight_events, threshold_pct)
+
+    if window_days is None:
+        windowed = lifetime
+    else:
+        cutoff = now - timedelta(days=window_days)
+        windowed = _trend_over(
+            [e for e in weight_events if _parse_ts(e.get("timestamp")) >= cutoff],
+            threshold_pct,
+        )
+
+    return {
+        **windowed,
+        "window_days": window_days,
+        "threshold_pct": threshold_pct,
+        "lifetime_trend": lifetime["trend"],
+        "lifetime_change_pct": lifetime["change_pct"],
+        "lifetime_sample_count": lifetime["sample_count"],
+        "lifetime_oldest_value": lifetime["oldest_value"],
+        "lifetime_newest_value": lifetime["newest_value"],
+        "lifetime_over_days": lifetime["over_days"],
     }
 
 
