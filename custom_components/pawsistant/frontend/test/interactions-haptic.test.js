@@ -11,7 +11,7 @@ describe('fireHaptic', () => {
     el.addEventListener('haptic', (e) => events.push(e));
     fireHaptic(el, 'medium');
     expect(events.length).toBe(1);
-    expect(events[0].detail).toEqual({ haptic: 'medium' });
+    expect(events[0].detail).toBe('medium');
     expect(events[0].bubbles).toBe(true);
     expect(events[0].composed).toBe(true);
   });
@@ -21,7 +21,76 @@ describe('fireHaptic', () => {
     const events = [];
     el.addEventListener('haptic', (e) => events.push(e));
     fireHaptic(el);
-    expect(events[0].detail).toEqual({ haptic: 'medium' });
+    expect(events[0].detail).toBe('medium');
+  });
+});
+
+describe('haptic payload contract with the HA Companion app', () => {
+  /**
+   * Home Assistant's external-app bridge forwards our event to the Companion
+   * app verbatim:
+   *
+   *   window.addEventListener("haptic", (ev) =>
+   *     external.fireMessage({ type: "haptic", payload: { hapticType: ev.detail } }))
+   *       — frontend/src/external_app/external_app_entrypoint.ts
+   *
+   * So `detail` must be the bare HapticType string. Wrapping it in an object
+   * produces {"hapticType":{"haptic":"medium"}}, which the Android app's
+   * polymorphic deserializer resolves to HapticType.Unknown and silently
+   * discards ("Ignoring unknown haptic type" in HapticFeedbackPerformer).
+   * That is invisible in a browser, so assert the forwarded payload directly.
+   */
+  function captureAppPayload(fire) {
+    const messages = [];
+    const listener = (ev) => messages.push({ type: 'haptic', payload: { hapticType: ev.detail } });
+    window.addEventListener('haptic', listener);
+    try {
+      fire();
+    } finally {
+      window.removeEventListener('haptic', listener);
+    }
+    return messages;
+  }
+
+  it('forwards the bare haptic type the app can deserialise', () => {
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    try {
+      const messages = captureAppPayload(() => fireHaptic(el, 'medium'));
+      expect(messages).toEqual([{ type: 'haptic', payload: { hapticType: 'medium' } }]);
+    } finally {
+      el.remove();
+    }
+  });
+
+  it('uses a haptic type the Companion app recognises', () => {
+    // Mirrors HapticType in frontend/src/data/haptics.ts; anything else maps
+    // to HapticType.Unknown on Android.
+    const VALID = ['success', 'warning', 'failure', 'light', 'medium', 'heavy', 'selection'];
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    try {
+      const messages = captureAppPayload(() => fireHaptic(el));
+      expect(VALID).toContain(messages[0].payload.hapticType);
+    } finally {
+      el.remove();
+    }
+  });
+
+  it('reaches the app from inside a shadow root', () => {
+    // Buttons live in the card's shadow DOM; without composed: true the event
+    // never escapes to window and the app is never told.
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = host.attachShadow({ mode: 'open' });
+    const btn = document.createElement('button');
+    root.appendChild(btn);
+    try {
+      const messages = captureAppPayload(() => fireHaptic(btn, 'medium'));
+      expect(messages).toEqual([{ type: 'haptic', payload: { hapticType: 'medium' } }]);
+    } finally {
+      host.remove();
+    }
   });
 });
 
@@ -60,7 +129,7 @@ describe('setupLongPress click-through fix', () => {
     await new Promise(r => setTimeout(r, 600));
 
     expect(haptics.length).toBe(1);
-    expect(haptics[0].detail.haptic).toBe('medium');
+    expect(haptics[0].detail).toBe('medium');
 
     cleanup();
   });
