@@ -49,7 +49,17 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .const import DEFAULT_EVENT_TYPES, DEFAULT_BUTTON_METRICS, CONF_EVENT_TYPES, CONF_BUTTON_METRICS, CONF_CARE_SCHEDULES
+from .const import (
+    DEFAULT_EVENT_TYPES,
+    DEFAULT_BUTTON_METRICS,
+    CONF_EVENT_TYPES,
+    CONF_BUTTON_METRICS,
+    CONF_CARE_SCHEDULES,
+    CONF_ANALYTICS_SETTINGS,
+    CONF_WEIGHT_WINDOW_DAYS,
+    CONF_WEIGHT_THRESHOLD_PCT,
+    DEFAULT_WEIGHT_WINDOW_DAYS,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +73,10 @@ PERSISTENT_EVENT_TYPES = {"weight", "medicine", "vaccine"}
 # High-frequency events older than this are pruned per year file.
 # Set to 3 years — generous enough for full history but prevents unbounded growth.
 DEFAULT_RETENTION_DAYS = 1095
+
+# Marker for "argument not supplied", where None is itself a meaningful value.
+_UNSET = object()
+
 # ---------------------------------------------------------------------------
 # PawsistantStore
 # ---------------------------------------------------------------------------
@@ -236,6 +250,9 @@ class PawsistantStore:
         # Care schedules are additive — stores written before the Home Keeper link
         # existed simply lack the key, so default it without a storage migration.
         self._meta.setdefault(CONF_CARE_SCHEDULES, {})
+        # Same for per-dog analytics settings: absent means "everyone is on the
+        # defaults", which is exactly what get_analytics_settings() returns.
+        self._meta.setdefault(CONF_ANALYTICS_SETTINGS, {})
 
         # Migrate old flat-event format if present
         if "events" in self._meta:
@@ -370,6 +387,9 @@ class PawsistantStore:
 
         name = self._meta["dogs"][dog_id].get("name", dog_id)
         del self._meta["dogs"][dog_id]
+        # Drop per-dog analytics settings too, so they don't accumulate for
+        # dogs that no longer exist (the shared _save_meta() below persists it).
+        self._meta.get(CONF_ANALYTICS_SETTINGS, {}).pop(dog_id, None)
 
         # Ensure all known years are loaded so we can scrub events completely
         for year in self._meta.get("known_years", []):
@@ -487,6 +507,61 @@ class PawsistantStore:
         if removed:
             await self._save_meta()
         return removed
+
+    # -----------------------------------------------------------------------
+    # Per-dog analytics settings
+    # -----------------------------------------------------------------------
+    # The weight-trend sensor measures its trend over a recent window, and how
+    # big a change counts as gaining/losing. Neither is one-size-fits-all: a pet
+    # under treatment is weighed weekly and wants a short window, while a
+    # healthy adult is weighed at vet visits and wants a long one. Both are
+    # therefore per dog, keyed by ``dog_id`` so they survive a rename.
+    #
+    # Only explicitly-set values are stored; anything absent falls back to the
+    # defaults in sensor_analytics.py. A stored ``None`` window is meaningful —
+    # it means "use all history" — so it is distinct from never having been set.
+
+    def get_analytics_settings(self, dog_id: str) -> dict[str, Any]:
+        """Return the analytics settings for *dog_id*, filling in defaults.
+
+        Unknown dog_ids get the defaults rather than raising: an entity can
+        outlive the removal of its dog for the rest of a tick.
+
+        A ``weight_threshold_pct`` of None means "derive it from the window" —
+        see ``default_weight_threshold_pct()`` in sensor_analytics.py.
+        """
+        stored: dict[str, Any] = self._meta.get(CONF_ANALYTICS_SETTINGS, {}).get(
+            dog_id, {}
+        )
+        return {
+            CONF_WEIGHT_WINDOW_DAYS: stored.get(
+                CONF_WEIGHT_WINDOW_DAYS, DEFAULT_WEIGHT_WINDOW_DAYS
+            ),
+            CONF_WEIGHT_THRESHOLD_PCT: stored.get(CONF_WEIGHT_THRESHOLD_PCT),
+        }
+
+    async def set_analytics_settings(
+        self,
+        dog_id: str,
+        weight_window_days: int | None | object = _UNSET,
+        weight_threshold_pct: float | None | object = _UNSET,
+    ) -> dict[str, Any]:
+        """Update analytics settings for *dog_id* and return the merged result.
+
+        Omitted arguments are left untouched, so a caller that only changes the
+        window does not silently reset the threshold. Passing ``None``
+        explicitly *is* a value: for the window it means all history, for the
+        threshold it means "back to the window-scaled default".
+        """
+        settings = self._meta.setdefault(CONF_ANALYTICS_SETTINGS, {}).setdefault(
+            dog_id, {}
+        )
+        if weight_window_days is not _UNSET:
+            settings[CONF_WEIGHT_WINDOW_DAYS] = weight_window_days
+        if weight_threshold_pct is not _UNSET:
+            settings[CONF_WEIGHT_THRESHOLD_PCT] = weight_threshold_pct
+        await self._save_meta()
+        return self.get_analytics_settings(dog_id)
 
     # -----------------------------------------------------------------------
     # Event management
