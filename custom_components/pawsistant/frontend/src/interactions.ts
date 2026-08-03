@@ -9,12 +9,17 @@ import type { LongPressHandlers } from './types';
 /**
  * Dispatch a haptic feedback event. Bubbles up to Home Assistant's
  * haptic listener — no-op in browsers without one.
+ *
+ * `detail` must be the bare HapticType string, matching HA's own
+ * `forwardHaptic()`. The external-app bridge forwards it as
+ * `payload: { hapticType: ev.detail }`, so wrapping it in an object makes the
+ * Companion app deserialise it to `HapticType.Unknown` and drop it silently.
  */
 export function fireHaptic(node: Node, type: string = 'medium'): void {
   node.dispatchEvent(new CustomEvent('haptic', {
     bubbles: true,
     composed: true,
-    detail: { haptic: type },
+    detail: type,
   }));
 }
 
