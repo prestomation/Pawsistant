@@ -198,6 +198,10 @@ class FakeCoordinator:
         self.button_metrics = {}
         store = MagicMock()
         store.get_shown_types.return_value = None
+        store.get_analytics_settings.return_value = {
+            "weight_window_days": 90,
+            "weight_threshold_pct": None,
+        }
         self.store = store
         self.get_device_info = MagicMock(return_value=MagicMock())
 
@@ -273,6 +277,103 @@ class TestCacheInvalidatesOnRefresh:
             "Routine sensor froze at its first computed value."
         )
         assert 8 in sensor.extra_state_attributes["peak_hours"]
+
+
+class TestWeightTrendUsesPerDogSettings:
+    """The sensor must read its window/threshold from the store, per dog.
+
+    The analytics function is already covered directly in
+    test_sensor_analytics.py; what matters here is that the sensor actually
+    passes the stored settings through instead of silently using the defaults.
+    """
+
+    def test_stored_window_is_passed_through(self):
+        coord = FakeCoordinator(
+            {"dog1": [_weight(50, 200), _weight(50, 150), _weight(50, 100)]}
+        )
+        coord.store.get_analytics_settings.return_value = {
+            "weight_window_days": 30,
+            "weight_threshold_pct": None,
+        }
+        sensor = PawsistantWeightTrendSensor(coord, "dog1", "Fido", "Dog")
+        # Every reading is older than 30 days, so a respected window leaves too
+        # few points to judge. Falling back to the 90-day default would too;
+        # the lifetime figures below are what distinguish the two.
+        assert sensor.native_value == "unknown"
+        attrs = sensor.extra_state_attributes
+        assert attrs["window_days"] == 30
+        assert attrs["sample_count"] == 0
+        assert attrs["lifetime_sample_count"] == 3, (
+            "lifetime figures should still resolve from full history"
+        )
+
+    def test_settings_are_looked_up_for_this_dog(self):
+        coord = FakeCoordinator({"dog1": [_weight(50, 20)]})
+        sensor = PawsistantWeightTrendSensor(coord, "dog1", "Fido", "Dog")
+        sensor.native_value
+        coord.store.get_analytics_settings.assert_called_with("dog1")
+
+    def test_stored_threshold_is_passed_through(self):
+        # +2%: stable under the default band for a 30-day window (3%), gaining
+        # under an explicit 1%.
+        events = {"dog1": [_weight(50.0, 20), _weight(50.5, 10), _weight(51.0, 1)]}
+        coord = FakeCoordinator(events)
+        coord.store.get_analytics_settings.return_value = {
+            "weight_window_days": 30,
+            "weight_threshold_pct": None,
+        }
+        assert PawsistantWeightTrendSensor(
+            coord, "dog1", "Fido", "Dog"
+        ).native_value == "stable"
+
+        coord2 = FakeCoordinator(events)
+        coord2.store.get_analytics_settings.return_value = {
+            "weight_window_days": 30,
+            "weight_threshold_pct": 1.0,
+        }
+        sensor2 = PawsistantWeightTrendSensor(coord2, "dog1", "Fido", "Dog")
+        assert sensor2.native_value == "gaining"
+        assert sensor2.extra_state_attributes["threshold_pct"] == 1.0
+
+    def test_window_of_none_uses_all_history(self):
+        coord = FakeCoordinator(
+            {"dog1": [_weight(50, 900), _weight(52, 500), _weight(60, 400)]}
+        )
+        coord.store.get_analytics_settings.return_value = {
+            "weight_window_days": None,
+            "weight_threshold_pct": None,
+        }
+        sensor = PawsistantWeightTrendSensor(coord, "dog1", "Fido", "Dog")
+        assert sensor.native_value == "gaining"
+        assert sensor.extra_state_attributes["window_days"] is None
+
+    def test_missing_store_method_falls_back_to_defaults(self):
+        """A store predating this feature must not break the sensor."""
+        coord = FakeCoordinator(
+            {"dog1": [_weight(50, 20), _weight(55, 10), _weight(60, 1)]}
+        )
+        del coord.store.get_analytics_settings
+        sensor = PawsistantWeightTrendSensor(coord, "dog1", "Fido", "Dog")
+        assert sensor.native_value == "gaining"
+        assert sensor.extra_state_attributes["window_days"] == 90
+
+    def test_lifetime_attributes_are_exposed(self):
+        coord = FakeCoordinator(
+            {"dog1": [_weight(60, 300), _weight(50, 200), _weight(60, 1)]}
+        )
+        coord.store.get_analytics_settings.return_value = {
+            "weight_window_days": 30,
+            "weight_threshold_pct": None,
+        }
+        attrs = PawsistantWeightTrendSensor(
+            coord, "dog1", "Fido", "Dog"
+        ).extra_state_attributes
+        # Dropped then recovered: flat across all history.
+        assert attrs["lifetime_trend"] == "stable"
+        assert attrs["lifetime_change_pct"] == pytest.approx(0.0)
+        assert attrs["lifetime_oldest_value"] == 60
+        assert attrs["lifetime_newest_value"] == 60
+        assert attrs["lifetime_over_days"] == pytest.approx(299.0, abs=1.0)
 
 
 class TestCacheStillCachesWithinATick:
