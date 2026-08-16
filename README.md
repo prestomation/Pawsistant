@@ -80,6 +80,13 @@ Keeper task done, and completing the task in Home Keeper logs the activity in
 Pawsistant — so they behave like the same button. The option only appears when Home
 Keeper is installed.
 
+**Mistakes travel too.** Marked the medicine done when you hadn't? Undo the completion
+in Home Keeper and the logged entry disappears from Pawsistant; delete the entry from
+the Pawsistant timeline and the Home Keeper completion goes with it. Editing an entry's
+time moves the completion to match. If the two ever drift apart — an undo while Home
+Assistant was restarting, say — Pawsistant tidies up on the next start, and only ever
+touches entries it logged on Home Keeper's behalf, never one you logged yourself.
+
 Pawsistant also **announces itself to Home Keeper** so it appears under Home Keeper's
 **Settings → Companions** section, with a *Configure* link to Pawsistant's settings
 page (where the care schedules above live) — so if you have both, you'll discover they

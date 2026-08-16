@@ -11,4 +11,10 @@
 # so the old co-development SHA is no longer on main and would only resolve via GitHub's
 # retained PR ref. Pin to a released tag (e.g. v0.1.0b3) instead if you want fully
 # reproducible runs.
+#
+# The undo half of the sync needs Home Keeper 0.14.0b1 or newer, which added the removed
+# completion's ``ts`` to home_keeper_task_uncompleted and ``fire_user_uncompletion`` to
+# the fake (ha-home-keeper #203). Tracking main gets that; against anything older the
+# undo tests skip rather than fail, so pinning to an older tag degrades to partial
+# coverage instead of a red build.
 home-keeper @ git+https://github.com/prestomation/ha-home-keeper@main

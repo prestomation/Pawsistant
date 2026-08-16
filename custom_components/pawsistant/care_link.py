@@ -15,14 +15,22 @@ The link works in both directions, behaving like "the same button":
   every completion; :func:`parse_completion_event` recognises the ones that belong to
   us so the caller can mirror them into a logged event.
 
+Undo travels the same two ways, because a mistaken "done" is as much a shared fact as
+the "done" itself. Deleting a logged event calls :func:`delete_completion`, and Home
+Keeper's ``home_keeper_task_uncompleted`` comes back through
+:func:`parse_uncompletion_event`. Both directions identify the completion by its
+timestamp, which is how Home Keeper keys its own history.
+
 Loop prevention uses two independent guards: the ``origin`` marker (we ignore the echo
-of a completion we initiated), and the caller mirroring inbound completions by writing
-straight to the store rather than re-entering the ``log_event`` service path.
+of a completion or undo we initiated), and the caller mirroring inbound changes by
+writing straight to the store rather than re-entering the ``log_event`` /
+``delete_event`` service paths.
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -34,6 +42,9 @@ _LOGGER = logging.getLogger(__name__)
 # Home Keeper's public contract.
 HK_DOMAIN = "home_keeper"
 HK_EVENT_TASK_COMPLETED = "home_keeper_task_completed"
+# Fired when a completion is undone. Carries the ``ts`` of the completion that was
+# removed, which is what lets us find the one logged event it stood for.
+HK_EVENT_TASK_UNCOMPLETED = "home_keeper_task_uncompleted"
 # Home Keeper fires this (at its setup and on reload) to ask companion integrations
 # to (re-)announce themselves to its discovery registry. We both register at our own
 # setup and respond to this ping, so discovery works regardless of startup order.
@@ -42,6 +53,10 @@ HK_EVENT_REGISTER_COMPANIONS = "home_keeper_register_companions"
 ORIGIN = "pawsistant"
 # Namespace under a Home Keeper task's opaque ``source`` dict that we own.
 SOURCE_NS = "pawsistant"
+# Note written on an event we logged on Home Keeper's behalf. It is what marks an event
+# as a *mirror* rather than something the user logged, which the reconcile heal pass
+# relies on before it deletes anything.
+MIRROR_NOTE = "via Home Keeper"
 
 
 def home_keeper_available(hass: HomeAssistant) -> bool:
@@ -233,6 +248,31 @@ async def complete_task(hass: HomeAssistant, task_id: str, completed_at: str | N
         _LOGGER.warning("Home Keeper complete_task failed for %s: %s", task_id, err)
 
 
+async def delete_completion(
+    hass: HomeAssistant, task_id: str | None, ts: str | None
+) -> None:
+    """Undo a linked Home Keeper completion (passing our origin marker).
+
+    The counterpart of :func:`complete_task`: when the logged event that stood for a
+    completion is deleted, the completion goes with it. A ``ts`` Home Keeper doesn't
+    hold is a no-op on its side, so a stale call is safe. No-op without Home Keeper, or
+    on an older version that predates the service.
+    """
+    if not task_id or not ts or not _has(hass, "delete_completion"):
+        return
+    try:
+        await hass.services.async_call(
+            HK_DOMAIN,
+            "delete_completion",
+            {"task_id": task_id, "ts": ts, "origin": ORIGIN},
+            blocking=True,
+        )
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning(
+            "Home Keeper delete_completion failed for %s at %s: %s", task_id, ts, err
+        )
+
+
 async def delete_task(hass: HomeAssistant, task_id: str | None) -> None:
     """Delete a linked Home Keeper task (no-op if absent)."""
     if not task_id or not _has(hass, "delete_task"):
@@ -245,11 +285,12 @@ async def delete_task(hass: HomeAssistant, task_id: str | None) -> None:
         _LOGGER.warning("Home Keeper delete_task failed for %s: %s", task_id, err)
 
 
-def parse_completion_event(event) -> dict[str, Any] | None:
-    """Return our source payload from a completion event, or None to ignore it.
+def _parse_our_task_event(event) -> dict[str, Any] | None:
+    """Return the source block of a Home Keeper task event that belongs to us.
 
-    Returns ``None`` when the event is the echo of a completion we initiated
-    (``origin`` is ours) or when the task isn't one of ours.
+    Returns ``None`` when the event is the echo of a change we initiated (``origin``
+    is ours) or when the task isn't one of ours. Shared by the completion and
+    uncompletion parsers so the two can't drift apart on what "ours" means.
     """
     data = event.data or {}
     if data.get("origin") == ORIGIN:
@@ -264,16 +305,120 @@ def parse_completion_event(event) -> dict[str, Any] | None:
         "dog_id": src.get("dog_id"),
         "event_type": src.get("event_type"),
         "schedule_id": src.get("schedule_id"),
-        "completed_at": data.get("completed_at"),
     }
 
 
-async def reconcile(hass: HomeAssistant, store) -> None:
-    """Self-heal: recreate Home Keeper tasks for schedules whose task is missing.
+def parse_completion_event(event) -> dict[str, Any] | None:
+    """Return our source payload from a completion event, or None to ignore it.
 
-    Covers tasks a user deleted directly in Home Keeper, or schedules created while
-    Home Keeper was absent. Best-effort and guarded — does nothing if Home Keeper or
-    ``list_tasks`` is unavailable.
+    Returns ``None`` when the event is the echo of a completion we initiated
+    (``origin`` is ours) or when the task isn't one of ours.
+    """
+    link = _parse_our_task_event(event)
+    if link is None:
+        return None
+    return {**link, "completed_at": (event.data or {}).get("completed_at")}
+
+
+def parse_uncompletion_event(event) -> dict[str, Any] | None:
+    """Return our source payload from an undo event, or None to ignore it.
+
+    Same filtering as :func:`parse_completion_event`, plus the ``ts`` of the completion
+    Home Keeper removed. Without that timestamp there is nothing to match a logged
+    event against, so an event that somehow lacks it is ignored rather than guessed at
+    (an older Home Keeper fired the undo event with no ``ts`` at all).
+    """
+    link = _parse_our_task_event(event)
+    if link is None:
+        return None
+    ts = (event.data or {}).get("ts")
+    if not ts:
+        return None
+    return {**link, "ts": ts}
+
+
+def _parse_iso(value: Any) -> datetime | None:
+    """Parse an ISO timestamp for the heal pass, or None if it can't be trusted.
+
+    A *naive* timestamp is rejected rather than assumed to be in some zone. Home
+    Keeper always writes aware values, and so does the mirror path, so a naive one
+    only turns up if a user hand-edited an entry — and guessing its zone could put it
+    on the wrong side of the comparison that decides whether to delete it. Refusing to
+    read it means it is never a deletion candidate, which is the safe direction to
+    fail in.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else None
+
+
+async def _heal_orphaned_mirrors(store, schedule: dict[str, Any], task: dict) -> int:
+    """Delete logged events that mirror a Home Keeper completion that no longer exists.
+
+    The event listeners keep the two sides together while both are running; this closes
+    the gap for undos that happened while Pawsistant was down, and repairs installs that
+    diverged before the undo link existed at all.
+
+    Deleting logged data on a heuristic deserves narrow guards, so this only ever
+    removes an event that clears **both**:
+
+    * it carries our mirror marker as its note, so an event the user logged themselves
+      is never a candidate — even one at the same instant; and
+    * it is no older than the window Home Keeper can still speak for. Completion
+      history is capped, so an entry that merely aged out of it is not an orphan. The
+      floor is the oldest retained completion, or the task's own creation date when the
+      history is empty (which is also what protects the events belonging to a schedule
+      whose task was just recreated from scratch).
+
+    Returns the number of events removed.
+    """
+    dog_id = schedule.get("dog_id")
+    event_type = schedule.get("event_type")
+    if not dog_id or not event_type:
+        return 0
+    kept = {
+        parsed
+        for parsed in (
+            _parse_iso(entry.get("ts")) for entry in task.get("completions") or []
+        )
+        if parsed is not None
+    }
+    floor = min(kept) if kept else _parse_iso(task.get("created"))
+    if floor is None:
+        return 0  # no trustworthy window; leave the log alone
+    removed = 0
+    for event in await store.get_events(dog_id, event_type, since=floor):
+        if event.get("note") != MIRROR_NOTE:
+            continue
+        when = _parse_iso(event.get("timestamp"))
+        if when is None or when < floor or when in kept:
+            continue
+        if await store.delete_event(event["id"]):
+            removed += 1
+            _LOGGER.info(
+                "Removed %s event mirroring a Home Keeper completion that was undone "
+                "while Pawsistant was not running (%s)",
+                event_type,
+                event.get("timestamp"),
+            )
+    return removed
+
+
+async def reconcile(hass: HomeAssistant, store) -> None:
+    """Self-heal the link in both directions.
+
+    Recreates Home Keeper tasks for schedules whose task is missing (covering tasks a
+    user deleted directly in Home Keeper, or schedules created while Home Keeper was
+    absent), and for schedules whose task is still there, drops mirrored events left
+    behind by completions that were undone while we weren't listening (see
+    :func:`_heal_orphaned_mirrors`).
+
+    Best-effort and guarded — does nothing if Home Keeper or ``list_tasks`` is
+    unavailable.
     """
     schedules = store.get_care_schedules()
     if not schedules or not home_keeper_available(hass) or not _has(hass, "list_tasks"):
@@ -285,9 +430,11 @@ async def reconcile(hass: HomeAssistant, store) -> None:
     except Exception as err:  # noqa: BLE001
         _LOGGER.warning("Home Keeper list_tasks failed during reconcile: %s", err)
         return
-    live_ids = {t.get("id") for t in (resp or {}).get("tasks", [])}
+    live = {t["id"]: t for t in (resp or {}).get("tasks", []) if t.get("id")}
     for schedule_id, schedule in schedules.items():
-        if schedule.get("task_id") in live_ids:
+        task = live.get(schedule.get("task_id"))
+        if task is not None:
+            await _heal_orphaned_mirrors(store, schedule, task)
             continue
         new_task_id = await create_task(hass, store, schedule_id, schedule)
         if new_task_id and new_task_id != schedule.get("task_id"):
