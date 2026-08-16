@@ -24,6 +24,25 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa
 from custom_components.pawsistant import care_link  # noqa: E402
 from custom_components.pawsistant.const import DOMAIN  # noqa: E402
 
+# The undo half of the contract needs a Home Keeper that fires the removed completion's
+# ``ts`` on home_keeper_task_uncompleted, and whose fake can drive that path. Skip
+# rather than fail against an older one, matching how this module treats Home Keeper
+# missing entirely.
+requires_hk_undo = pytest.mark.skipif(
+    not hasattr(testing.FakeHomeKeeper, "fire_user_uncompletion"),
+    reason="installed Home Keeper predates the task_uncompleted ts/origin contract",
+)
+
+
+def _add_home_keeper_entry(hass) -> None:
+    """Give the fake a config entry, which is how care_link detects Home Keeper.
+
+    ``home_keeper_available`` asks the config-entry registry, not the service registry,
+    so anything going through it (``reconcile``) needs this even though the fake
+    registers the services itself.
+    """
+    MockConfigEntry(domain=care_link.HK_DOMAIN).add_to_hass(hass)
+
 
 async def _setup_pawsistant(hass) -> MockConfigEntry:
     entry = MockConfigEntry(
@@ -111,6 +130,7 @@ async def _make_linked_schedule(hass, store, dog_id, schedule_id="sched-1"):
     return task_id
 
 
+@requires_hk_undo
 @pytest.mark.asyncio
 async def test_undo_in_home_keeper_removes_the_mirrored_event(
     hass, enable_custom_integrations
@@ -134,6 +154,7 @@ async def test_undo_in_home_keeper_removes_the_mirrored_event(
     assert await _medicine_count(store, dog_id) == 0
 
 
+@requires_hk_undo
 @pytest.mark.asyncio
 async def test_deleting_a_logged_event_undoes_the_completion(
     hass, enable_custom_integrations
@@ -165,6 +186,7 @@ async def test_deleting_a_logged_event_undoes_the_completion(
     assert await _medicine_count(store, dog_id) == 0
 
 
+@requires_hk_undo
 @pytest.mark.asyncio
 async def test_editing_an_events_time_moves_the_completion(
     hass, enable_custom_integrations
@@ -200,6 +222,7 @@ async def test_editing_an_events_time_moves_the_completion(
     assert await _medicine_count(store, dog_id) == 1
 
 
+@requires_hk_undo
 @pytest.mark.asyncio
 async def test_undo_of_a_foreign_task_leaves_our_log_alone(
     hass, enable_custom_integrations
@@ -246,6 +269,7 @@ async def test_reconcile_heals_an_orphaned_mirror(hass, enable_custom_integratio
     existed at all.
     """
     hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
     entry = await _setup_pawsistant(hass)
     store = entry.runtime_data.store
     dog_id = next(iter(store.get_dogs()))

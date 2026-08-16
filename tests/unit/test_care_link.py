@@ -12,6 +12,7 @@ import importlib.util
 import pathlib
 import sys
 import types
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 
@@ -351,13 +352,21 @@ class _HealStore:
         self._events = list(events)
         self.deleted: list[str] = []
 
+    @staticmethod
+    def _lenient(ts):
+        # Mirrors store._parse_timestamp, which assumes UTC for a naive value. The
+        # real get_events filters with that, so a naive event still reaches the heal
+        # loop and has to be rejected there rather than never being returned.
+        parsed = datetime.fromisoformat(ts)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
     async def get_events(self, dog_id, event_type=None, since=None):
         return [
             e
             for e in self._events
             if e["dog_id"] == dog_id
             and e["event_type"] == event_type
-            and (since is None or care_link._parse_iso(e["timestamp"]) >= since)
+            and (since is None or self._lenient(e["timestamp"]) >= since)
         ]
 
     async def delete_event(self, event_id):
@@ -430,6 +439,17 @@ class TestHealOrphanedMirrors:
             await care_link._heal_orphaned_mirrors(store, _HEAL_SCHEDULE, {"completions": []})
             == 0
         )
+        assert store.deleted == []
+
+    async def test_never_deletes_an_event_with_a_naive_timestamp(self):
+        # A hand-edited entry can carry a timestamp with no offset. Guessing its zone
+        # could put it on the wrong side of the comparison, so it is never a candidate.
+        store = _HealStore([_mirror("e1", "2026-06-20T10:00:00")])
+        task = {
+            "created": "2026-01-01T00:00:00+00:00",
+            "completions": [{"ts": "2026-06-14T10:00:00+00:00"}],
+        }
+        assert await care_link._heal_orphaned_mirrors(store, _HEAL_SCHEDULE, task) == 0
         assert store.deleted == []
 
     async def test_matches_a_re_serialised_timestamp(self):

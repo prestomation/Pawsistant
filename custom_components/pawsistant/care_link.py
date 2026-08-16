@@ -338,14 +338,22 @@ def parse_uncompletion_event(event) -> dict[str, Any] | None:
 
 
 def _parse_iso(value: Any) -> datetime | None:
-    """Parse an ISO timestamp to an aware datetime, or None if it can't be read."""
+    """Parse an ISO timestamp for the heal pass, or None if it can't be trusted.
+
+    A *naive* timestamp is rejected rather than assumed to be in some zone. Home
+    Keeper always writes aware values, and so does the mirror path, so a naive one
+    only turns up if a user hand-edited an entry — and guessing its zone could put it
+    on the wrong side of the comparison that decides whether to delete it. Refusing to
+    read it means it is never a deletion candidate, which is the safe direction to
+    fail in.
+    """
     if not isinstance(value, str):
         return None
     try:
         parsed = datetime.fromisoformat(value)
     except ValueError:
         return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return parsed if parsed.tzinfo else None
 
 
 async def _heal_orphaned_mirrors(store, schedule: dict[str, Any], task: dict) -> int:
