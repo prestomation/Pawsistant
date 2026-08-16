@@ -533,12 +533,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.debug("Updated event %s", event_id)
         await coord.async_refresh()
         # Re-time the linked completion the way Home Keeper models a move itself:
-        # undo at the old instant, complete again at the new one.
+        # complete at the new instant, then undo the old one. Record-then-remove, not
+        # the reverse — care_link swallows Home Keeper errors, so if the second call
+        # fails this leaves a duplicate completion (visible, correctable) rather than
+        # losing the completion entirely and leaving the reconcile pass to treat the
+        # surviving event as an orphan.
         if old_timestamp and old_timestamp != updated.get("timestamp"):
             task_id = _linked_task_id(store, updated)
             if task_id:
-                await care_link.delete_completion(hass, task_id, old_timestamp)
                 await care_link.complete_task(hass, task_id, updated.get("timestamp"))
+                await care_link.delete_completion(hass, task_id, old_timestamp)
 
     hass.services.async_register(
         DOMAIN, "update_event", handle_update_event, schema=UPDATE_EVENT_SCHEMA

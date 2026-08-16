@@ -166,6 +166,41 @@ async def test_deleting_a_logged_event_undoes_the_completion(
 
 
 @pytest.mark.asyncio
+async def test_editing_an_events_time_moves_the_completion(
+    hass, enable_custom_integrations
+):
+    """Re-timing an entry re-times the completion, and leaves exactly one behind."""
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    task_id = await _make_linked_schedule(hass, store, dog_id)
+
+    await hass.services.async_call(
+        DOMAIN, "log_event", {"dog": "Buddy", "event_type": "medicine"}, blocking=True
+    )
+    await hass.async_block_till_done()
+    event = (await store.get_events(dog_id, "medicine"))[0]
+    original_ts = hk.tasks[task_id]["completions"][-1]["ts"]
+
+    corrected = "2026-06-14T08:30:00+00:00"
+    await hass.services.async_call(
+        DOMAIN,
+        "update_event",
+        {"event_id": event["id"], "timestamp": corrected},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    completions = hk.tasks[task_id]["completions"]
+    assert len(completions) == 1, "the old completion was replaced, not duplicated"
+    assert completions[0]["ts"] != original_ts
+    # The pair of events this fires carried our origin, so nothing echoed back into a
+    # second logged entry or deleted the one we just edited.
+    assert await _medicine_count(store, dog_id) == 1
+
+
+@pytest.mark.asyncio
 async def test_undo_of_a_foreign_task_leaves_our_log_alone(
     hass, enable_custom_integrations
 ):
