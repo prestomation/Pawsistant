@@ -430,6 +430,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         result = store.get_dog_by_name(dog_name)
         return result[0] if result else None
 
+    def _linked_task_id(store, event: dict[str, Any] | None) -> str | None:
+        """Return the Home Keeper task id *event* is linked to, if any.
+
+        An event is linked when its pet + activity has a care schedule, which is the
+        same lookup ``handle_log_event`` uses to complete the task in the first place.
+        """
+        if not event:
+            return None
+        found = store.find_care_schedule(event.get("dog_id"), event.get("event_type"))
+        return found[1].get("task_id") if found else None
+
+    async def _undo_linked_completion(store, event: dict[str, Any] | None) -> None:
+        """Undo the Home Keeper completion a just-deleted event stood for."""
+        task_id = _linked_task_id(store, event)
+        if task_id:
+            await care_link.delete_completion(
+                hass, task_id, (event or {}).get("timestamp")
+            )
+
     async def handle_log_event(call: ServiceCall) -> None:
         """Handle pawsistant.log_event."""
         store, coord = _get_store_and_coord()
@@ -473,10 +492,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Handle pawsistant.delete_event."""
         store, coord = _get_store_and_coord()
         event_id: str = call.data["event_id"]
+        # Read the event before it goes, so we still know which pet, activity and
+        # instant it stood for once it is gone.
+        event = await store.get_event(event_id)
         deleted = await store.delete_event(event_id)
         if deleted:
             _LOGGER.debug("Deleted event %s", event_id)
             await coord.async_refresh()
+            await _undo_linked_completion(store, event)
         else:
             _LOGGER.warning(
                 "pawsistant.delete_event: event id '%s' not found", event_id
@@ -492,9 +515,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         store, coord = _get_store_and_coord()
         event_id: str = call.data["event_id"]
+        new_timestamp: str | None = call.data.get("timestamp")
+        # The old timestamp identifies the Home Keeper completion this event stands
+        # for, and update_event returns the already-patched record — so read it first.
+        before = await store.get_event(event_id) if new_timestamp else None
+        old_timestamp = (before or {}).get("timestamp")
         updated = await store.update_event(
             event_id=event_id,
-            timestamp=call.data.get("timestamp"),
+            timestamp=new_timestamp,
             note=call.data.get("note"),
             value=call.data.get("value"),
         )
@@ -504,6 +532,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         _LOGGER.debug("Updated event %s", event_id)
         await coord.async_refresh()
+        # Re-time the linked completion the way Home Keeper models a move itself:
+        # undo at the old instant, complete again at the new one.
+        if old_timestamp and old_timestamp != updated.get("timestamp"):
+            task_id = _linked_task_id(store, updated)
+            if task_id:
+                await care_link.delete_completion(hass, task_id, old_timestamp)
+                await care_link.complete_task(hass, task_id, updated.get("timestamp"))
 
     hass.services.async_register(
         DOMAIN, "update_event", handle_update_event, schema=UPDATE_EVENT_SCHEMA
@@ -948,15 +983,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return
         if dog_id not in store.get_dogs() or event_type not in store.get_event_types():
             return  # stale task referencing a removed pet/activity
+        completed_at = link.get("completed_at")
+        if completed_at and await store.find_event_at(dog_id, event_type, completed_at):
+            return  # already mirrored; a re-fired completion must not log a twin
         # Write straight to the store, bypassing the log_event service handler — that
         # is the structural guard that stops this from completing the task again.
         await store.add_event(
             dog_id=dog_id,
             event_type=event_type,
-            note="via Home Keeper",
-            timestamp=link.get("completed_at"),
+            note=care_link.MIRROR_NOTE,
+            timestamp=completed_at,
         )
         await coord.async_refresh()
+
+    async def _mirror_hk_uncompletion(link: dict[str, Any]) -> None:
+        """Drop the logged event that mirrored a completion Home Keeper just undid."""
+        store, coord = _get_store_and_coord()
+        dog_id = link.get("dog_id")
+        event_type = link.get("event_type")
+        schedule_id = link.get("schedule_id")
+        # Prefer the live schedule, exactly as the completion mirror does.
+        schedule = store.get_care_schedule(schedule_id) if schedule_id else None
+        if schedule:
+            dog_id = schedule.get("dog_id", dog_id)
+            event_type = schedule.get("event_type", event_type)
+        if not dog_id or not event_type:
+            return
+        event = await store.find_event_at(dog_id, event_type, link["ts"])
+        if event is None:
+            return  # nothing was mirrored for that completion
+        # Straight to the store again, bypassing the delete_event service handler that
+        # would call back into Home Keeper — the same structural guard as above.
+        if await store.delete_event(event["id"]):
+            await coord.async_refresh()
 
     @callback
     def _on_hk_task_completed(event: Event) -> None:
@@ -964,8 +1023,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if link is not None:
             hass.async_create_task(_mirror_hk_completion(link))
 
+    @callback
+    def _on_hk_task_uncompleted(event: Event) -> None:
+        link = care_link.parse_uncompletion_event(event)
+        if link is not None:
+            hass.async_create_task(_mirror_hk_uncompletion(link))
+
     entry.async_on_unload(
         hass.bus.async_listen(care_link.HK_EVENT_TASK_COMPLETED, _on_hk_task_completed)
+    )
+    entry.async_on_unload(
+        hass.bus.async_listen(
+            care_link.HK_EVENT_TASK_UNCOMPLETED, _on_hk_task_uncompleted
+        )
     )
 
     # Announce Pawsistant to Home Keeper's companion discovery so it surfaces under

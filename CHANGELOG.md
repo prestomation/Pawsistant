@@ -4,6 +4,20 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Undoing a pet-care completion now syncs both ways with Home Keeper.** Completing a
+  scheduled activity already travelled in both directions; correcting a mistake did not.
+  Undo a completion in Home Keeper and the logged entry it created disappears from
+  Pawsistant. Delete that entry from the Pawsistant timeline and the Home Keeper
+  completion goes with it. Editing an entry's timestamp moves the completion to match.
+  Both directions carry Pawsistant's origin marker, so neither echoes back into a loop.
+  Requires Home Keeper 0.14.0b1 or newer; on older versions the link behaves as before.
+- **Care schedules repair themselves on start.** If the two sides drifted apart — an
+  undo that happened while Home Assistant was down, or an install from before this sync
+  existed — Pawsistant now drops the leftover entries at startup. It only ever considers
+  entries it logged on Home Keeper's behalf, and only within the window Home Keeper's
+  own completion history still covers, so an entry you logged by hand is never touched.
+
 ## [2.23.1] - 2026-08-03
 
 ### Fixed

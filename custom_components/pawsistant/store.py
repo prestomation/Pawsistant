@@ -57,6 +57,11 @@ STORAGE_KEY_META = "pawsistant"
 STORAGE_KEY_EVENTS_PREFIX = "pawsistant_events_"
 STORAGE_VERSION = 1
 
+# What ``_parse_timestamp`` returns for a timestamp it can't read. Sorting treats it
+# as ancient (so malformed entries prune safely); equality matching must treat it as
+# "no match" instead, or two unreadable timestamps would look like the same instant.
+_UNPARSEABLE_TS = datetime.min.replace(tzinfo=timezone.utc)
+
 # Event types that are retained indefinitely — never pruned
 PERSISTENT_EVENT_TYPES = {"weight", "medicine", "vaccine"}
 
@@ -609,6 +614,50 @@ class PawsistantStore:
         _LOGGER.debug("Updated event %s", event_id)
         return found_event
 
+    async def get_event(self, event_id: str) -> dict[str, Any] | None:
+        """Return the event with *event_id*, or None if it does not exist.
+
+        Searches all known year files (loading them if necessary). Callers that need
+        an event's fields *before* changing it (the Home Keeper link reads the
+        timestamp of an event it is about to delete or re-time) use this, since
+        ``delete_event`` only reports success and ``update_event`` returns the
+        already-patched record.
+        """
+        for year in self._meta.get("known_years", []):
+            await self._ensure_year_loaded(year)
+
+        for year in sorted(self._loaded_years, reverse=True):
+            for event in self._year_events.get(year, []):
+                if event.get("id") == event_id:
+                    return event
+        return None
+
+    async def find_event_at(
+        self, dog_id: str, event_type: str, timestamp: str
+    ) -> dict[str, Any] | None:
+        """Return this pet's event of *event_type* logged at *timestamp*, if any.
+
+        Matching is on the parsed instant rather than the raw string: a timestamp that
+        has round-tripped through another integration can come back re-serialised
+        (offset spelling, microseconds) while naming the same moment.
+
+        Only the one year file the timestamp falls in is consulted, so this stays
+        cheap enough for the per-event paths that call it.
+        """
+        target = _parse_timestamp(timestamp)
+        if target == _UNPARSEABLE_TS:
+            return None  # a timestamp we can't read matches nothing
+        year = self._year_of_timestamp(timestamp)
+        await self._ensure_year_loaded(year)
+        for event in self._year_events.get(year, []):
+            if (
+                event.get("dog_id") == dog_id
+                and event.get("event_type") == event_type
+                and _parse_timestamp(event.get("timestamp", "")) == target
+            ):
+                return event
+        return None
+
     async def delete_event(self, event_id: str) -> bool:
         """Delete an event by ID.
 
@@ -841,4 +890,4 @@ def _parse_timestamp(ts: str) -> datetime:
         dt = datetime.fromisoformat(ts)
         return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
     except (ValueError, TypeError, AttributeError):
-        return datetime.min.replace(tzinfo=timezone.utc)
+        return _UNPARSEABLE_TS

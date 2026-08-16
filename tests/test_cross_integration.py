@@ -96,6 +96,142 @@ async def test_two_way_sync_with_home_keeper(hass, enable_custom_integrations):
     assert await _medicine_count(store, dog_id) == 2
 
 
+async def _make_linked_schedule(hass, store, dog_id, schedule_id="sched-1"):
+    """Create a medicine care schedule and its linked Home Keeper task."""
+    schedule = {
+        "dog_id": dog_id,
+        "event_type": "medicine",
+        "recurrence_type": "floating",
+        "interval": 2,
+        "unit": "weeks",
+    }
+    task_id = await care_link.create_task(hass, store, schedule_id, schedule)
+    schedule["task_id"] = task_id
+    await store.add_care_schedule(schedule_id, schedule)
+    return task_id
+
+
+@pytest.mark.asyncio
+async def test_undo_in_home_keeper_removes_the_mirrored_event(
+    hass, enable_custom_integrations
+):
+    """The reported bug: undo a completion in HK, the pet-care entry should go too."""
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    task_id = await _make_linked_schedule(hass, store, dog_id)
+
+    # A user checks the task off in Home Keeper; we mirror it in.
+    hk.fire_user_completion(task_id)
+    await hass.async_block_till_done()
+    assert await _medicine_count(store, dog_id) == 1
+
+    # They undo it — the mirrored entry goes with the completion.
+    ts = hk.tasks[task_id]["completions"][-1]["ts"]
+    hk.fire_user_uncompletion(task_id, ts)
+    await hass.async_block_till_done()
+    assert await _medicine_count(store, dog_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_deleting_a_logged_event_undoes_the_completion(
+    hass, enable_custom_integrations
+):
+    """The reverse direction: delete the entry on our side, the completion goes."""
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    task_id = await _make_linked_schedule(hass, store, dog_id)
+
+    await hass.services.async_call(
+        DOMAIN, "log_event", {"dog": "Buddy", "event_type": "medicine"}, blocking=True
+    )
+    await hass.async_block_till_done()
+    events = await store.get_events(dog_id, "medicine")
+    assert len(events) == 1
+    assert len(hk.tasks[task_id]["completions"]) == 1
+
+    await hass.services.async_call(
+        DOMAIN, "delete_event", {"event_id": events[0]["id"]}, blocking=True
+    )
+    await hass.async_block_till_done()
+
+    assert hk.tasks[task_id]["completions"] == []
+    assert hk.tasks[task_id]["last_completed"] is None
+    # The resulting uncompleted event carried our origin, so it did not echo back and
+    # try to delete anything a second time.
+    assert await _medicine_count(store, dog_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_undo_of_a_foreign_task_leaves_our_log_alone(
+    hass, enable_custom_integrations
+):
+    """An undo on someone else's task must not delete a pet-care entry."""
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    await _make_linked_schedule(hass, store, dog_id)
+
+    await hass.services.async_call(
+        DOMAIN, "log_event", {"dog": "Buddy", "event_type": "medicine"}, blocking=True
+    )
+    await hass.async_block_till_done()
+    before = await _medicine_count(store, dog_id)
+
+    await hass.services.async_call(
+        "home_keeper",
+        "add_task",
+        {
+            "name": "Replace battery",
+            "recurrence_type": "floating",
+            "interval": 6,
+            "unit": "months",
+            "source": {"battery_notes": {"device": "x"}},
+        },
+        blocking=True,
+    )
+    other = hk.get_task_by_source("battery_notes", device="x")
+    hk.fire_user_completion(other["id"])
+    await hass.async_block_till_done()
+    hk.fire_user_uncompletion(other["id"], hk.tasks[other["id"]]["completions"][-1]["ts"])
+    await hass.async_block_till_done()
+
+    assert await _medicine_count(store, dog_id) == before
+
+
+@pytest.mark.asyncio
+async def test_reconcile_heals_an_orphaned_mirror(hass, enable_custom_integrations):
+    """An undo that happened while we were down is repaired at startup.
+
+    This is what fixes an install that already diverged, before the event listener
+    existed at all.
+    """
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    task_id = await _make_linked_schedule(hass, store, dog_id)
+
+    # A mirrored entry whose completion no longer exists in Home Keeper, plus an entry
+    # the user logged by hand that must survive.
+    await store.add_event(
+        dog_id=dog_id, event_type="medicine", note=care_link.MIRROR_NOTE
+    )
+    await store.add_event(dog_id=dog_id, event_type="medicine", note="gave it by hand")
+    assert hk.tasks[task_id]["completions"] == []
+    assert await _medicine_count(store, dog_id) == 2
+
+    await care_link.reconcile(hass, store)
+    await hass.async_block_till_done()
+
+    remaining = await store.get_events(dog_id, "medicine")
+    assert [e["note"] for e in remaining] == ["gave it by hand"]
+
+
 @pytest.mark.asyncio
 async def test_completion_for_unknown_source_is_ignored(hass, enable_custom_integrations):
     """A completion for a task that isn't ours must not create a pet event."""

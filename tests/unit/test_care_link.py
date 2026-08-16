@@ -123,6 +123,62 @@ class TestParseCompletionEvent:
         assert care_link.parse_completion_event(event) is not None
 
 
+class TestParseUncompletionEvent:
+    def test_ignores_our_own_origin_echo(self):
+        # The echo of an undo WE initiated must be ignored (primary loop guard).
+        event = _event(
+            {
+                "origin": care_link.ORIGIN,
+                "ts": "2026-06-14T10:00:00+00:00",
+                "source": _our_source(),
+            }
+        )
+        assert care_link.parse_uncompletion_event(event) is None
+
+    def test_ignores_foreign_source(self):
+        event = _event(
+            {
+                "origin": None,
+                "ts": "2026-06-14T10:00:00+00:00",
+                "source": {"battery_notes": {"x": 1}},
+            }
+        )
+        assert care_link.parse_uncompletion_event(event) is None
+
+    def test_ignores_event_without_ts(self):
+        # An older Home Keeper fired the undo event with no ts at all. Without it there
+        # is nothing to match a logged event against, so guessing would delete the
+        # wrong entry — ignore instead.
+        event = _event({"origin": None, "source": _our_source()})
+        assert care_link.parse_uncompletion_event(event) is None
+
+    def test_parses_our_undo(self):
+        event = _event(
+            {
+                "origin": None,
+                "ts": "2026-06-14T10:00:00+00:00",
+                "source": _our_source(),
+            }
+        )
+        assert care_link.parse_uncompletion_event(event) == {
+            "dog_id": "d1",
+            "event_type": "medicine",
+            "schedule_id": "s1",
+            "ts": "2026-06-14T10:00:00+00:00",
+        }
+
+    def test_parses_undo_from_other_origin(self):
+        # An undo done in Home Keeper's own UI (or by another client) is still mirrored.
+        event = _event(
+            {
+                "origin": "home_keeper_ui",
+                "ts": "2026-06-14T10:00:00+00:00",
+                "source": _our_source(),
+            }
+        )
+        assert care_link.parse_uncompletion_event(event) is not None
+
+
 class TestRecurrencePayload:
     def test_floating_payload(self):
         out = care_link._recurrence_payload(
@@ -251,3 +307,138 @@ class TestCreateTaskSeed:
         )
         assert task_id is None
         assert len(services.calls) == 1  # no retry
+
+
+class TestDeleteCompletion:
+    async def test_sends_ts_and_our_origin(self):
+        services = _Services(lambda data: None)
+        await care_link.delete_completion(
+            _Hass(services), "t1", "2026-06-14T10:00:00+00:00"
+        )
+        assert services.calls == [
+            {
+                "task_id": "t1",
+                "ts": "2026-06-14T10:00:00+00:00",
+                "origin": care_link.ORIGIN,
+            }
+        ]
+
+    async def test_no_call_without_a_ts(self):
+        # Nothing identifies the completion, so calling would be a guess.
+        services = _Services(lambda data: None)
+        await care_link.delete_completion(_Hass(services), "t1", None)
+        assert services.calls == []
+
+    async def test_no_call_without_a_task(self):
+        services = _Services(lambda data: None)
+        await care_link.delete_completion(_Hass(services), None, "2026-06-14T10:00:00Z")
+        assert services.calls == []
+
+    async def test_home_keeper_failure_is_swallowed(self):
+        # A Home Keeper error must never break the Pawsistant delete that triggered it.
+        def behavior(data):
+            raise RuntimeError("home keeper exploded")
+
+        await care_link.delete_completion(
+            _Hass(_Services(behavior)), "t1", "2026-06-14T10:00:00+00:00"
+        )
+
+
+class _HealStore:
+    """Store double for the reconcile heal pass: events in, deletions recorded."""
+
+    def __init__(self, events):
+        self._events = list(events)
+        self.deleted: list[str] = []
+
+    async def get_events(self, dog_id, event_type=None, since=None):
+        return [
+            e
+            for e in self._events
+            if e["dog_id"] == dog_id
+            and e["event_type"] == event_type
+            and (since is None or care_link._parse_iso(e["timestamp"]) >= since)
+        ]
+
+    async def delete_event(self, event_id):
+        self.deleted.append(event_id)
+        return True
+
+
+_HEAL_SCHEDULE = {"dog_id": "d1", "event_type": "medicine"}
+
+
+def _mirror(event_id, timestamp, note=care_link.MIRROR_NOTE):
+    return {
+        "id": event_id,
+        "dog_id": "d1",
+        "event_type": "medicine",
+        "timestamp": timestamp,
+        "note": note,
+    }
+
+
+class TestHealOrphanedMirrors:
+    async def test_drops_a_mirror_whose_completion_is_gone(self):
+        store = _HealStore(
+            [_mirror("e1", "2026-06-14T10:00:00+00:00"), _mirror("e2", "2026-06-20T10:00:00+00:00")]
+        )
+        task = {
+            "created": "2026-01-01T00:00:00+00:00",
+            "completions": [{"ts": "2026-06-14T10:00:00+00:00"}],
+        }
+        removed = await care_link._heal_orphaned_mirrors(store, _HEAL_SCHEDULE, task)
+        assert removed == 1
+        assert store.deleted == ["e2"]  # e1 still has its completion
+
+    async def test_never_touches_an_event_the_user_logged(self):
+        # Same instant, no mirror marker: this is the user's own entry.
+        store = _HealStore([_mirror("e1", "2026-06-20T10:00:00+00:00", note="gave it")])
+        task = {
+            "created": "2026-01-01T00:00:00+00:00",
+            "completions": [{"ts": "2026-06-14T10:00:00+00:00"}],
+        }
+        assert await care_link._heal_orphaned_mirrors(store, _HEAL_SCHEDULE, task) == 0
+        assert store.deleted == []
+
+    async def test_keeps_mirrors_older_than_the_retained_history(self):
+        # Home Keeper caps completion history. An entry that merely aged out of it is
+        # not an orphan, so anything before the oldest retained completion is off-limits.
+        store = _HealStore([_mirror("old", "2026-01-05T10:00:00+00:00")])
+        task = {
+            "created": "2026-01-01T00:00:00+00:00",
+            "completions": [{"ts": "2026-06-14T10:00:00+00:00"}],
+        }
+        assert await care_link._heal_orphaned_mirrors(store, _HEAL_SCHEDULE, task) == 0
+        assert store.deleted == []
+
+    async def test_empty_history_falls_back_to_the_task_creation_date(self):
+        # The reported bug: one completion, undone, so no history is left. Events after
+        # the task was created are orphans; anything before it predates the link.
+        store = _HealStore(
+            [_mirror("before", "2025-12-01T10:00:00+00:00"), _mirror("after", "2026-06-14T10:00:00+00:00")]
+        )
+        task = {"created": "2026-01-01T00:00:00+00:00", "completions": []}
+        removed = await care_link._heal_orphaned_mirrors(store, _HEAL_SCHEDULE, task)
+        assert removed == 1
+        assert store.deleted == ["after"]
+
+    async def test_does_nothing_without_a_trustworthy_window(self):
+        # No history and no readable creation date: refuse to guess rather than delete.
+        store = _HealStore([_mirror("e1", "2026-06-14T10:00:00+00:00")])
+        assert (
+            await care_link._heal_orphaned_mirrors(store, _HEAL_SCHEDULE, {"completions": []})
+            == 0
+        )
+        assert store.deleted == []
+
+    async def test_matches_a_re_serialised_timestamp(self):
+        # The completion round-tripped through Home Keeper and came back spelled with
+        # 'Z' instead of '+00:00'. Same instant, so the mirror must survive.
+        store = _HealStore([_mirror("e1", "2026-06-14T10:00:00+00:00")])
+        task = {
+            "created": "2026-01-01T00:00:00+00:00",
+            "completions": [{"ts": "2026-06-14T10:00:00Z"}],
+        }
+        assert await care_link._heal_orphaned_mirrors(store, _HEAL_SCHEDULE, task) == 0
+        assert store.deleted == []
