@@ -115,6 +115,25 @@
         "data": {
           "when": "Date"
         }
+      },
+      "select_analytics_dog": {
+        "title": "分析の設定",
+        "description": "分析の設定を変更するペットを選択してください。",
+        "data": {
+          "dog": "ペット"
+        }
+      },
+      "edit_analytics": {
+        "title": "体重傾向の設定",
+        "description": "{dog_name} の設定です。体重の傾向は、直近の期間内で最も古い測定値と最も新しい測定値を比較します。そのため、このペットを計量する頻度に合った期間を選んでください。全期間の数値はセンサーの属性として引き続き利用できます。",
+        "data": {
+          "weight_window_days": "直近の期間",
+          "weight_threshold_pct": "変化のしきい値 (%)"
+        },
+        "data_description": {
+          "weight_window_days": "これより古い測定値は無視されます。期間内の測定値が3件未満の場合、傾向は不明と表示されます。",
+          "weight_threshold_pct": "増加または減少とみなすために必要な体重の変化量です。0 のままにすると期間に応じて自動的に調整されます。"
+        }
       }
     },
     "error": {
@@ -141,7 +160,20 @@
         "remove_dog": "ペットを削除",
         "edit_event_types": "イベントタイプを編集",
         "done": "完了",
-        "manage_care_schedules": "Manage care schedules"
+        "manage_care_schedules": "Manage care schedules",
+        "edit_analytics": "分析の設定"
+      }
+    },
+    "weight_window_days": {
+      "options": {
+        "7": "過去7日間",
+        "14": "過去14日間",
+        "30": "過去30日間",
+        "60": "過去60日間",
+        "90": "過去90日間",
+        "180": "過去180日間",
+        "365": "過去1年間",
+        "0": "全期間"
       }
     }
   },

@@ -38,7 +38,21 @@ from homeassistant.helpers.selector import (
 from homeassistant.util import dt as dt_util
 
 from . import care_link
-from .const import CONF_SPECIES, DEFAULT_SPECIES, DOMAIN, CONF_EVENT_TYPES, CONF_BUTTON_METRICS, DEFAULT_EVENT_TYPES, DEFAULT_BUTTON_METRICS, CARE_UNITS, CARE_FREQS
+from .const import (
+    CONF_SPECIES,
+    DEFAULT_SPECIES,
+    DOMAIN,
+    CONF_EVENT_TYPES,
+    CONF_BUTTON_METRICS,
+    CONF_WEIGHT_THRESHOLD_PCT,
+    CONF_WEIGHT_WINDOW_DAYS,
+    DEFAULT_EVENT_TYPES,
+    DEFAULT_BUTTON_METRICS,
+    DEFAULT_WEIGHT_WINDOW_DAYS,
+    CARE_UNITS,
+    CARE_FREQS,
+    WEIGHT_WINDOW_CHOICES,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,6 +71,14 @@ ACTION_REMOVE_DOG = "remove_dog"
 ACTION_DONE = "done"
 ACTION_EDIT_EVENT_TYPES = "edit_event_types"
 ACTION_MANAGE_CARE = "manage_care_schedules"
+ACTION_EDIT_ANALYTICS = "edit_analytics"
+
+# In the analytics form, 0 stands for "not set": an all-history window for
+# weight_window_days, and the window-scaled default band for
+# weight_threshold_pct. Neither is meaningful as a literal zero — a 0-day window
+# would hold nothing, and a 0% band would call every reading a change — so the
+# sentinel is unambiguous. Selector values must be strings.
+ANALYTICS_ALL_HISTORY = "0"
 
 # Allowed button metric values
 VALID_BUTTON_METRICS = ["daily_count", "days_since", "last_value", "hours_since"]
@@ -186,6 +208,8 @@ class PawsistantOptionsFlow(OptionsFlow):
                 return await self.async_step_manage_event_types()
             if action == ACTION_MANAGE_CARE:
                 return await self.async_step_manage_care_schedules()
+            if action == ACTION_EDIT_ANALYTICS:
+                return await self.async_step_select_analytics_dog()
             # ACTION_DONE or anything else — close the dialog
             return self.async_create_entry(title="", data={})
 
@@ -211,6 +235,9 @@ class PawsistantOptionsFlow(OptionsFlow):
             SelectOptionDict(value=ACTION_REMOVE_DOG, label=ACTION_REMOVE_DOG),
             SelectOptionDict(
                 value=ACTION_EDIT_EVENT_TYPES, label=ACTION_EDIT_EVENT_TYPES
+            ),
+            SelectOptionDict(
+                value=ACTION_EDIT_ANALYTICS, label=ACTION_EDIT_ANALYTICS
             ),
         ]
         # Only surface the Home Keeper care-schedule manager when Home Keeper is
@@ -366,6 +393,120 @@ class PawsistantOptionsFlow(OptionsFlow):
                 }
             ),
             errors=errors,
+        )
+
+    # ------------------------------------------------------------------
+    # Analytics settings — per-dog weight-trend window and threshold
+    # ------------------------------------------------------------------
+    # Two steps: pick the pet, then edit its settings. Settings are per-pet
+    # because the useful window depends on how often the animal is weighed — an
+    # animal under treatment might be weighed weekly, a healthy adult only at
+    # vet visits every few months.
+
+    async def async_step_select_analytics_dog(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick which pet's analytics settings to edit."""
+        store, _ = self._get_store_and_coord()
+        if store is None:
+            return self.async_create_entry(title="", data={})
+
+        dogs = self._get_dogs()
+        if not dogs:
+            return await self.async_step_init()
+
+        if user_input is not None:
+            self._analytics_dog_id = user_input.get("dog")
+            return await self.async_step_edit_analytics()
+
+        dog_options = {dog_id: dog.get("name", dog_id) for dog_id, dog in dogs.items()}
+        return self.async_show_form(
+            step_id="select_analytics_dog",
+            data_schema=vol.Schema({vol.Required("dog"): vol.In(dog_options)}),
+        )
+
+    @staticmethod
+    def _analytics_form_defaults(settings: dict[str, Any]) -> dict[str, Any]:
+        """Map stored analytics settings onto this form's control values.
+
+        Both controls use 0 for "not set" (see ``ANALYTICS_ALL_HISTORY``), and
+        the window selector's values are strings, so neither stored value maps
+        onto its control directly.
+        """
+        window = settings.get(CONF_WEIGHT_WINDOW_DAYS, DEFAULT_WEIGHT_WINDOW_DAYS)
+        threshold = settings.get(CONF_WEIGHT_THRESHOLD_PCT)
+        return {
+            CONF_WEIGHT_WINDOW_DAYS: (
+                ANALYTICS_ALL_HISTORY if window is None else str(window)
+            ),
+            CONF_WEIGHT_THRESHOLD_PCT: threshold if threshold else 0,
+        }
+
+    async def async_step_edit_analytics(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Set the weight-trend window and threshold for the selected pet."""
+        store, coord = self._get_store_and_coord()
+        dog_id = getattr(self, "_analytics_dog_id", None)
+        if store is None or not dog_id:
+            return self.async_create_entry(title="", data={})
+
+        dog_name = self._get_dogs().get(dog_id, {}).get("name", dog_id)
+
+        if user_input is not None:
+            raw_window = str(user_input.get(CONF_WEIGHT_WINDOW_DAYS, ""))
+            window: int | None = (
+                None if raw_window == ANALYTICS_ALL_HISTORY else int(raw_window)
+            )
+            # 0 is the "leave it to the default" sentinel, not a 0% band.
+            raw_threshold = float(user_input.get(CONF_WEIGHT_THRESHOLD_PCT) or 0)
+            threshold: float | None = raw_threshold if raw_threshold > 0 else None
+
+            await store.set_analytics_settings(
+                dog_id,
+                weight_window_days=window,
+                weight_threshold_pct=threshold,
+            )
+            _LOGGER.info(
+                "Options flow: analytics settings for '%s' — window=%s, threshold=%s",
+                dog_name,
+                window,
+                threshold,
+            )
+            # Refresh so the sensor picks up the new window immediately rather
+            # than at the next scheduled poll.
+            if coord is not None:
+                await coord.async_refresh()
+            return self.async_create_entry(title="", data={})
+
+        defaults = self._analytics_form_defaults(store.get_analytics_settings(dog_id))
+
+        window_selector = SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(value=str(days), label=str(days))
+                    for days in WEIGHT_WINDOW_CHOICES
+                ],
+                mode=SelectSelectorMode.DROPDOWN,
+                translation_key="weight_window_days",
+            )
+        )
+
+        return self.async_show_form(
+            step_id="edit_analytics",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_WEIGHT_WINDOW_DAYS,
+                        default=defaults[CONF_WEIGHT_WINDOW_DAYS],
+                    ): window_selector,
+                    vol.Optional(
+                        CONF_WEIGHT_THRESHOLD_PCT,
+                        default=defaults[CONF_WEIGHT_THRESHOLD_PCT],
+                    ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+                }
+            ),
+            description_placeholders={"dog_name": dog_name},
         )
 
     # ------------------------------------------------------------------

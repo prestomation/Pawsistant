@@ -206,6 +206,56 @@ For a dog named `Sharky`, the following entities are created:
 | `sensor.sharky_weight` | Most recent weight (lbs) |
 | `sensor.sharky_days_since_medicine` | Days since last medicine event |
 | `sensor.sharky_recent_timeline` | Count + list of events in last 24h |
+| `sensor.sharky_weight_trend` | `gaining` / `losing` / `stable` over a configurable window |
+| `sensor.sharky_sickness_frequency` | Sick events in the last 30 days |
+| `sensor.sharky_food_routine` | `on_schedule` / `late` against learned mealtimes |
+| `sensor.sharky_pee_routine` | `on_schedule` / `late` against learned pee times |
+| `sensor.sharky_poop_routine` | `on_schedule` / `late` against learned poop times |
+| `sensor.sharky_walk_routine` | `on_schedule` / `late` against learned walk times |
+| `sensor.sharky_water_routine` | `on_schedule` / `late` against learned water times |
+| `sensor.sharky_treat_routine` | `on_schedule` / `late` against learned treat times |
+
+### Analytics sensors
+
+The last eight are derived rather than logged — they read the history you've already
+recorded and summarise it.
+
+- **Weight trend** compares the oldest and newest weigh-in inside a recent window
+  (90 days by default). `change_pct`, `sample_count`, `oldest_value`, `newest_value`
+  and `over_days` attributes show the working; `lifetime_*` gives the same figures
+  across all recorded history. The window and the gaining/losing threshold are set per
+  pet under **Settings → Devices & Services → Pawsistant → Configure → Analytics
+  settings**.
+- **Sickness frequency** is the count over the last 30 days, with `count_previous_30d`
+  for comparison, `days_since_last`, `cluster_size` — the longest run of sick days
+  falling within a week of each other — and `cluster_active`, a boolean for "is an
+  illness still ongoing right now", suitable as an automation trigger.
+- **Routine sensors** learn each activity's usual times of day over the last 30 days and
+  report whether today is on track, allowing a two-hour grace period before calling
+  anything late.
+  - `peak_minutes` gives each routine's usual time as minutes since local midnight
+    (`510` = 08:30). Format it for display yourself — 12- versus 24-hour clock is the
+    reader's preference, and Home Assistant already knows which they use.
+  - When the state is `late`, `overdue_peak_minute` and `minutes_overdue` say *which*
+    routine was missed and by how long, so a template can explain it rather than just
+    showing the word.
+  - `histogram` is a 24-element count per hour, for charting. Note that it is not what
+    the sensor decides from — events are grouped by their actual time of day, so a meal
+    at 07:58 and one at 08:02 are four minutes apart rather than in separate buckets.
+  - Something is only a routine if it recurs on at least half the days you logged that
+    activity. An occasional 3am trip outside stays occasional instead of becoming a
+    schedule the pet is then permanently late for.
+  - A routine within half an hour of midnight reads **Unknown** rather than on-schedule.
+    Its grace period would run past the point where the day resets, so there's no
+    honest verdict to give — and reporting "on schedule" would mean a nightly walk that
+    quietly stopped happening looked fine forever. `peak_minutes` still shows what was
+    learned, so Unknown here is distinguishable from "no routine found".
+
+All of them report **Unknown** until there's enough history to say something meaningful.
+Rather than leaving you to guess why, each carries the numbers behind the verdict:
+`sample_count` against `min_samples` for weight, `days_observed` against
+`min_days_required` for routines. Times of day are in Home Assistant's configured
+timezone.
 
 ---
 
