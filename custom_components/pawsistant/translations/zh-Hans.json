@@ -115,6 +115,25 @@
         "data": {
           "when": "Date"
         }
+      },
+      "select_analytics_dog": {
+        "title": "分析设置",
+        "description": "选择要修改分析设置的宠物。",
+        "data": {
+          "dog": "宠物"
+        }
+      },
+      "edit_analytics": {
+        "title": "体重趋势设置",
+        "description": "{dog_name} 的设置。体重趋势会比较近期时间段内最早和最新的记录，因此请选择与您给这只宠物称重的频率相匹配的时间段。全部历史数据仍可作为传感器属性使用。",
+        "data": {
+          "weight_window_days": "近期时间段",
+          "weight_threshold_pct": "变化阈值 (%)"
+        },
+        "data_description": {
+          "weight_window_days": "早于此范围的记录会被忽略。如果该时间段内记录少于三条，趋势将显示为未知。",
+          "weight_threshold_pct": "体重需变化多少才算增加或减少。保留 0 可根据时间段自动调整。"
+        }
       }
     },
     "error": {
@@ -141,7 +160,20 @@
         "remove_dog": "移除宠物",
         "edit_event_types": "编辑事件类型",
         "done": "完成",
-        "manage_care_schedules": "Manage care schedules"
+        "manage_care_schedules": "Manage care schedules",
+        "edit_analytics": "分析设置"
+      }
+    },
+    "weight_window_days": {
+      "options": {
+        "7": "最近 7 天",
+        "14": "最近 14 天",
+        "30": "最近 30 天",
+        "60": "最近 60 天",
+        "90": "最近 90 天",
+        "180": "最近 180 天",
+        "365": "最近一年",
+        "0": "全部历史"
       }
     }
   },

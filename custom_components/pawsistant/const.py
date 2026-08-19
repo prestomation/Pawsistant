@@ -24,6 +24,21 @@ CONF_BUTTON_METRICS = "button_metrics"
 # Care schedules link a pet activity to a recurring task in the Home Keeper
 # integration (an optional, separate integration). See care_link.py.
 CONF_CARE_SCHEDULES = "care_schedules"
+# Per-dog analytics tuning, keyed by dog_id so it survives a rename.
+CONF_ANALYTICS_SETTINGS = "analytics_settings"
+CONF_WEIGHT_WINDOW_DAYS = "weight_window_days"
+CONF_WEIGHT_THRESHOLD_PCT = "weight_threshold_pct"
+
+# Recent windows offered for the weight-trend sensor, in days. "0" is rendered
+# as "all history" in the options flow (see config_flow.py) because the window
+# is optional, not because zero days means anything.
+WEIGHT_WINDOW_CHOICES = [7, 14, 30, 60, 90, 180, 365, 0]
+
+# Default window for a dog with no override. Duplicated deliberately from
+# WEIGHT_TREND_DEFAULT_WINDOW_DAYS in sensor_analytics.py, which is imported
+# standalone by its own tests and so must stay free of package-relative
+# imports. test_analytics_settings_store.py pins the two together.
+DEFAULT_WEIGHT_WINDOW_DAYS = 90
 
 # Recurrence options offered when scheduling a care activity. These mirror Home
 # Keeper's own recurrence model (floating = measured from completion; fixed =
