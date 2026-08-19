@@ -234,9 +234,8 @@ recorded and summarise it.
   report whether today is on track, allowing a two-hour grace period before calling
   anything late.
   - `peak_minutes` gives each routine's usual time as minutes since local midnight
-    (`510` = 08:30). This is the precise form — format it for display yourself, since
-    12- versus 24-hour clock is the reader's preference. `peak_hours` is the same list
-    rounded to the hour.
+    (`510` = 08:30). Format it for display yourself — 12- versus 24-hour clock is the
+    reader's preference, and Home Assistant already knows which they use.
   - When the state is `late`, `overdue_peak_minute` and `minutes_overdue` say *which*
     routine was missed and by how long, so a template can explain it rather than just
     showing the word.

@@ -496,8 +496,6 @@ def compute_routine_peaks(
                                  local midnight. The precise form; callers that
                                  display a time should format this themselves,
                                  since 12- vs 24-hour is the reader's choice.
-            peak_hours        -- the same routines rounded to the hour they fall
-                                 in, kept for callers that predate peak_minutes
             histogram         -- 24-element list of counts per hour bucket.
                                  Fine for drawing a chart; deliberately not what
                                  any decision below is made from.
@@ -565,9 +563,6 @@ def compute_routine_peaks(
         peak_minutes.append(center % MINUTES_PER_DAY)
     peak_minutes.sort()
 
-    # Backwards-compatible view: the hour each routine falls in.
-    peak_hours = sorted({minute // 60 for minute in peak_minutes})
-
     # Schedule status
     overdue_peak_minute: float | None = None
     minutes_overdue: float | None = None
@@ -621,7 +616,6 @@ def compute_routine_peaks(
             status = "on_schedule"
 
     return {
-        "peak_hours": peak_hours,
         "peak_minutes": peak_minutes,
         "histogram": histogram,
         "status": status,

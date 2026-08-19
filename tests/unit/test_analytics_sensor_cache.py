@@ -276,7 +276,7 @@ class TestCacheInvalidatesOnRefresh:
         assert sensor.extra_state_attributes["sample_count"] == 5, (
             "Routine sensor froze at its first computed value."
         )
-        assert 8 in sensor.extra_state_attributes["peak_hours"]
+        assert 8 * 60 in sensor.extra_state_attributes["peak_minutes"]
 
 
 class TestWeightTrendUsesPerDogSettings:

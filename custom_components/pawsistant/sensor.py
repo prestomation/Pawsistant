@@ -777,11 +777,10 @@ class PawsistantRoutineSensor(_PawsistantSensorBase):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose event_type, peak_hours, histogram, recency, and sample count."""
+        """Expose event_type, routine times, histogram, recency, and sample count."""
         attrs: dict[str, Any] = {**super().extra_state_attributes}
         result = self._compute()
         attrs["event_type"] = self._event_type
-        attrs["peak_hours"] = result["peak_hours"]
         attrs["peak_minutes"] = result["peak_minutes"]
         attrs["histogram"] = result["histogram"]
         attrs["last_event_ago_hours"] = result["last_event_ago_hours"]

@@ -603,7 +603,6 @@ class TestRoutineClustering:
         events = _daily_at(self.NOW, 8, range(1, 30), minute=30)
         result = compute_routine_peaks(events, "food", now=self.NOW)
         assert result["peak_minutes"] == [510], "08:30 is minute 510"
-        assert result["peak_hours"] == [8], "the hour view still works"
 
     def test_many_events_on_a_single_day_is_not_a_routine(self) -> None:
         """Three pees in one bad hour on one night is not a schedule.
@@ -714,13 +713,13 @@ class TestComputeRoutinePeaks:
 
     def test_no_events_returns_empty(self) -> None:
         result = compute_routine_peaks([], "food", now=self.NOW)
-        assert result["peak_hours"] == []
+        assert result["peak_minutes"] == []
         assert result["status"] == "unknown"
 
     def test_single_peak_detected(self) -> None:
         events = _daily_at(self.NOW, 8, range(30))
         result = compute_routine_peaks(events, "food", now=self.NOW)
-        assert result["peak_hours"] == [8]
+        assert result["peak_minutes"] == [8 * 60]
         assert isinstance(result["last_event_ago_hours"], (int, float))
 
     def test_two_peaks_detected(self) -> None:
@@ -728,7 +727,7 @@ class TestComputeRoutinePeaks:
             self.NOW, 18, range(30)
         )
         result = compute_routine_peaks(events, "food", now=self.NOW)
-        assert result["peak_hours"] == [8, 18]
+        assert result["peak_minutes"] == [8 * 60, 18 * 60]
 
     def test_on_schedule_when_recent_event_near_peak(self) -> None:
         """Today's meal covers the 8am peak.
@@ -741,7 +740,7 @@ class TestComputeRoutinePeaks:
         now = self.NOW.replace(hour=14)
         events = _daily_at(now, 8, range(30))  # range starts at 0: includes today
         result = compute_routine_peaks(events, "food", now=now)
-        assert result["peak_hours"] == [8]
+        assert result["peak_minutes"] == [8 * 60]
         assert result["status"] == "on_schedule"
 
     def test_late_when_no_recent_event_near_peak(self) -> None:
@@ -779,7 +778,7 @@ class TestComputeRoutinePeaks:
         )
         assert result["status"] == "late"
 
-    def test_peak_hours_are_reported_in_the_reference_timezone(self) -> None:
+    def test_routine_times_are_reported_in_the_reference_timezone(self) -> None:
         """Hours are the user's local hours, not the stored offset's.
 
         A pet fed at 08:00 in a UTC-08:00 household has its meals stored as
@@ -790,7 +789,7 @@ class TestComputeRoutinePeaks:
         now = datetime(2026, 6, 30, 12, 0, tzinfo=tz)
         events = _daily_at(now, 8, range(1, 31), as_utc=True)
         result = compute_routine_peaks(events, "food", now=now)
-        assert result["peak_hours"] == [8]
+        assert result["peak_minutes"] == [8 * 60]
         assert result["histogram"][16] == 0, "16:00 UTC must not be its own peak"
 
     def test_mixed_offset_timestamps_collapse_into_one_peak(self) -> None:
@@ -808,14 +807,14 @@ class TestComputeRoutinePeaks:
             now, 8, range(2, 30, 2), as_utc=True
         )
         result = compute_routine_peaks(events, "food", now=now)
-        assert result["peak_hours"] == [8]
+        assert result["peak_minutes"] == [8 * 60]
         assert result["histogram"][8] == len(events)
         assert result["histogram"][16] == 0
 
     def test_ignores_other_event_types(self) -> None:
         events = _daily_at(self.NOW, 8, range(30), event_type="pee")
         result = compute_routine_peaks(events, "food", now=self.NOW)
-        assert result["peak_hours"] == []
+        assert result["peak_minutes"] == []
         assert result["status"] == "unknown"
 
     def test_histogram_attribute_has_24_buckets(self) -> None:
