@@ -28,6 +28,7 @@ _spec.loader.exec_module(_mod)
 compute_weight_trend = _mod.compute_weight_trend
 compute_sick_frequency = _mod.compute_sick_frequency
 compute_routine_peaks = _mod.compute_routine_peaks
+parse_event_timestamp = _mod.parse_event_timestamp
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +67,72 @@ def _ts(days_ago: int = 0, hour: int = 12, ref: datetime | None = None) -> str:
     dt = base - timedelta(days=days_ago)
     dt = dt.replace(hour=hour, minute=0, second=0, microsecond=0)
     return dt.isoformat()
+
+
+# ---------------------------------------------------------------------------
+# TestParseEventTimestamp
+# ---------------------------------------------------------------------------
+
+
+class TestParseEventTimestamp:
+    """Tests for parse_event_timestamp().
+
+    Every sensor in the integration routes its timestamps through this one
+    function — sensor.py imports it as ``_to_datetime``. Only the ISO path was
+    exercised, and then only indirectly, so the fallbacks below were carrying
+    real installs' legacy data with nothing pinning them down.
+    """
+
+    _SENTINEL = datetime.min.replace(tzinfo=timezone.utc)
+
+    def test_iso_string_with_offset_keeps_its_instant(self) -> None:
+        result = parse_event_timestamp("2026-06-01T08:00:00-08:00")
+        assert result == datetime(2026, 6, 1, 16, 0, tzinfo=timezone.utc)
+
+    def test_naive_iso_string_is_assumed_utc(self) -> None:
+        result = parse_event_timestamp("2026-06-01T08:00:00")
+        assert result == datetime(2026, 6, 1, 8, 0, tzinfo=timezone.utc)
+
+    def test_aware_datetime_passes_through(self) -> None:
+        tz = timezone(timedelta(hours=5, minutes=30))
+        original = datetime(2026, 6, 1, 8, 0, tzinfo=tz)
+        assert parse_event_timestamp(original) == original
+
+    def test_naive_datetime_is_assumed_utc(self) -> None:
+        result = parse_event_timestamp(datetime(2026, 6, 1, 8, 0))
+        assert result == datetime(2026, 6, 1, 8, 0, tzinfo=timezone.utc)
+
+    def test_numeric_seconds_are_epoch_seconds(self) -> None:
+        """Legacy Firebase rows stored epoch seconds."""
+        assert parse_event_timestamp(1780000000) == datetime.fromtimestamp(
+            1780000000, tz=timezone.utc
+        )
+
+    def test_numeric_above_1e12_is_treated_as_milliseconds(self) -> None:
+        """The same instant, in the millisecond form Firebase also produced.
+
+        The 1e12 cutoff is what separates the two; read as seconds, a
+        millisecond value would land some 55,000 years in the future.
+        """
+        assert parse_event_timestamp(1780000000000) == parse_event_timestamp(
+            1780000000
+        )
+
+    def test_numeric_string_is_parsed_too(self) -> None:
+        assert parse_event_timestamp("1780000000") == parse_event_timestamp(
+            1780000000
+        )
+
+    def test_none_returns_the_sort_first_sentinel(self) -> None:
+        assert parse_event_timestamp(None) == self._SENTINEL
+
+    def test_unparseable_value_returns_the_sort_first_sentinel(self) -> None:
+        assert parse_event_timestamp("not a timestamp") == self._SENTINEL
+        assert parse_event_timestamp({}) == self._SENTINEL
+
+    def test_sentinel_sorts_before_every_real_event(self) -> None:
+        """Callers sort on this without a None check, so ordering must hold."""
+        assert self._SENTINEL < parse_event_timestamp("1970-01-02T00:00:00+00:00")
 
 
 # ---------------------------------------------------------------------------

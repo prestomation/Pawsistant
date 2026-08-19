@@ -86,12 +86,18 @@ def _safe_float(v: Any) -> float | None:
 def parse_event_timestamp(ts: Any) -> datetime:
     """Parse a timestamp string, datetime, or numeric value to tz-aware datetime.
 
-    Same logic as ``_to_datetime`` in sensor.py:
+    The single parser for event timestamps across the integration; sensor.py
+    imports it as ``_to_datetime``, the name it has always used there. It lives
+    in this module because this module has no HA imports.
+
+    Accepts:
       - ISO 8601 string
       - datetime object (made tz-aware if naive)
       - numeric: milliseconds if > 1e12, else seconds (legacy Firebase format)
 
-    Returns ``datetime.min`` with UTC tzinfo for None / unparseable values.
+    Anything naive is assumed UTC. Returns ``datetime.min`` with UTC tzinfo for
+    None / unparseable values, so callers can sort and compare without a None
+    check -- such a value sorts before every real event.
     """
     if ts is None:
         return datetime.min.replace(tzinfo=timezone.utc)
