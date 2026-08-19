@@ -5,6 +5,36 @@ All notable changes to Pawsistant will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **New analytics sensors: weight trend, sickness frequency, and daily routines.**
+  Pawsistant now interprets the history you've already logged instead of only reporting
+  what happened. Each pet gains eight entities:
+  - `sensor.<pet>_weight_trend` reads **gaining**, **losing**, or **stable**, comparing
+    the oldest and newest weigh-in inside a recent window. Attributes carry the
+    percentage change, the readings behind it, and the same figures across the pet's
+    full history.
+  - `sensor.<pet>_sickness_frequency` counts sick events in the last 30 days, with the
+    previous 30 days beside it for comparison, the days since the most recent one, and
+    the longest run of sick days falling within a week of each other.
+  - `sensor.<pet>_food_routine` — and the same for pee, poop, walk, water, and treat —
+    learns the times of day that activity usually happens over the last 30 days and reads
+    **on schedule** or **late** against them. A routine isn't late the moment its usual
+    hour arrives; it gets a two-hour grace period first. Attributes expose the detected
+    peak hours and a 24-hour histogram, so you can build your own automations or charts
+    on top.
+
+  A trend or routine only appears once there's enough history to mean something. Fewer
+  than three weigh-ins in the window, or too few events to establish a pattern, and the
+  sensor reads **unknown** rather than guessing. Every one of them exposes `sample_count`,
+  so "not enough data yet" is distinguishable from "nothing to report".
+- **Per-pet weight trend settings.** The window and the change threshold are configurable
+  per pet under **Settings → Devices & Services → Pawsistant → Configure → Analytics
+  settings**. Pick a window matching how often you actually weigh that pet — anything from
+  the last 7 days to their full history. The threshold is how much the weight must move to
+  count as gaining or losing rather than stable; leave it at 0 and it scales with the
+  window automatically, so a 3% shift over three months and a 2% shift over two weeks both
+  register while neither trips over normal fluctuation. Changes take effect on the next
+  refresh — no restart.
+
 - **Undoing a pet-care completion now syncs both ways with Home Keeper.** Completing a
   scheduled activity already travelled in both directions; correcting a mistake did not.
   Undo a completion in Home Keeper and the logged entry it created disappears from
@@ -17,6 +47,15 @@ All notable changes to Pawsistant will be documented in this file.
   existed — Pawsistant now drops the leftover entries at startup. It only ever considers
   entries it logged on Home Keeper's behalf, and only within the window Home Keeper's
   own completion history still covers, so an entry you logged by hand is never touched.
+
+### Fixed
+- **Sensors that look across your whole history no longer stop short at last year.**
+  Pawsistant only kept the current and previous year's events in memory, so anything
+  reading further back — the new weight trend's lifetime figures and its "All history"
+  window — quietly cut off there. It also shifted around: opening the card's timeline
+  loaded older years as a side effect, so the numbers changed with nothing having been
+  logged. All stored years are now loaded up front, so these read the same on every
+  install.
 
 ## [2.23.1] - 2026-08-03
 

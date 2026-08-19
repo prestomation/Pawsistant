@@ -119,6 +119,28 @@ class TestComputeWeightTrend:
         result = compute_weight_trend(events)
         assert result["trend"] == "unknown"
 
+    def test_zero_oldest_reading_is_unknown_not_stable(self) -> None:
+        """A bogus 0 lb reading must not be reported as a stable trend.
+
+        Dividing by it would raise, so the percentage change is genuinely
+        undefined — but answering "stable" for a 0 -> 50 lb series states
+        something false rather than declining to answer.
+        """
+        now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        events = [
+            _ev("weight", (now - timedelta(days=20)).isoformat(), value=0.0),
+            _ev("weight", (now - timedelta(days=10)).isoformat(), value=50.0),
+            _ev("weight", (now - timedelta(days=1)).isoformat(), value=50.5),
+        ]
+        result = compute_weight_trend(events, window_days=30, now=now)
+        assert result["trend"] == "unknown"
+        assert result["change_pct"] is None
+        # The readings themselves still surface, so the sensor can show what it
+        # saw and the user can spot the bad entry.
+        assert result["sample_count"] == 3
+        assert result["oldest_value"] == 0.0
+        assert result["newest_value"] == 50.5
+
     def test_attributes_contain_last_n_values(self) -> None:
         events = [
             _ev("weight", _ts(20), value=50.0),
@@ -226,15 +248,29 @@ class TestWeightTrendWindow:
         assert result["lifetime_sample_count"] == 4
 
     def test_reading_exactly_on_window_boundary_is_included(self) -> None:
+        """The window edge is inclusive, and exact to the second.
+
+        Timestamps are built from exact offsets rather than via ``_ts()``, whose
+        hour-snapping would put the "boundary" reading half a day *inside* the
+        window — leaving the test unable to detect an edge off by hours.
+        """
         now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        cutoff = now - timedelta(days=30)
         events = [
-            _ev("weight", _ts(30, ref=now), value=50.0),
-            _ev("weight", _ts(15, ref=now), value=53.0),
-            _ev("weight", _ts(1, ref=now), value=56.0),
+            # One second too old: must fall outside.
+            _ev("weight", (cutoff - timedelta(seconds=1)).isoformat(), value=1.0),
+            # Exactly on the cutoff: must fall inside.
+            _ev("weight", cutoff.isoformat(), value=50.0),
+            _ev("weight", (now - timedelta(days=15)).isoformat(), value=53.0),
+            _ev("weight", (now - timedelta(days=1)).isoformat(), value=56.0),
         ]
         result = compute_weight_trend(events, window_days=30, now=now)
-        assert result["sample_count"] == 3, "boundary reading should be inside"
+        assert result["sample_count"] == 3, "boundary in, one-second-older out"
+        # Pins down *which* three: the 50.0 sitting on the cutoff, not the 1.0
+        # just outside it.
+        assert result["oldest_value"] == 50.0
         assert result["trend"] == "gaining"
+        assert result["lifetime_sample_count"] == 4
 
     def test_window_days_none_means_all_history(self) -> None:
         """Opting out of windowing keeps the original behaviour."""
@@ -380,64 +416,147 @@ class TestComputeSickFrequency:
 # ---------------------------------------------------------------------------
 
 
+def _daily_at(
+    now: datetime,
+    hour: int,
+    days: range,
+    event_type: str = "food",
+    minute: int = 0,
+    as_utc: bool = False,
+) -> list[dict]:
+    """Build one *event_type* per day in *days*, at *hour* in ``now``'s zone.
+
+    ``as_utc`` re-expresses the same instants as UTC ``Z`` strings, mimicking
+    events logged through the card's time chooser rather than by a button tap.
+    """
+    events = []
+    for day in days:
+        ts = (now - timedelta(days=day)).replace(
+            hour=hour, minute=minute, second=0, microsecond=0
+        )
+        if as_utc:
+            ts = ts.astimezone(timezone.utc)
+        events.append(_ev(event_type, ts.isoformat()))
+    return events
+
+
 class TestComputeRoutinePeaks:
-    """Tests for compute_routine_peaks()."""
+    """Tests for compute_routine_peaks().
+
+    Every test pins ``now`` to a literal datetime. These assertions branch on
+    the hour of day, so a wall-clock "now" would silently test a different code
+    path depending on when the suite happened to run.
+    """
+
+    NOW = datetime(2026, 6, 30, 12, 0, tzinfo=timezone.utc)
 
     def test_no_events_returns_empty(self) -> None:
-        frozen_now = datetime.now(tz=timezone.utc)
-        result = compute_routine_peaks([], "food", now=frozen_now)
+        result = compute_routine_peaks([], "food", now=self.NOW)
         assert result["peak_hours"] == []
         assert result["status"] == "unknown"
 
     def test_single_peak_detected(self) -> None:
-        frozen_now = datetime.now(tz=timezone.utc)
-        events = [_ev("food", _ts(i, hour=8, ref=frozen_now)) for i in range(30)]
-        result = compute_routine_peaks(events, "food", now=frozen_now)
-        assert 8 in result["peak_hours"]
+        events = _daily_at(self.NOW, 8, range(30))
+        result = compute_routine_peaks(events, "food", now=self.NOW)
+        assert result["peak_hours"] == [8]
         assert isinstance(result["last_event_ago_hours"], (int, float))
 
     def test_two_peaks_detected(self) -> None:
-        frozen_now = datetime.now(tz=timezone.utc)
-        events = (
-            [_ev("food", _ts(i, hour=8, ref=frozen_now)) for i in range(30)]
-            + [_ev("food", _ts(i, hour=18, ref=frozen_now)) for i in range(30)]
+        events = _daily_at(self.NOW, 8, range(30)) + _daily_at(
+            self.NOW, 18, range(30)
         )
-        result = compute_routine_peaks(events, "food", now=frozen_now)
-        assert 8 in result["peak_hours"]
-        assert 18 in result["peak_hours"]
+        result = compute_routine_peaks(events, "food", now=self.NOW)
+        assert result["peak_hours"] == [8, 18]
 
     def test_on_schedule_when_recent_event_near_peak(self) -> None:
-        frozen_now = datetime.now(tz=timezone.utc)
-        # 30 days of food at 8am, including today
-        events = [_ev("food", _ts(i, hour=8, ref=frozen_now)) for i in range(30)]
-        result = compute_routine_peaks(events, "food", now=frozen_now)
+        """Today's meal covers the 8am peak.
+
+        ``now`` is 14:00 — comfortably past the peak *and* its grace period — so
+        the coverage check is actually reached. Frozen earlier in the day the
+        function short-circuits on "nothing due yet" and the assertion holds no
+        matter how badly coverage detection is broken.
+        """
+        now = self.NOW.replace(hour=14)
+        events = _daily_at(now, 8, range(30))  # range starts at 0: includes today
+        result = compute_routine_peaks(events, "food", now=now)
+        assert result["peak_hours"] == [8]
         assert result["status"] == "on_schedule"
 
     def test_late_when_no_recent_event_near_peak(self) -> None:
-        # Freeze "now" to 14:00 UTC so the 8am peak is well in the past.
-        # All events are 2+ days ago at 8am -- none today.
-        frozen_now = datetime.now(tz=timezone.utc).replace(
-            hour=14, minute=0, second=0, microsecond=0,
-        )
-        events = [
-            _ev(
-                "food",
-                (frozen_now - timedelta(days=i)).replace(hour=8).isoformat(),
-            )
-            for i in range(2, 32)
-        ]
-        result = compute_routine_peaks(events, "food", now=frozen_now)
+        now = self.NOW.replace(hour=14)
+        events = _daily_at(now, 8, range(2, 32))  # nothing today
+        result = compute_routine_peaks(events, "food", now=now)
         assert result["status"] == "late"
 
+    def test_peak_is_not_due_until_its_grace_period_elapses(self) -> None:
+        """A routine is not late the instant its usual hour begins.
+
+        ROUTINE_LATE_THRESHOLD_HOURS is a real deadline, not just a tolerance
+        used when matching events to peaks.
+        """
+        events = _daily_at(self.NOW, 8, range(1, 31))  # nothing logged today
+        at_nine = compute_routine_peaks(
+            events, "food", now=self.NOW.replace(hour=9)
+        )
+        assert at_nine["status"] == "on_schedule", "still inside the grace period"
+
+        at_half_ten = compute_routine_peaks(
+            events, "food", now=self.NOW.replace(hour=10, minute=30)
+        )
+        assert at_half_ten["status"] == "late", "grace elapsed, nothing logged"
+
+    def test_late_evening_peak_still_reports_late_before_midnight(self) -> None:
+        """A 22:00 routine must be able to go late on the same day.
+
+        Its grace period would otherwise expire after midnight, by which point
+        today's events have reset and the peak can never be judged at all.
+        """
+        events = _daily_at(self.NOW, 22, range(1, 31))  # nothing logged today
+        result = compute_routine_peaks(
+            events, "food", now=self.NOW.replace(hour=23, minute=45)
+        )
+        assert result["status"] == "late"
+
+    def test_peak_hours_are_reported_in_the_reference_timezone(self) -> None:
+        """Hours are the user's local hours, not the stored offset's.
+
+        A pet fed at 08:00 in a UTC-08:00 household has its meals stored as
+        16:00 UTC. The peak must read 8, or every non-UTC user sees their
+        routine sensors flip at the wrong time of day.
+        """
+        tz = timezone(timedelta(hours=-8))
+        now = datetime(2026, 6, 30, 12, 0, tzinfo=tz)
+        events = _daily_at(now, 8, range(1, 31), as_utc=True)
+        result = compute_routine_peaks(events, "food", now=now)
+        assert result["peak_hours"] == [8]
+        assert result["histogram"][16] == 0, "16:00 UTC must not be its own peak"
+
+    def test_mixed_offset_timestamps_collapse_into_one_peak(self) -> None:
+        """One routine stays one peak when the store mixes timestamp formats.
+
+        A button tap writes a local-offset timestamp; the card's time chooser
+        writes UTC ``Z``. Both reach the store, so the same 08:00 meal arrives
+        in two notations — which must not read as two separate daily peaks.
+        """
+        tz = timezone(timedelta(hours=-8))
+        now = datetime(2026, 6, 30, 12, 0, tzinfo=tz)
+        # Days 1-29 only: a day-30 event at 08:00 sits just outside the 30-day
+        # lookback measured from midday, which would skew the count.
+        events = _daily_at(now, 8, range(1, 30, 2)) + _daily_at(
+            now, 8, range(2, 30, 2), as_utc=True
+        )
+        result = compute_routine_peaks(events, "food", now=now)
+        assert result["peak_hours"] == [8]
+        assert result["histogram"][8] == len(events)
+        assert result["histogram"][16] == 0
+
     def test_ignores_other_event_types(self) -> None:
-        frozen_now = datetime.now(tz=timezone.utc)
-        events = [_ev("pee", _ts(i, hour=8, ref=frozen_now)) for i in range(30)]
-        result = compute_routine_peaks(events, "food", now=frozen_now)
+        events = _daily_at(self.NOW, 8, range(30), event_type="pee")
+        result = compute_routine_peaks(events, "food", now=self.NOW)
         assert result["peak_hours"] == []
         assert result["status"] == "unknown"
 
     def test_histogram_attribute_has_24_buckets(self) -> None:
-        frozen_now = datetime.now(tz=timezone.utc)
-        events = [_ev("food", _ts(i, hour=8, ref=frozen_now)) for i in range(30)]
-        result = compute_routine_peaks(events, "food", now=frozen_now)
+        events = _daily_at(self.NOW, 8, range(30))
+        result = compute_routine_peaks(events, "food", now=self.NOW)
         assert len(result["histogram"]) == 24

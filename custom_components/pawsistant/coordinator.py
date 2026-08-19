@@ -4,8 +4,11 @@ Data is read from the local PawsistantStore (no network calls).  The coordinator
 is refreshed immediately after each service call that mutates data, so sensors
 reflect the change within the current HA tick.
 
-``get_events()`` on the store is now async (it may lazy-load additional year
-files), so the coordinator awaits it for every dog on each refresh.
+``get_all_events()`` on the store is async (it lazy-loads year files), so the
+coordinator awaits it for every dog on each refresh. Every known year is loaded
+rather than just the most recent two, so that history-spanning sensors report
+the same thing on every install instead of depending on which other features
+happened to page older years in.
 
 Coordinator data shape (preserved from the old Firebase coordinator so that
 sensor.py requires minimal changes):
@@ -98,7 +101,15 @@ class PawsistantCoordinator(
         for dog_id, dog_info in dogs.items():
             dog_name = dog_info["name"]
             try:
-                result[dog_id] = await self.store.get_events(dog_id)
+                # get_all_events(), not get_events(): the latter searches only
+                # the year files already in memory (current + previous), which
+                # made the weight sensor's lifetime_* figures and its "All
+                # history" window silently stop short -- and worse, made them
+                # jump around, because unrelated features (the timeline
+                # websocket, the care-schedule prefill) load older years as a
+                # side effect. Retention caps non-persistent events at
+                # DEFAULT_RETENTION_DAYS, so "everything" stays bounded.
+                result[dog_id] = await self.store.get_all_events(dog_id)
             except Exception as err:
                 raise UpdateFailed(
                     f"Pawsistant: failed to load events for '{dog_name}': {err}"

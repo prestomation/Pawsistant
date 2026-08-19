@@ -411,7 +411,7 @@ class PawsistantOptionsFlow(OptionsFlow):
         if store is None:
             return self.async_create_entry(title="", data={})
 
-        dogs = store.get_dogs() or {}
+        dogs = self._get_dogs()
         if not dogs:
             return await self.async_step_init()
 
@@ -451,8 +451,7 @@ class PawsistantOptionsFlow(OptionsFlow):
         if store is None or not dog_id:
             return self.async_create_entry(title="", data={})
 
-        dogs = store.get_dogs() or {}
-        dog_name = dogs.get(dog_id, {}).get("name", dog_id)
+        dog_name = self._get_dogs().get(dog_id, {}).get("name", dog_id)
 
         if user_input is not None:
             raw_window = str(user_input.get(CONF_WEIGHT_WINDOW_DAYS, ""))

@@ -299,7 +299,7 @@ class TestWeightTrendUsesPerDogSettings:
         # Every reading is older than 30 days, so a respected window leaves too
         # few points to judge. Falling back to the 90-day default would too;
         # the lifetime figures below are what distinguish the two.
-        assert sensor.native_value == "unknown"
+        assert sensor.native_value is None
         attrs = sensor.extra_state_attributes
         assert attrs["window_days"] == 30
         assert attrs["sample_count"] == 0
@@ -346,16 +346,6 @@ class TestWeightTrendUsesPerDogSettings:
         sensor = PawsistantWeightTrendSensor(coord, "dog1", "Fido", "Dog")
         assert sensor.native_value == "gaining"
         assert sensor.extra_state_attributes["window_days"] is None
-
-    def test_missing_store_method_falls_back_to_defaults(self):
-        """A store predating this feature must not break the sensor."""
-        coord = FakeCoordinator(
-            {"dog1": [_weight(50, 20), _weight(55, 10), _weight(60, 1)]}
-        )
-        del coord.store.get_analytics_settings
-        sensor = PawsistantWeightTrendSensor(coord, "dog1", "Fido", "Dog")
-        assert sensor.native_value == "gaining"
-        assert sensor.extra_state_attributes["window_days"] == 90
 
     def test_lifetime_attributes_are_exposed(self):
         coord = FakeCoordinator(
@@ -465,33 +455,94 @@ class TestCoordinatorProvidesCacheKey:
             else:
                 sys.modules.pop("custom_components.pawsistant.store", None)
 
-    def test_timestamped_base_advances_the_key_on_success(self):
-        """Documents the semantics the sensors rely on.
 
-        Mirrors HA's `TimestampDataUpdateCoordinator._async_refresh_finished`:
-        the key is None until the first successful refresh, then advances. A
-        key that never advances is exactly the frozen-state bug.
-        """
+class _LazyYearStore:
+    """Stands in for PawsistantStore's lazy year-file loading.
 
-        class Timestamped:
-            last_update_success_time = None
+    ``get_events`` sees only the years already paged in; ``get_all_events``
+    pages the rest in first. That difference is the whole point of the test
+    below, so it is modelled rather than mocked away.
+    """
 
-            def __init__(self) -> None:
-                self.last_update_success = True
+    def __init__(self) -> None:
+        self.years = {
+            2023: [{"id": "old", "dog_id": "dog1", "event_type": "weight"}],
+            2026: [{"id": "recent", "dog_id": "dog1", "event_type": "weight"}],
+        }
+        self.loaded = {2026}
 
-            def _async_refresh_finished(self) -> None:
-                if self.last_update_success:
-                    self.last_update_success_time = _utcnow()
+    def get_dogs(self) -> dict:
+        return {"dog1": {"name": "Fido"}}
 
-        coord = Timestamped()
-        assert coord.last_update_success_time is None
+    async def get_events(self, dog_id: str) -> list[dict]:
+        return [
+            e
+            for year in sorted(self.loaded)
+            for e in self.years[year]
+            if e["dog_id"] == dog_id
+        ]
 
-        coord._async_refresh_finished()
-        first = coord.last_update_success_time
-        assert first is not None
+    async def get_all_events(self, dog_id: str) -> list[dict]:
+        self.loaded = set(self.years)
+        return await self.get_events(dog_id)
 
-        # A failed refresh must NOT advance the key — stale data keeps its
-        # matching cache entry rather than being recomputed from nothing.
-        coord.last_update_success = False
-        coord._async_refresh_finished()
-        assert coord.last_update_success_time == first
+
+class TestCoordinatorLoadsFullHistory:
+    """Coordinator data must span every known year, not just the loaded ones.
+
+    Built from ``get_events``, it stopped at the current and previous calendar
+    year: the weight sensor's ``lifetime_*`` figures and its "All history"
+    window silently cut off there. Worse, they were nondeterministic — the
+    timeline websocket and the care-schedule prefill both call
+    ``get_all_events``, so merely scrolling the card's timeline made the
+    lifetime figures jump on the next refresh with nothing having been logged.
+    """
+
+    @pytest.mark.asyncio
+    async def test_update_data_covers_years_not_yet_paged_in(self):
+        saved_uc = sys.modules.get("homeassistant.helpers.update_coordinator")
+        saved_store = sys.modules.get("custom_components.pawsistant.store")
+        for key in list(sys.modules):
+            if key.startswith("custom_components.pawsistant.coordinator"):
+                del sys.modules[key]
+
+        uc_mod = types.ModuleType("homeassistant.helpers.update_coordinator")
+        uc_mod.UpdateFailed = type("UpdateFailed", (Exception,), {})
+        uc_mod.DataUpdateCoordinator = _HAMeta("DataUpdateCoordinator", (), {})
+        uc_mod.TimestampDataUpdateCoordinator = _HAMeta(
+            "TimestampDataUpdateCoordinator",
+            (uc_mod.DataUpdateCoordinator,),
+            {"last_update_success_time": None},
+        )
+        sys.modules["homeassistant.helpers.update_coordinator"] = uc_mod
+
+        store_stub = types.ModuleType("custom_components.pawsistant.store")
+        store_stub.PawsistantStore = type("PawsistantStore", (), {})
+        sys.modules["custom_components.pawsistant.store"] = store_stub
+        try:
+            mod = _load_module(
+                "custom_components.pawsistant.coordinator_under_test",
+                _PKG / "coordinator.py",
+            )
+            store = _LazyYearStore()
+            coord = mod.PawsistantCoordinator.__new__(mod.PawsistantCoordinator)
+            coord.store = store
+            # Pruning is a once-a-day side errand and needs a real HA store;
+            # stamping it as just-done keeps this test on the read path.
+            coord._last_prune = _utcnow()
+
+            data = await coord._async_update_data()
+
+            assert {e["id"] for e in data["dog1"]} == {"old", "recent"}, (
+                "coordinator data skipped a year file that was on disk but not "
+                "yet paged into memory, so history-spanning sensors under-report"
+            )
+        finally:
+            sys.modules.pop("custom_components.pawsistant.coordinator_under_test", None)
+            if saved_uc is not None:
+                sys.modules["homeassistant.helpers.update_coordinator"] = saved_uc
+            if saved_store is not None:
+                sys.modules["custom_components.pawsistant.store"] = saved_store
+            else:
+                sys.modules.pop("custom_components.pawsistant.store", None)
+

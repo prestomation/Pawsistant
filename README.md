@@ -206,6 +206,37 @@ For a dog named `Sharky`, the following entities are created:
 | `sensor.sharky_weight` | Most recent weight (lbs) |
 | `sensor.sharky_days_since_medicine` | Days since last medicine event |
 | `sensor.sharky_recent_timeline` | Count + list of events in last 24h |
+| `sensor.sharky_weight_trend` | `gaining` / `losing` / `stable` over a configurable window |
+| `sensor.sharky_sickness_frequency` | Sick events in the last 30 days |
+| `sensor.sharky_food_routine` | `on_schedule` / `late` against learned mealtimes |
+| `sensor.sharky_pee_routine` | `on_schedule` / `late` against learned pee times |
+| `sensor.sharky_poop_routine` | `on_schedule` / `late` against learned poop times |
+| `sensor.sharky_walk_routine` | `on_schedule` / `late` against learned walk times |
+| `sensor.sharky_water_routine` | `on_schedule` / `late` against learned water times |
+| `sensor.sharky_treat_routine` | `on_schedule` / `late` against learned treat times |
+
+### Analytics sensors
+
+The last eight are derived rather than logged — they read the history you've already
+recorded and summarise it.
+
+- **Weight trend** compares the oldest and newest weigh-in inside a recent window
+  (90 days by default). `change_pct`, `sample_count`, `oldest_value`, `newest_value`
+  and `over_days` attributes show the working; `lifetime_*` gives the same figures
+  across all recorded history. The window and the gaining/losing threshold are set per
+  pet under **Settings → Devices & Services → Pawsistant → Configure → Analytics
+  settings**.
+- **Sickness frequency** is the count over the last 30 days, with `count_previous_30d`
+  for comparison, `days_since_last`, and `cluster_size` — the longest run of sick days
+  falling within a week of each other.
+- **Routine sensors** learn each activity's usual times of day over the last 30 days and
+  report whether today is on track, allowing a two-hour grace period before calling
+  anything late. `peak_hours` and a 24-hour `histogram` are exposed as attributes.
+
+All of them report **Unknown** until there's enough history to say something meaningful
+(three weigh-ins inside the window; a detectable daily pattern). `sample_count` is always
+present, so "not enough data yet" is distinguishable from "nothing to report". Hours are
+in Home Assistant's configured timezone.
 
 ---
 

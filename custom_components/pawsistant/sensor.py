@@ -14,8 +14,9 @@ automations continue to work:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -44,6 +45,11 @@ from .sensor_analytics import (
     compute_routine_peaks,
     compute_sick_frequency,
     compute_weight_trend,
+    # The canonical event-timestamp parser. It lives in sensor_analytics --
+    # which has no HA imports, so it stays unit-testable standalone -- and is
+    # aliased to the name this module has always used rather than kept as a
+    # second copy: the two had already drifted apart on timezone handling once.
+    parse_event_timestamp as _to_datetime,
 )
 
 # ---------------------------------------------------------------------------
@@ -104,30 +110,6 @@ def _slug(name: str) -> str:
     return name.lower().replace(" ", "_")
 
 
-def _to_datetime(ts: Any) -> datetime:
-    """Parse an event timestamp to a timezone-aware datetime.
-
-    Accepts:
-    - ISO 8601 string (from local store)
-    - datetime object (already parsed)
-    - numeric: milliseconds if > 1e12, else seconds (legacy Firebase format)
-    """
-    if isinstance(ts, datetime):
-        return ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
-    if isinstance(ts, str):
-        try:
-            dt = datetime.fromisoformat(ts)
-            return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
-        except (ValueError, TypeError):
-            pass
-    # Numeric fallback
-    try:
-        numeric = float(ts)
-        if numeric > 1e12:
-            numeric /= 1000
-        return datetime.fromtimestamp(numeric, tz=timezone.utc)
-    except (TypeError, ValueError, OSError):
-        return datetime.min.replace(tzinfo=timezone.utc)
 
 
 def _get_most_recent_event(
@@ -355,12 +337,32 @@ class _PawsistantSensorBase(CoordinatorEntity[PawsistantCoordinator], SensorEnti
         self._dog_name = dog_name
         self._species = species or DEFAULT_SPECIES
         self._attr_device_info = coordinator.get_device_info(dog_id, dog_name, self._species)
+        # Fresh sentinel per entity, so the first _cached() call always misses.
+        self._cache_key: Any = object()
+        self._cache: dict[str, Any] = {}
 
     def _dog_events(self) -> list[dict[str, Any]]:
         """Shortcut to this dog's event list from coordinator data."""
         if self.coordinator.data is None:
             return []
         return self.coordinator.data.get(self._dog_id, [])
+
+    def _cached(
+        self, key: Any, compute: Callable[[], dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Memoise *compute* for as long as *key* holds steady.
+
+        HA asks each analytics sensor for its value at least twice per refresh --
+        once for ``native_value``, once for ``extra_state_attributes`` -- and the
+        analytics functions walk the dog's entire event list each time. *key*
+        must capture everything the result depends on: the coordinator's refresh
+        timestamp, plus any user setting that should take effect on the next
+        refresh rather than waiting for a reload.
+        """
+        if key != self._cache_key:
+            self._cache_key = key
+            self._cache = compute()
+        return self._cache
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -624,19 +626,10 @@ class PawsistantWeightTrendSensor(_PawsistantSensorBase):
         super().__init__(coordinator, dog_id, dog_name, species)
         self._attr_unique_id = f"pawsistant_{dog_id}_weight_trend"
         self._attr_name = "Weight Trend"
-        self._cache_ts: object = object()
-        self._cache: dict[str, Any] = {}
 
     def _settings(self) -> tuple[int | None, float | None]:
-        """Return this dog's (window_days, threshold_pct) from the store.
-
-        Falls back to the defaults if the store predates per-dog analytics
-        settings, so an in-place upgrade can't leave the sensor unavailable.
-        """
-        getter = getattr(self.coordinator.store, "get_analytics_settings", None)
-        if getter is None:
-            return DEFAULT_WEIGHT_WINDOW_DAYS, None
-        settings = getter(self._dog_id)
+        """Return this dog's (window_days, threshold_pct) from the store."""
+        settings = self.coordinator.store.get_analytics_settings(self._dog_id)
         return (
             settings.get(CONF_WEIGHT_WINDOW_DAYS, DEFAULT_WEIGHT_WINDOW_DAYS),
             settings.get(CONF_WEIGHT_THRESHOLD_PCT),
@@ -645,26 +638,31 @@ class PawsistantWeightTrendSensor(_PawsistantSensorBase):
     def _compute(self) -> dict[str, Any]:
         """Run the weight-trend analytics function (cached per refresh).
 
-        The window and threshold are read on every compute rather than cached
+        The window and threshold are part of the cache key rather than read once
         at construction, so a change made in the options flow takes effect on
         the next refresh instead of requiring a reload.
         """
-        last = getattr(self.coordinator, "last_update_success_time", None)
         window_days, threshold_pct = self._settings()
-        key = (last, window_days, threshold_pct)
-        if key != self._cache_ts:
-            self._cache_ts = key
-            self._cache = compute_weight_trend(
+        return self._cached(
+            (self.coordinator.last_update_success_time, window_days, threshold_pct),
+            lambda: compute_weight_trend(
                 self._dog_events(),
                 window_days=window_days,
                 threshold_pct=threshold_pct,
-            )
-        return self._cache
+                now=dt_util.now(),
+            ),
+        )
 
     @property
-    def native_value(self) -> str:
-        """Return the recent trend: gaining, losing, stable, or unknown."""
-        return self._compute()["trend"]
+    def native_value(self) -> str | None:
+        """Return the recent trend: gaining, losing, or stable.
+
+        Returns ``None`` -- which HA renders as *Unknown* -- when there aren't
+        enough readings in the window to call it, rather than the literal string
+        "unknown", which would collide with HA's own unknown state.
+        """
+        trend = self._compute()["trend"]
+        return None if trend == "unknown" else trend
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -708,16 +706,13 @@ class PawsistantSicknessFrequencySensor(_PawsistantSensorBase):
         super().__init__(coordinator, dog_id, dog_name, species)
         self._attr_unique_id = f"pawsistant_{dog_id}_sickness_frequency"
         self._attr_name = "Sickness Frequency"
-        self._cache_ts: object = object()
-        self._cache: dict[str, Any] = {}
 
     def _compute(self) -> dict[str, Any]:
         """Run the sick-frequency analytics function (cached per refresh)."""
-        last = getattr(self.coordinator, "last_update_success_time", None)
-        if last != self._cache_ts:
-            self._cache_ts = last
-            self._cache = compute_sick_frequency(self._dog_events())
-        return self._cache
+        return self._cached(
+            self.coordinator.last_update_success_time,
+            lambda: compute_sick_frequency(self._dog_events(), now=dt_util.now()),
+        )
 
     @property
     def native_value(self) -> int:
@@ -753,21 +748,30 @@ class PawsistantRoutineSensor(_PawsistantSensorBase):
         self._attr_unique_id = f"pawsistant_{dog_id}_{event_type}_routine"
         self._attr_name = f"{display} Routine"
         self._attr_icon = EVENT_TYPE_ICONS.get(event_type, "mdi:clock-outline")
-        self._cache_ts: object = object()
-        self._cache: dict[str, Any] = {}
 
     def _compute(self) -> dict[str, Any]:
-        """Run the routine-peaks analytics function (cached per refresh)."""
-        last = getattr(self.coordinator, "last_update_success_time", None)
-        if last != self._cache_ts:
-            self._cache_ts = last
-            self._cache = compute_routine_peaks(self._dog_events(), self._event_type)
-        return self._cache
+        """Run the routine-peaks analytics function (cached per refresh).
+
+        ``now`` is passed as local time so the detected peak hours, and the
+        judgement of what is due today, are in the user's timezone rather than
+        UTC. See the module docstring in sensor_analytics.
+        """
+        return self._cached(
+            self.coordinator.last_update_success_time,
+            lambda: compute_routine_peaks(
+                self._dog_events(), self._event_type, now=dt_util.now()
+            ),
+        )
 
     @property
-    def native_value(self) -> str:
-        """Return schedule status: on_schedule, late, or unknown."""
-        return self._compute()["status"]
+    def native_value(self) -> str | None:
+        """Return schedule status: on_schedule or late.
+
+        Returns ``None`` -- rendered by HA as *Unknown* -- when there isn't
+        enough history to establish a routine at all.
+        """
+        status = self._compute()["status"]
+        return None if status == "unknown" else status
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
