@@ -680,6 +680,7 @@ class PawsistantWeightTrendSensor(_PawsistantSensorBase):
         attrs["over_days"] = result["over_days"]
         attrs["window_days"] = result["window_days"]
         attrs["threshold_pct"] = result["threshold_pct"]
+        attrs["min_samples"] = result["min_samples"]
         attrs["lifetime_trend"] = result["lifetime_trend"]
         attrs["lifetime_change_pct"] = result["lifetime_change_pct"]
         attrs["lifetime_sample_count"] = result["lifetime_sample_count"]
@@ -726,6 +727,7 @@ class PawsistantSicknessFrequencySensor(_PawsistantSensorBase):
         result = self._compute()
         attrs["count_previous_30d"] = result["count_previous"]
         attrs["cluster_size"] = result["cluster_size"]
+        attrs["cluster_active"] = result["cluster_active"]
         attrs["days_since_last"] = result["days_since_last"]
         return attrs
 
@@ -780,7 +782,12 @@ class PawsistantRoutineSensor(_PawsistantSensorBase):
         result = self._compute()
         attrs["event_type"] = self._event_type
         attrs["peak_hours"] = result["peak_hours"]
+        attrs["peak_minutes"] = result["peak_minutes"]
         attrs["histogram"] = result["histogram"]
         attrs["last_event_ago_hours"] = result["last_event_ago_hours"]
         attrs["sample_count"] = result["sample_count"]
+        attrs["days_observed"] = result["days_observed"]
+        attrs["min_days_required"] = result["min_days_required"]
+        attrs["overdue_peak_minute"] = result["overdue_peak_minute"]
+        attrs["minutes_overdue"] = result["minutes_overdue"]
         return attrs

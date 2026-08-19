@@ -13,19 +13,22 @@ All notable changes to Pawsistant will be documented in this file.
     percentage change, the readings behind it, and the same figures across the pet's
     full history.
   - `sensor.<pet>_sickness_frequency` counts sick events in the last 30 days, with the
-    previous 30 days beside it for comparison, the days since the most recent one, and
-    the longest run of sick days falling within a week of each other.
+    previous 30 days beside it for comparison, the days since the most recent one, the
+    longest run of sick days falling within a week of each other, and a `cluster_active`
+    flag you can trigger an automation on when an illness is still ongoing.
   - `sensor.<pet>_food_routine` — and the same for pee, poop, walk, water, and treat —
     learns the times of day that activity usually happens over the last 30 days and reads
     **on schedule** or **late** against them. A routine isn't late the moment its usual
-    hour arrives; it gets a two-hour grace period first. Attributes expose the detected
-    peak hours and a 24-hour histogram, so you can build your own automations or charts
-    on top.
+    time arrives; it gets a two-hour grace period first, and when one is missed the
+    sensor names which one and by how long. Something only counts as a routine if it
+    recurs on at least half the days you logged that activity, so an occasional late-night
+    trip outside doesn't become a schedule your pet then has to keep.
 
   A trend or routine only appears once there's enough history to mean something. Fewer
-  than three weigh-ins in the window, or too few events to establish a pattern, and the
-  sensor reads **unknown** rather than guessing. Every one of them exposes `sample_count`,
-  so "not enough data yet" is distinguishable from "nothing to report".
+  than three weigh-ins in the window, or too few days to establish a pattern, and the
+  sensor reads **unknown** rather than guessing. Each one carries the numbers behind that
+  verdict — `sample_count` and `min_samples`, or `days_observed` and `min_days_required` —
+  so a dashboard can say "2 of the 3 readings needed" instead of a bare blank.
 - **Per-pet weight trend settings.** The window and the change threshold are configurable
   per pet under **Settings → Devices & Services → Pawsistant → Configure → Analytics
   settings**. Pick a window matching how often you actually weigh that pet — anything from

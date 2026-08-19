@@ -15,6 +15,7 @@ hours; the default of UTC only applies to direct callers that pass nothing.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -61,13 +62,30 @@ ROUTINE_EVENT_TYPES: list[str] = [
     "treat",
 ]
 ROUTINE_LOOKBACK_DAYS = 30
-ROUTINE_LATE_THRESHOLD_HOURS = 2
 
-# How long before midnight a still-uncovered peak is judged, when its normal
+# How far from a routine's usual time an event still counts as "that one".
+ROUTINE_LATE_THRESHOLD_MINUTES = 120
+
+# Events further apart than this belong to different routines. Splitting on a
+# gap rather than into fixed hour buckets is what keeps one habit from being
+# sawn in half by an arbitrary boundary: a meal at 07:58 one day and 08:02 the
+# next is four minutes apart, and no amount of bucketing should disagree.
+ROUTINE_CLUSTER_GAP_MINUTES = 90
+
+# What makes a cluster a *routine* rather than a coincidence: it has to recur on
+# at least this many separate days, and on at least this share of the days the
+# activity was logged at all. Counting days rather than events matters -- three
+# pees in one bad hour on one night is not a schedule.
+ROUTINE_MIN_CLUSTER_DAYS = 3
+ROUTINE_MIN_DAY_FRACTION = 0.5
+
+# How long before midnight a still-uncovered routine is judged, when its normal
 # grace period would run past the end of the day. Without this a 22:00 routine
 # could never report "late": its deadline (22:00 + 2h) lands after the day has
 # already rolled over and today's events have reset.
 ROUTINE_END_OF_DAY_MARGIN = timedelta(minutes=30)
+
+MINUTES_PER_DAY = 1440
 
 
 # ---------------------------------------------------------------------------
@@ -283,6 +301,9 @@ def compute_weight_trend(
         **windowed,
         "window_days": window_days,
         "threshold_pct": threshold_pct,
+        # Echoed so a caller can say "you have 1 of the 3 readings needed"
+        # without hardcoding the constant and silently desyncing from it.
+        "min_samples": WEIGHT_TREND_MIN_POINTS,
         "lifetime_trend": lifetime["trend"],
         "lifetime_change_pct": lifetime["change_pct"],
         "lifetime_sample_count": lifetime["sample_count"],
@@ -361,10 +382,21 @@ def compute_sick_frequency(
             max_run = max(max_run, run)
         cluster_size = max_run
 
+    # An illness is "ongoing" when a cluster exists and the run is still live --
+    # the last sick day is recent enough that another one would extend it rather
+    # than start a new cluster. Derived here so an automation can trigger on it
+    # without re-deriving the rule from cluster_size and days_since_last.
+    cluster_active = (
+        cluster_size >= 2
+        and days_since_last is not None
+        and days_since_last <= SICK_CLUSTER_GAP_DAYS
+    )
+
     return {
         "count_current": len(current),
         "count_previous": previous_count,
         "cluster_size": cluster_size,
+        "cluster_active": cluster_active,
         "days_since_last": days_since_last,
     }
 
@@ -374,13 +406,81 @@ def compute_sick_frequency(
 # ---------------------------------------------------------------------------
 
 
+def _circular_distance(a: float, b: float) -> float:
+    """Minutes between two times of day, going the short way round the clock.
+
+    23:55 and 00:10 are fifteen minutes apart, not twenty-three hours. Plain
+    subtraction gets that wrong, which is why a bedtime routine used to be
+    unable to satisfy itself.
+    """
+    delta = abs(a - b) % MINUTES_PER_DAY
+    return min(delta, MINUTES_PER_DAY - delta)
+
+
+def _circular_mean(minutes: list[float]) -> float:
+    """Average a set of times of day, respecting the midnight seam.
+
+    Averaging 23:50 and 00:10 arithmetically gives midday; treating each time as
+    a point on a circle and averaging the vectors gives midnight, which is what
+    a human means.
+    """
+    angles = [2 * math.pi * m / MINUTES_PER_DAY for m in minutes]
+    x = sum(math.cos(a) for a in angles)
+    y = sum(math.sin(a) for a in angles)
+    if abs(x) < 1e-12 and abs(y) < 1e-12:
+        # Times spread perfectly evenly round the clock have no meaningful
+        # centre; anything we return is arbitrary, so return the first.
+        return minutes[0]
+    mean_angle = math.atan2(y, x) % (2 * math.pi)
+    return mean_angle * MINUTES_PER_DAY / (2 * math.pi)
+
+
+def _cluster_times_of_day(
+    stamped: list[tuple[float, Any]],
+) -> list[list[tuple[float, Any]]]:
+    """Group (minute-of-day, day) pairs into clusters, wrapping across midnight.
+
+    Sorts by time of day and starts a new cluster wherever the gap to the
+    previous event exceeds ``ROUTINE_CLUSTER_GAP_MINUTES``. The first and last
+    clusters are merged if they are close across the midnight seam, so a routine
+    that straddles it stays one routine.
+    """
+    if not stamped:
+        return []
+
+    ordered = sorted(stamped, key=lambda pair: pair[0])
+    clusters: list[list[tuple[float, Any]]] = [[ordered[0]]]
+    for entry in ordered[1:]:
+        if entry[0] - clusters[-1][-1][0] <= ROUTINE_CLUSTER_GAP_MINUTES:
+            clusters[-1].append(entry)
+        else:
+            clusters.append([entry])
+
+    # Close the circle: the last cluster of the day may be the same routine as
+    # the first cluster of the next.
+    if len(clusters) > 1:
+        wrap_gap = (MINUTES_PER_DAY - clusters[-1][-1][0]) + clusters[0][0][0]
+        if wrap_gap <= ROUTINE_CLUSTER_GAP_MINUTES:
+            clusters[0] = clusters.pop() + clusters[0]
+
+    return clusters
+
+
 def compute_routine_peaks(
     events: list[dict[str, Any]],
     event_type: str,
     *,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """Detect time-of-day peaks for a given event type.
+    """Detect recurring times of day for a given event type.
+
+    Events are grouped by when in the day they happen -- splitting wherever a
+    gap exceeds ``ROUTINE_CLUSTER_GAP_MINUTES``, and closing the circle across
+    midnight -- and a group counts as a routine when it recurs on enough
+    separate days. Fixed hour buckets were tried first and do not work: the same
+    meal reads as one, two or three daily peaks depending only on where the hour
+    boundary happens to fall relative to it, and a bedtime routine at 23:55
+    splits into two peaks that the arithmetic then treats as 23 hours apart.
 
     Args:
         events:     List of event dicts (any mix of event types).
@@ -392,13 +492,28 @@ def compute_routine_peaks(
 
     Returns:
         Dict with keys:
-            peak_hours        -- list of hour-of-day ints (0-23) that are peaks,
-                                 in ``now``'s timezone
-            histogram         -- 24-element list of counts per hour bucket
+            peak_minutes      -- each routine's usual time, as minutes since
+                                 local midnight. The precise form; callers that
+                                 display a time should format this themselves,
+                                 since 12- vs 24-hour is the reader's choice.
+            peak_hours        -- the same routines rounded to the hour they fall
+                                 in, kept for callers that predate peak_minutes
+            histogram         -- 24-element list of counts per hour bucket.
+                                 Fine for drawing a chart; deliberately not what
+                                 any decision below is made from.
             status            -- "on_schedule", "late", or "unknown"
             last_event_ago_hours -- hours since the most recent matching event
-                                   (or None)
+                                 (or None)
             sample_count      -- number of matching events in the lookback window
+            days_observed     -- distinct days the activity was logged at all,
+                                 the denominator behind ROUTINE_MIN_DAY_FRACTION
+            min_days_required -- days a cluster must recur on to count, so a
+                                 caller can explain an "unknown" without
+                                 hardcoding the constant
+            overdue_peak_minute -- the routine that is late, as minutes since
+                                 midnight (None unless status is "late")
+            minutes_overdue   -- how long past its deadline that routine is
+                                 (None unless status is "late")
     """
     if now is None:
         now = datetime.now(tz=timezone.utc)
@@ -430,63 +545,92 @@ def compute_routine_peaks(
             (now - most_recent).total_seconds() / 3600, 1
         )
 
-    # Peak detection: an hour is a peak when it holds at least three events and
-    # at least twice the flat 24-hour average. Because a real routine clusters
-    # into a few hours the average is small, so in practice the ">= 3" floor is
-    # what rejects noise; the 2x test only bites for an activity spread thinly
-    # across the whole day, where nothing should count as a peak.
-    peak_hours: list[int] = []
-    if sample_count > 0:
-        avg = sample_count / 24
-        peak_hours = [
-            h for h in range(24) if histogram[h] >= 2 * avg and histogram[h] >= 3
-        ]
+    # Group the events by time of day, then keep the groups that recur often
+    # enough to call a routine.
+    stamped = [(ts.hour * 60 + ts.minute + ts.second / 60, ts.date()) for ts in matching]
+    days_observed = len({day for _, day in stamped})
+
+    peak_minutes: list[int] = []
+    for cluster in _cluster_times_of_day(stamped):
+        cluster_days = len({day for _, day in cluster})
+        if cluster_days < ROUTINE_MIN_CLUSTER_DAYS:
+            continue
+        if days_observed and cluster_days / days_observed < ROUTINE_MIN_DAY_FRACTION:
+            continue
+        # Rounded to the whole minute at the source: the trigonometry round-trip
+        # lands a cluster of identical 08:00 events on 479.99999, which floors
+        # to hour 7. A minute is also the finest resolution anything downstream
+        # reports, so nothing is lost by settling it here.
+        center = round(_circular_mean([minute for minute, _ in cluster]))
+        peak_minutes.append(center % MINUTES_PER_DAY)
+    peak_minutes.sort()
+
+    # Backwards-compatible view: the hour each routine falls in.
+    peak_hours = sorted({minute // 60 for minute in peak_minutes})
 
     # Schedule status
-    if not peak_hours:
+    overdue_peak_minute: float | None = None
+    minutes_overdue: float | None = None
+
+    if not peak_minutes:
         status = "unknown"
     else:
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_hours = {ts.hour for ts in matching if ts >= today_start}
-
-        # A peak only becomes *due* once its grace period has elapsed: a walk
-        # that usually happens at 22:30 is not late at 22:01. Peaks whose grace
-        # would run past midnight are judged shortly before the day rolls over
-        # instead, so a late-evening routine can still report late while today's
-        # events are still the ones being counted.
         day_end = today_start + timedelta(days=1)
-        past_peaks = [
-            h
-            for h in peak_hours
-            if now
-            >= min(
-                today_start + timedelta(hours=h + ROUTINE_LATE_THRESHOLD_HOURS),
-                day_end - ROUTINE_END_OF_DAY_MARGIN,
-            )
+        today_minutes = [
+            minute
+            for minute, day in stamped
+            if day == today_start.date()
         ]
 
-        if not past_peaks:
-            # Nothing is due yet today.
-            status = "on_schedule"
-        else:
-            # Every due peak must be covered by a today-event within
-            # ROUTINE_LATE_THRESHOLD_HOURS of it.
-            status = (
-                "on_schedule"
-                if all(
-                    any(
-                        abs(th - peak_h) <= ROUTINE_LATE_THRESHOLD_HOURS
-                        for th in today_hours
-                    )
-                    for peak_h in past_peaks
-                )
-                else "late"
+        # A routine only becomes *due* once its grace period has elapsed: a walk
+        # that usually happens at 22:30 is not late at 22:01. One whose grace
+        # would run past midnight is judged shortly before the day rolls over
+        # instead, so a late-evening routine can still report late while today's
+        # events are still the ones being counted.
+        overdue: list[tuple[float, float]] = []
+        for minute in peak_minutes:
+            occurrence = today_start + timedelta(minutes=minute)
+            deadline = min(
+                occurrence + timedelta(minutes=ROUTINE_LATE_THRESHOLD_MINUTES),
+                day_end - ROUTINE_END_OF_DAY_MARGIN,
             )
+            if deadline <= occurrence:
+                # A routine this close to midnight cannot be judged inside the
+                # day it belongs to. Saying nothing beats guessing.
+                continue
+            if now < deadline:
+                continue
+            covered = any(
+                _circular_distance(minute, today_minute)
+                <= ROUTINE_LATE_THRESHOLD_MINUTES
+                for today_minute in today_minutes
+            )
+            if not covered:
+                overdue.append(
+                    (minute, (now - deadline).total_seconds() / 60)
+                )
+
+        if overdue:
+            status = "late"
+            # Report the one that has been waiting longest; it is the one a
+            # person would want named.
+            overdue_peak_minute, minutes_overdue = max(overdue, key=lambda o: o[1])
+            minutes_overdue = round(minutes_overdue)
+        else:
+            status = "on_schedule"
 
     return {
         "peak_hours": peak_hours,
+        "peak_minutes": peak_minutes,
         "histogram": histogram,
         "status": status,
         "last_event_ago_hours": last_event_ago_hours,
         "sample_count": sample_count,
+        "days_observed": days_observed,
+        "min_days_required": ROUTINE_MIN_CLUSTER_DAYS,
+        "overdue_peak_minute": (
+            round(overdue_peak_minute) if overdue_peak_minute is not None else None
+        ),
+        "minutes_overdue": minutes_overdue,
     }

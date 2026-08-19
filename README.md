@@ -227,16 +227,31 @@ recorded and summarise it.
   pet under **Settings → Devices & Services → Pawsistant → Configure → Analytics
   settings**.
 - **Sickness frequency** is the count over the last 30 days, with `count_previous_30d`
-  for comparison, `days_since_last`, and `cluster_size` — the longest run of sick days
-  falling within a week of each other.
+  for comparison, `days_since_last`, `cluster_size` — the longest run of sick days
+  falling within a week of each other — and `cluster_active`, a boolean for "is an
+  illness still ongoing right now", suitable as an automation trigger.
 - **Routine sensors** learn each activity's usual times of day over the last 30 days and
   report whether today is on track, allowing a two-hour grace period before calling
-  anything late. `peak_hours` and a 24-hour `histogram` are exposed as attributes.
+  anything late.
+  - `peak_minutes` gives each routine's usual time as minutes since local midnight
+    (`510` = 08:30). This is the precise form — format it for display yourself, since
+    12- versus 24-hour clock is the reader's preference. `peak_hours` is the same list
+    rounded to the hour.
+  - When the state is `late`, `overdue_peak_minute` and `minutes_overdue` say *which*
+    routine was missed and by how long, so a template can explain it rather than just
+    showing the word.
+  - `histogram` is a 24-element count per hour, for charting. Note that it is not what
+    the sensor decides from — events are grouped by their actual time of day, so a meal
+    at 07:58 and one at 08:02 are four minutes apart rather than in separate buckets.
+  - Something is only a routine if it recurs on at least half the days you logged that
+    activity. An occasional 3am trip outside stays occasional instead of becoming a
+    schedule the pet is then permanently late for.
 
-All of them report **Unknown** until there's enough history to say something meaningful
-(three weigh-ins inside the window; a detectable daily pattern). `sample_count` is always
-present, so "not enough data yet" is distinguishable from "nothing to report". Hours are
-in Home Assistant's configured timezone.
+All of them report **Unknown** until there's enough history to say something meaningful.
+Rather than leaving you to guess why, each carries the numbers behind the verdict:
+`sample_count` against `min_samples` for weight, `days_observed` against
+`min_days_required` for routines. Times of day are in Home Assistant's configured
+timezone.
 
 ---
 

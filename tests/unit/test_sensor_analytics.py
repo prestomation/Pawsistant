@@ -5,6 +5,7 @@ No Home Assistant imports; these functions operate on plain event dicts.
 
 from __future__ import annotations
 
+import random
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -505,6 +506,200 @@ def _daily_at(
             ts = ts.astimezone(timezone.utc)
         events.append(_ev(event_type, ts.isoformat()))
     return events
+
+
+def _jittered_daily(
+    now: datetime,
+    hour: int,
+    minute: int,
+    jitter_min: int,
+    days: range,
+    event_type: str = "food",
+    seed: int = 7,
+) -> list[dict]:
+    """One event a day at roughly the same time, with human-sized jitter.
+
+    Nobody feeds a dog at exactly 08:00:00 every day, and the jitter is the
+    whole point: it is what a fixed-hour histogram used to split in half.
+    """
+    rnd = random.Random(seed)
+    events = []
+    for day in days:
+        base = (now - timedelta(days=day)).replace(
+            hour=hour, minute=minute, second=0, microsecond=0
+        )
+        offset = timedelta(minutes=rnd.uniform(-jitter_min, jitter_min))
+        events.append(_ev(event_type, (base + offset).isoformat()))
+    return events
+
+
+class TestRoutineClustering:
+    """Grouping events by time of day, rather than into fixed hour buckets.
+
+    Fixed buckets made the answer depend on where an arbitrary boundary fell:
+    the same daily meal read as one, two or three "peaks" purely from being
+    served at 08:30 versus 08:00 versus 07:30, and a bedtime routine at 23:55
+    split into two peaks that the coverage arithmetic then placed 23 hours
+    apart, so it could never satisfy itself.
+    """
+
+    NOW = datetime(2026, 6, 30, 12, 0, tzinfo=timezone.utc)
+
+    @pytest.mark.parametrize(
+        "hour,minute", [(8, 0), (7, 45), (8, 30), (7, 58), (12, 15)]
+    )
+    def test_one_meal_is_one_routine_wherever_the_clock_falls(
+        self, hour: int, minute: int
+    ) -> None:
+        events = _jittered_daily(self.NOW, hour, minute, 25, range(1, 30))
+        result = compute_routine_peaks(events, "food", now=self.NOW)
+        assert len(result["peak_minutes"]) == 1, (
+            f"one daily meal at {hour:02d}:{minute:02d} reported as "
+            f"{len(result['peak_minutes'])} routines"
+        )
+
+    def test_wide_jitter_still_reads_as_one_routine(self) -> None:
+        """+/-45 min spans three hour buckets; it is still one habit."""
+        events = _jittered_daily(self.NOW, 7, 30, 45, range(1, 30))
+        result = compute_routine_peaks(events, "food", now=self.NOW)
+        assert len(result["peak_minutes"]) == 1
+
+    def test_routine_straddling_midnight_stays_one_routine(self) -> None:
+        """A habit centred near midnight lands on both sides of the seam.
+
+        Balanced deliberately so that failing to close the circle yields two
+        routines rather than one, instead of quietly discarding whichever half
+        is smaller — which is what happens for a lopsided split and would let
+        this pass while still being wrong.
+        """
+        events = _jittered_daily(self.NOW, 0, 10, 40, range(1, 30))
+        result = compute_routine_peaks(events, "food", now=self.NOW)
+        centers = result["peak_minutes"]
+        assert len(centers) == 1, f"one bedtime habit read as {len(centers)}"
+        assert _mod._circular_distance(centers[0], 10) <= 30, (
+            "the surviving routine should sit near 00:10, not be one half of it"
+        )
+        # The histogram still splits it across buckets 23 and 0 — which is fine,
+        # it is for drawing a chart. What matters is that no decision is made
+        # from it any more.
+        assert result["histogram"][23] > 0
+        assert result["histogram"][0] > 0
+
+    def test_two_genuinely_separate_meals_stay_two_routines(self) -> None:
+        """Clustering must not over-merge: breakfast and dinner are distinct."""
+        events = _jittered_daily(self.NOW, 8, 0, 20, range(1, 30)) + _jittered_daily(
+            self.NOW, 18, 0, 20, range(1, 30), seed=11
+        )
+        result = compute_routine_peaks(events, "food", now=self.NOW)
+        centers = result["peak_minutes"]
+        assert len(centers) == 2
+        # Asserted as a distance from the intended time rather than an exact
+        # hour: jitter can land the average either side of the boundary, and
+        # pinning to the hour is the brittleness this whole change removes.
+        assert abs(centers[0] - 8 * 60) <= 30
+        assert abs(centers[1] - 18 * 60) <= 30
+
+    def test_peak_minutes_reports_the_real_time_not_the_hour(self) -> None:
+        events = _daily_at(self.NOW, 8, range(1, 30), minute=30)
+        result = compute_routine_peaks(events, "food", now=self.NOW)
+        assert result["peak_minutes"] == [510], "08:30 is minute 510"
+        assert result["peak_hours"] == [8], "the hour view still works"
+
+    def test_many_events_on_a_single_day_is_not_a_routine(self) -> None:
+        """Three pees in one bad hour on one night is not a schedule.
+
+        The old rule counted events, so a single unusual night could manufacture
+        a peak. Recurrence is measured in days.
+        """
+        base = (self.NOW - timedelta(days=2)).replace(
+            hour=3, minute=0, second=0, microsecond=0
+        )
+        events = [
+            _ev("pee", (base + timedelta(minutes=i * 10)).isoformat())
+            for i in range(6)
+        ]
+        result = compute_routine_peaks(events, "pee", now=self.NOW)
+        assert result["peak_minutes"] == []
+        assert result["status"] == "unknown"
+
+    def test_an_occasional_habit_is_not_a_routine(self) -> None:
+        """Tightly clustered in time, but only on a handful of days.
+
+        This is the shape that made pee sensors read `late` all day: an
+        occasional late-night trip became a "peak" the dog then had to satisfy
+        every single day.
+        """
+        events = _jittered_daily(self.NOW, 8, 0, 20, range(1, 30), event_type="pee")
+        events += _daily_at(self.NOW, 3, range(1, 30, 7), event_type="pee")
+        result = compute_routine_peaks(events, "pee", now=self.NOW)
+        centers = result["peak_minutes"]
+        assert len(centers) == 1, "the 03:00 outings are not a routine"
+        assert abs(centers[0] - 8 * 60) <= 30, "the surviving one is the morning"
+
+    def test_circular_distance_wraps_around_midnight(self) -> None:
+        distance = _mod._circular_distance
+        assert distance(23 * 60 + 55, 10) == 15, "23:55 to 00:10 is 15 minutes"
+        assert distance(10, 23 * 60 + 55) == 15, "and it is symmetric"
+        assert distance(8 * 60, 9 * 60) == 60
+
+    def test_circular_mean_averages_across_midnight(self) -> None:
+        """23:50 and 00:10 average to midnight, not midday."""
+        mean = _mod._circular_mean([23 * 60 + 50, 10])
+        assert round(mean) % 1440 == 0
+
+
+class TestRoutineOverdueDetail:
+    """When a routine is late, say which one and by how much.
+
+    Exposed as numbers rather than a sentence: the card composes the wording in
+    the user's language, and 12- vs 24-hour is the reader's preference to make.
+    """
+
+    NOW = datetime(2026, 6, 30, 12, 0, tzinfo=timezone.utc)
+
+    def test_late_names_the_overdue_routine(self) -> None:
+        events = _daily_at(self.NOW, 8, range(1, 30))  # nothing logged today
+        result = compute_routine_peaks(events, "food", now=self.NOW)
+        assert result["status"] == "late"
+        assert result["overdue_peak_minute"] == 480, "08:00"
+        # Deadline was 08:00 + 2h grace = 10:00; now is 12:00.
+        assert result["minutes_overdue"] == 120
+
+    def test_on_schedule_leaves_the_overdue_fields_empty(self) -> None:
+        events = _daily_at(self.NOW, 8, range(0, 30))  # includes today
+        result = compute_routine_peaks(events, "food", now=self.NOW)
+        assert result["status"] == "on_schedule"
+        assert result["overdue_peak_minute"] is None
+        assert result["minutes_overdue"] is None
+
+    def test_the_longest_waiting_routine_is_the_one_named(self) -> None:
+        events = _daily_at(self.NOW, 7, range(1, 30)) + _daily_at(
+            self.NOW, 9, range(1, 30)
+        )
+        result = compute_routine_peaks(events, "food", now=self.NOW)
+        assert result["status"] == "late"
+        assert result["overdue_peak_minute"] == 420, "07:00, the older miss"
+
+    def test_routine_too_close_to_midnight_is_not_judged(self) -> None:
+        """Its grace period expires after the day has already rolled over.
+
+        Today's events reset at midnight, so there is no honest verdict to give
+        — and inventing one is how a bedtime routine ends up permanently late.
+        """
+        events = _daily_at(self.NOW, 23, range(1, 30), minute=50)
+        result = compute_routine_peaks(
+            events, "food", now=self.NOW.replace(hour=23, minute=59)
+        )
+        assert result["status"] == "on_schedule"
+        assert result["overdue_peak_minute"] is None
+
+    def test_unknown_explains_itself_without_hardcoded_constants(self) -> None:
+        """A caller can say "logged on 2 days, needs 3" from attributes alone."""
+        events = _daily_at(self.NOW, 8, range(1, 3))
+        result = compute_routine_peaks(events, "food", now=self.NOW)
+        assert result["status"] == "unknown"
+        assert result["days_observed"] == 2
+        assert result["min_days_required"] == _mod.ROUTINE_MIN_CLUSTER_DAYS
 
 
 class TestComputeRoutinePeaks:
