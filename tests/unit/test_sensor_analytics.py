@@ -425,6 +425,62 @@ class TestWeightTrendThreshold:
 # ---------------------------------------------------------------------------
 
 
+class TestSickClusterActive:
+    """`cluster_active` answers "is an illness still going on right now?".
+
+    It is advertised as an automation trigger, so its boolean has to be right
+    in both directions — a stuck-on flag nags about a pet that recovered a
+    month ago, and a stuck-off one misses the thing it exists to catch.
+    """
+
+    NOW = datetime(2026, 6, 30, 12, 0, tzinfo=timezone.utc)
+
+    def _sick_days_ago(self, *days: float) -> list[dict]:
+        return [
+            _ev("sick", (self.NOW - timedelta(days=d)).isoformat()) for d in days
+        ]
+
+    def test_active_while_the_run_can_still_be_extended(self) -> None:
+        result = compute_sick_frequency(self._sick_days_ago(1, 3), now=self.NOW)
+        assert result["cluster_size"] == 2
+        assert result["cluster_active"] is True
+
+    def test_not_active_once_the_run_has_gone_cold(self) -> None:
+        """Two sick days close together, but a fortnight ago: recovered."""
+        result = compute_sick_frequency(self._sick_days_ago(14, 16), now=self.NOW)
+        assert result["cluster_size"] == 2, "they still clustered with each other"
+        assert result["cluster_active"] is False, "but it is over"
+
+    def test_a_single_recent_sick_day_is_not_a_cluster(self) -> None:
+        result = compute_sick_frequency(self._sick_days_ago(1), now=self.NOW)
+        assert result["cluster_size"] == 1
+        assert result["cluster_active"] is False
+
+    def test_no_sick_events_is_not_active(self) -> None:
+        result = compute_sick_frequency([], now=self.NOW)
+        assert result["cluster_active"] is False
+        assert result["days_since_last"] is None
+
+    def test_cluster_gap_is_measured_exactly_not_truncated_to_whole_days(
+        self,
+    ) -> None:
+        """Two events 7d20h apart are outside a 7-day gap, not inside it.
+
+        Comparing `timedelta.days` truncates towards zero, so anything under a
+        full 8 days used to satisfy a rule documented as 7 — making the cluster
+        rule almost a day more permissive than every figure beside it.
+        """
+        result = compute_sick_frequency(
+            self._sick_days_ago(1, 1 + 7 + 20 / 24), now=self.NOW
+        )
+        assert result["cluster_size"] == 1, "7d20h apart is not one illness"
+
+        just_inside = compute_sick_frequency(
+            self._sick_days_ago(1, 1 + 7 - 1 / 24), now=self.NOW
+        )
+        assert just_inside["cluster_size"] == 2, "6d23h apart still clusters"
+
+
 class TestComputeSickFrequency:
     """Tests for compute_sick_frequency()."""
 
@@ -679,18 +735,40 @@ class TestRoutineOverdueDetail:
         assert result["status"] == "late"
         assert result["overdue_peak_minute"] == 420, "07:00, the older miss"
 
-    def test_routine_too_close_to_midnight_is_not_judged(self) -> None:
-        """Its grace period expires after the day has already rolled over.
+    def test_routine_too_close_to_midnight_reports_unknown_not_on_schedule(
+        self,
+    ) -> None:
+        """A routine that cannot be judged must not be reported as fine.
 
-        Today's events reset at midnight, so there is no honest verdict to give
-        — and inventing one is how a bedtime routine ends up permanently late.
+        Its grace period expires after the day has already rolled over and
+        today's events reset, so there is no honest verdict to give. Answering
+        "on_schedule" would be a claim we cannot support: a nightly walk that
+        quietly stopped happening would read as fine forever and no automation
+        could fire on it.
         """
         events = _daily_at(self.NOW, 23, range(1, 30), minute=50)
         result = compute_routine_peaks(
             events, "food", now=self.NOW.replace(hour=23, minute=59)
         )
-        assert result["status"] == "on_schedule"
+        assert result["status"] == "unknown"
         assert result["overdue_peak_minute"] is None
+        # The routine itself was still detected — "unknown" here means "cannot
+        # judge", not "nothing learned", and peak_minutes is what distinguishes
+        # the two for a caller.
+        assert len(result["peak_minutes"]) == 1
+
+    def test_a_judgeable_routine_still_decides_the_status(self) -> None:
+        """One unjudgeable near-midnight routine must not mask the others.
+
+        With a morning routine present and satisfied, the verdict comes from
+        that one rather than collapsing to unknown.
+        """
+        events = _daily_at(self.NOW, 8, range(0, 30)) + _daily_at(
+            self.NOW, 23, range(1, 30), minute=50
+        )
+        result = compute_routine_peaks(events, "food", now=self.NOW.replace(hour=14))
+        assert len(result["peak_minutes"]) == 2
+        assert result["status"] == "on_schedule"
 
     def test_unknown_explains_itself_without_hardcoded_constants(self) -> None:
         """A caller can say "logged on 2 days, needs 3" from attributes alone."""

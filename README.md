@@ -245,6 +245,11 @@ recorded and summarise it.
   - Something is only a routine if it recurs on at least half the days you logged that
     activity. An occasional 3am trip outside stays occasional instead of becoming a
     schedule the pet is then permanently late for.
+  - A routine within half an hour of midnight reads **Unknown** rather than on-schedule.
+    Its grace period would run past the point where the day resets, so there's no
+    honest verdict to give — and reporting "on schedule" would mean a nightly walk that
+    quietly stopped happening looked fine forever. `peak_minutes` still shows what was
+    learned, so Unknown here is distinguishable from "no routine found".
 
 All of them report **Unknown** until there's enough history to say something meaningful.
 Rather than leaving you to guess why, each carries the numbers behind the verdict:

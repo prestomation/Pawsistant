@@ -368,14 +368,19 @@ def compute_sick_frequency(
                 (now - most_recent).total_seconds() / 86400, 1
             )
 
-    # cluster detection: longest run of sick events within 7d of each other
+    # cluster detection: longest run of sick events within 7d of each other.
+    # Compared as a timedelta, not via `.days`, which truncates towards zero and
+    # would let events 7 days 20 hours apart pass a 7-day rule -- while
+    # days_since_last and cluster_active either side of this measure the same
+    # gap exactly.
     current.sort()
     cluster_size = 0
+    cluster_gap = timedelta(days=SICK_CLUSTER_GAP_DAYS)
     if current:
         run = 1
         max_run = 1
         for i in range(1, len(current)):
-            if (current[i] - current[i - 1]).days <= SICK_CLUSTER_GAP_DAYS:
+            if current[i] - current[i - 1] <= cluster_gap:
                 run += 1
             else:
                 run = 1
@@ -584,6 +589,7 @@ def compute_routine_peaks(
         # instead, so a late-evening routine can still report late while today's
         # events are still the ones being counted.
         overdue: list[tuple[float, float]] = []
+        judgeable = 0
         for minute in peak_minutes:
             occurrence = today_start + timedelta(minutes=minute)
             deadline = min(
@@ -592,8 +598,10 @@ def compute_routine_peaks(
             )
             if deadline <= occurrence:
                 # A routine this close to midnight cannot be judged inside the
-                # day it belongs to. Saying nothing beats guessing.
+                # day it belongs to: its grace period expires after today's
+                # events have already reset.
                 continue
+            judgeable += 1
             if now < deadline:
                 continue
             covered = any(
@@ -612,6 +620,13 @@ def compute_routine_peaks(
             # person would want named.
             overdue_peak_minute, minutes_overdue = max(overdue, key=lambda o: o[1])
             minutes_overdue = round(minutes_overdue)
+        elif judgeable == 0:
+            # Every routine this activity has sits too close to midnight to be
+            # judged within a day. "on_schedule" would be a claim we cannot
+            # support: a nightly walk that quietly stopped happening would read
+            # as fine forever, and no automation could ever fire on it. Say we
+            # do not know instead -- peak_minutes still shows what was learned.
+            status = "unknown"
         else:
             status = "on_schedule"
 
