@@ -205,16 +205,33 @@ def _year_of(ts: str) -> int:
     return _store_mod.PawsistantStore._year_of_timestamp(ts)
 
 
-def test_same_instant_buckets_identically_whatever_the_serialisation():
+def test_same_instant_buckets_identically_whatever_the_serialisation(monkeypatch):
     """The card form sends UTC 'Z'; the backend writes a local offset.
 
     Both spell the same moment, so both must pick the same year file. Taking the
     year as-written split them around New Year, and the later-year file fell
     outside the range get_events searches.
+
+    as_local is pinned rather than taken from the ambient stub: sibling test
+    modules install their own homeassistant.util.dt, one of which makes as_local
+    the identity, and whichever runs first wins for the whole process. Leaving it
+    ambient made this assertion depend on test ordering.
     """
+    from datetime import timedelta, timezone as _tz
+
+    pacific = _tz(timedelta(hours=-8))
+    monkeypatch.setattr(
+        _store_mod.dt_util, "as_local", lambda d: d.astimezone(pacific)
+    )
+    monkeypatch.setattr(
+        _store_mod.dt_util,
+        "now",
+        lambda tz=None: datetime(2026, 12, 31, 20, 30, tzinfo=pacific),
+    )
+
     utc_form = "2027-01-01T04:30:00.000Z"        # what toISOString() produces
     offset_form = "2026-12-31T20:30:00-08:00"    # the same instant, local offset
-    assert _year_of(utc_form) == _year_of(offset_form)
+    assert _year_of(utc_form) == _year_of(offset_form) == 2026
 
 
 def test_bucketing_follows_local_time_not_utc(monkeypatch):
