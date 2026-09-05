@@ -189,6 +189,10 @@ class PawsistantCardRegistration:
             return lovelace.resources
         return None
 
+    @property
+    def _card_file(self) -> Path:
+        return Path(__file__).parent / "frontend" / "pawsistant-card.js"
+
     async def async_register(self) -> None:
         """Register static path and add to Lovelace resources.
 
@@ -196,6 +200,26 @@ class PawsistantCardRegistration:
         immediately.  During initial startup use the split-registration pattern
         in async_setup_entry instead.
         """
+        # The bundle is a build artifact: it ships inside the release zip but is
+        # NOT in the git tree, so an install taken from source (a branch or tag in
+        # HACS, a manual `git clone` into custom_components) has the integration
+        # without the card.  The static path still registers — the frontend/
+        # directory exists either way — so without this check we would happily
+        # point Lovelace at a URL that 404s and log it as a success. The card then
+        # never defines and the only clue anywhere is a bare 404 in the browser
+        # console. Refuse to register a resource we can't serve, and say why.
+        if not await self.hass.async_add_executor_job(self._card_file.is_file):
+            _LOGGER.error(
+                "Pawsistant: the card bundle is missing from this install"
+                " (expected %s), so the Lovelace card cannot be served and will"
+                " not appear on any dashboard. The bundle is only included in"
+                " release downloads — reinstall Pawsistant in HACS choosing a"
+                " released version rather than a branch, or build it yourself"
+                " with 'npm ci && npm run build' in the frontend directory.",
+                self._card_file,
+            )
+            return
+
         await self._register_static_path()
         if self._resource_mode == "storage":
             await self._ensure_resources_loaded()
