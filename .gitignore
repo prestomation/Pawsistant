@@ -10,3 +10,6 @@ custom_components/pawsistant/frontend/pawsistant-card.js
 # Coverage artifacts
 .coverage
 htmlcov/
+
+# HACS release asset — built by ci/build-zip.sh, never committed
+/pawsistant.zip
