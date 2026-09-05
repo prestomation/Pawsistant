@@ -52,11 +52,19 @@ def _card_registration(hass: HomeAssistant) -> dict[str, Any]:
       not a Lovelace dashboard and loads no custom cards at all.
     """
     card_file = Path(__file__).parent / "frontend" / "pawsistant-card.js"
+    # stat() can still fail after is_file() says yes — a permission error, or the
+    # file going away between the two calls. Report -1 rather than crashing the
+    # whole diagnostics dump over the least important field in it.
+    try:
+        card_size = card_file.stat().st_size if card_file.is_file() else 0
+    except OSError as err:
+        _LOGGER.debug("Could not stat %s: %s", card_file, err)
+        card_size = -1
     info: dict[str, Any] = {
         "card_version": CARD_VERSION,
         "url_base": URL_BASE,
         "card_file_exists": card_file.is_file(),
-        "card_file_size": card_file.stat().st_size if card_file.is_file() else 0,
+        "card_file_size": card_size,
     }
 
     lovelace = hass.data.get("lovelace")

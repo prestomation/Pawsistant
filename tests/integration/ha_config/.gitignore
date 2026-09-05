@@ -13,3 +13,7 @@ deps/
 !.storage/pawsistant
 !.storage/pawsistant_events_2025
 !.storage/core.config_entries
+# The e2e dashboard, seeded the way HA writes it when a user creates one via
+# Settings -> Dashboards (replaces the old configuration.yaml lovelace block).
+!.storage/lovelace_dashboards
+!.storage/lovelace.pawsistant_e2e
