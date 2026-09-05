@@ -51,10 +51,14 @@ with zipfile.ZipFile("pawsistant.zip") as zf:
     if "const.py" in names:
         const_src = zf.read("const.py").decode("utf-8")
         match = re.search(r'^CARD_VERSION\s*=\s*"([^"]+)"', const_src, re.MULTILINE)
-        card_version = match.group(1) if match else None
-        if card_version != version:
+        if match is None:
             errors.append(
-                f"const.py in the zip has CARD_VERSION {card_version!r}, expected {version!r}"
+                "const.py in the zip has no CARD_VERSION assignment — the card's"
+                " Lovelace resource URL would carry no version"
+            )
+        elif match.group(1) != version:
+            errors.append(
+                f"const.py in the zip has CARD_VERSION {match.group(1)!r}, expected {version!r}"
             )
 
     if "frontend/pawsistant-card.js" in names:
@@ -63,10 +67,14 @@ with zipfile.ZipFile("pawsistant.zip") as zf:
         # built before the version was stamped.
         banner = zf.read("frontend/pawsistant-card.js")[:1024].decode("utf-8", "replace")
         match = re.search(r"^ \* Version: (.+)$", banner, re.MULTILINE)
-        bundle_version = match.group(1).strip() if match else None
-        if bundle_version != version:
+        if match is None:
             errors.append(
-                f"pawsistant-card.js was built at version {bundle_version!r},"
+                "pawsistant-card.js has no version line in its banner — it was not"
+                " built by ci/build-card.sh from the current rollup config"
+            )
+        elif match.group(1).strip() != version:
+            errors.append(
+                f"pawsistant-card.js was built at version {match.group(1).strip()!r},"
                 f" expected {version!r} — stamp the version before building the card"
             )
 
