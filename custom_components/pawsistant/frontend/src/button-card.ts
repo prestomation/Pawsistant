@@ -11,7 +11,7 @@ import { buildRegistry, getMeta } from './registry';
 import { resolveMetricValue } from './metrics';
 import { setLang, T } from './i18n';
 import { logEvent } from './services';
-import { findEntitiesByDog, stateNum, stateAttr, toDisplayWeight, _escapeHTML, getDogId } from './utils';
+import { findEntitiesByDog, stateNum, stateAttr, toDisplayWeight, _escapeHTML, getDogId, dogNamesFromHass } from './utils';
 import { renderPawsistantButton } from './button';
 import { openBackdateForm, openWeightForm } from './standalone-forms';
 import { displayLabel, ensureTimelineStyles } from './timeline-render';
@@ -50,14 +50,12 @@ export class PawsistantButtonCard extends HTMLElement {
   }
 
   static getStubConfig(hass: HomeAssistant): PawsistantButtonCardConfig {
-    let dog = 'MyDog';
-    for (const state of Object.values(hass.states || {})) {
-      if (state.attributes?.dog) {
-        dog = state.attributes.dog as string;
-        break;
-      }
-    }
-    return { type: 'custom:pawsistant-button-card', dog, buttons: [{ event_type: 'poop' }] };
+    const [found] = dogNamesFromHass(hass);
+    return {
+      type: 'custom:pawsistant-button-card',
+      dog: found || 'MyDog',
+      buttons: [{ event_type: 'poop' }],
+    };
   }
 
   setConfig(config: PawsistantButtonCardConfig): void {

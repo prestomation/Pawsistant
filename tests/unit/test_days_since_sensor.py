@@ -114,6 +114,7 @@ def _inject_stubs() -> None:
     if "homeassistant.util.dt" not in sys.modules:
         dt_mod = types.ModuleType("homeassistant.util.dt")
         dt_mod.now = lambda tz=None: datetime.now(tz or timezone.utc)
+        dt_mod.as_local = lambda d: d.astimezone()
         dt_mod.DEFAULT_TIME_ZONE = timezone.utc
         sys.modules["homeassistant.util.dt"] = dt_mod
 

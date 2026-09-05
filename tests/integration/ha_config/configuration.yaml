@@ -9,22 +9,19 @@ homeassistant:
 # Enable the REST API
 api:
 
-# Enable frontend (required for Lovelace resources API)
+# Enable frontend (pulls in lovelace as a dependency)
 frontend:
 
-# Dedicated YAML dashboard used by the Playwright e2e suite. The default
-# (storage-mode) dashboard from onboarding is left untouched. The Pawsistant
-# card JS is auto-registered as a Lovelace resource by the integration, so the
-# custom: cards below resolve at http://localhost:8123/pawsistant-e2e.
-lovelace:
-  mode: storage
-  dashboards:
-    pawsistant-e2e:
-      mode: yaml
-      title: Pawsistant E2E
-      icon: mdi:dog
-      show_in_sidebar: true
-      filename: pawsistant-e2e.yaml
+# NOTE: there is deliberately no `lovelace:` block here.
+#
+# Declaring one used to give the suite a YAML dashboard preloaded with the
+# Pawsistant cards, which meant e2e never exercised the setup a real user has:
+# Lovelace left at its default (storage mode, no YAML dashboards), with the card
+# reaching the browser only via the resource the integration registers itself.
+# The e2e dashboard is now a seeded storage fixture instead — see
+# .storage/lovelace_dashboards and .storage/lovelace.pawsistant_e2e, which are
+# byte-for-byte what HA writes when a user adds a dashboard through
+# Settings -> Dashboards and puts the cards on it.
 
 # Minimal logging
 logger:

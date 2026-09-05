@@ -140,13 +140,25 @@ class PawsistantStore:
 
     @staticmethod
     def _year_of_timestamp(timestamp: str | None) -> int:
-        """Extract the calendar year from an ISO timestamp string.
+        """Return the year of *timestamp* in the user's timezone.
+
+        Year files are calendar-year buckets as the user experiences them — that
+        is how the timeline and the daily-count sensors already reason — so the
+        year has to come from local time, not from however the timestamp happened
+        to be serialised. The card's log form sends UTC ('...Z', from
+        toISOString) while the backend writes a local offset for hold-to-log, so
+        taking the year as-written filed one and the same instant under different
+        years around New Year: 2026-12-31T20:30-08:00 and 2027-01-01T04:30Z are
+        the same moment, but landed in 2026 and 2027 respectively. The 2027 one
+        then fell outside the range ``get_events`` searches (it never looks past
+        the current year), so it went missing from list_events until local
+        midnight moved the year on.
 
         Falls back to the current year if the timestamp is absent/invalid.
         """
         if not timestamp:
             return dt_util.now().year
-        year = _parse_timestamp(timestamp).year
+        year = dt_util.as_local(_parse_timestamp(timestamp)).year
         # Sanity-check: reject years outside a plausible range
         current_year = dt_util.now().year
         if year < 2000 or year > current_year + 1:
@@ -647,15 +659,22 @@ class PawsistantStore:
         target = _parse_timestamp(timestamp)
         if target == _UNPARSEABLE_TS:
             return None  # a timestamp we can't read matches nothing
-        year = self._year_of_timestamp(timestamp)
-        await self._ensure_year_loaded(year)
-        for event in self._year_events.get(year, []):
-            if (
-                event.get("dog_id") == dog_id
-                and event.get("event_type") == event_type
-                and _parse_timestamp(event.get("timestamp", "")) == target
-            ):
-                return event
+        # Bucketing used to follow the year as serialised rather than the local
+        # year, so an event written before that changed can sit in the adjacent
+        # year's file — the two disagree only around New Year, and by one year.
+        # Check both so a lookup doesn't depend on when the event was written;
+        # this is what saves existing stores from needing to be rewritten.
+        for year in dict.fromkeys(
+            (self._year_of_timestamp(timestamp), target.year)
+        ):
+            await self._ensure_year_loaded(year)
+            for event in self._year_events.get(year, []):
+                if (
+                    event.get("dog_id") == dog_id
+                    and event.get("event_type") == event_type
+                    and _parse_timestamp(event.get("timestamp", "")) == target
+                ):
+                    return event
         return None
 
     async def delete_event(self, event_id: str) -> bool:

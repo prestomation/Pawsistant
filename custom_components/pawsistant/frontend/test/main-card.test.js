@@ -45,3 +45,27 @@ describe('PawsistantCard unknown dog', () => {
     expect(card.shadowRoot.innerHTML).not.toContain('<b>x</b>');
   });
 });
+
+describe('PawsistantCard.getStubConfig', () => {
+  it('binds the preview to a real pet so the picker does not show an error', () => {
+    // The picker renders this stub and hands it to setConfig on add, so a name
+    // nobody owns surfaces as "Unknown dog" both in the preview and on the board.
+    const cfg = PawsistantCard.getStubConfig(mockHass(['Sharky']));
+    expect(cfg.dog).toBe('Sharky');
+    expect(cfg.type).toBe('custom:pawsistant-card');
+  });
+
+  it('picks a pet deterministically when several exist', () => {
+    // dogNamesFromHass sorts, so the preview does not flip between pets.
+    const cfg = PawsistantCard.getStubConfig(mockHass(['Rex', 'Ada']));
+    expect(cfg.dog).toBe('Ada');
+  });
+
+  it('falls back to a placeholder before any pet exists', () => {
+    expect(PawsistantCard.getStubConfig(mockHass([])).dog).toBe('MyDog');
+  });
+
+  it('does not throw when hass has no states at all', () => {
+    expect(() => PawsistantCard.getStubConfig({ states: {} })).not.toThrow();
+  });
+});

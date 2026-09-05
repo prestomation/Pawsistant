@@ -122,6 +122,42 @@ dog: Sharky
 | `medicine_days_entity` | auto-detected | Override days-since-medicine sensor entity ID |
 | `weight_entity` | auto-detected | Override weight sensor entity ID |
 
+### The card doesn't show up
+
+Almost always this is the **new Overview dashboard**, not a broken install.
+
+Home Assistant 2026.x boots you into a redesigned Overview (the `home` panel, at
+`/home/overview`). It is *not* a Lovelace dashboard — it builds itself from your
+areas and summaries, and it never loads Lovelace resources. **No custom card from
+any integration can appear there**, so `pawsistant-card` is invisible on it and
+absent from its editor. A fresh 2026.x install may also ship with no classic
+dashboard at all, leaving nowhere obvious to put the card.
+
+The fix is to use a Lovelace dashboard:
+
+1. **Settings → Dashboards → + Add dashboard** → *New dashboard from scratch*.
+2. Open it, click ✏️ (edit) → **+ Add card**, and search for *Pawsistant*.
+
+If it's still missing on a real Lovelace dashboard, check the registration —
+**Settings → Devices & services → Pawsistant → ⋮ → Download diagnostics** and
+look at the `card_registration` block:
+
+- `resource_registered: true` and `card_file_exists: true` means the card is
+  installed and served correctly; you're on a non-Lovelace dashboard.
+- `lovelace_dashboards: []` means you have no classic dashboard yet — create one
+  as above.
+- `resource_mode: "yaml"` means your Lovelace runs in YAML mode, so the
+  integration can't self-register. Add the resource yourself:
+
+  ```yaml
+  lovelace:
+    resources:
+      - url: /pawsistant/pawsistant-card.js
+        type: module
+  ```
+
+Then hard-refresh the browser (Ctrl/Cmd-Shift-R) to clear the cached bundle.
+
 ---
 
 ## Services

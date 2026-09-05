@@ -10,6 +10,7 @@ The dump includes:
 - Storage file sizes (.storage/pawsistant*)
 - HA version
 - Integration version (from manifest)
+- Lovelace card registration state (see ``_card_registration``)
 
 No sensitive data is included since Pawsistant has no cloud auth or credentials.
 """
@@ -25,13 +26,82 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
+from .const import CARD_VERSION, DOMAIN, URL_BASE
 from .coordinator import PawsistantCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 # No fields to redact — Pawsistant is local-only with no credentials or tokens.
 TO_REDACT: set[str] = set()
+
+
+def _card_registration(hass: HomeAssistant) -> dict[str, Any]:
+    """Report why the Lovelace card is (or isn't) reaching the browser.
+
+    Nearly every "the card doesn't show up" report comes down to one of four
+    states, and they are indistinguishable from the outside — so name each one:
+
+    - ``card_file_exists`` false: the built bundle never made it onto disk
+      (a source checkout instead of a HACS/zip install).
+    - ``resource_mode`` ``"yaml"``: Lovelace is YAML-managed, so we are not
+      allowed to self-register; the user must add the resource themselves.
+    - ``resource_registered`` false in storage mode: registration genuinely
+      failed, and this is our bug.
+    - everything true but ``lovelace_dashboards`` empty: the install is fine and
+      the user is looking at HA 2026's new Overview (``home``) panel, which is
+      not a Lovelace dashboard and loads no custom cards at all.
+    """
+    card_file = Path(__file__).parent / "frontend" / "pawsistant-card.js"
+    # stat() can still fail after is_file() says yes — a permission error, or the
+    # file going away between the two calls. Report -1 rather than crashing the
+    # whole diagnostics dump over the least important field in it.
+    try:
+        card_size = card_file.stat().st_size if card_file.is_file() else 0
+    except OSError as err:
+        _LOGGER.debug("Could not stat %s: %s", card_file, err)
+        card_size = -1
+    info: dict[str, Any] = {
+        "card_version": CARD_VERSION,
+        "url_base": URL_BASE,
+        "card_file_exists": card_file.is_file(),
+        "card_file_size": card_size,
+    }
+
+    lovelace = hass.data.get("lovelace")
+    if lovelace is None:
+        # The Lovelace component isn't loaded, so there is nothing to register
+        # into and no dashboards to enumerate.
+        info["resource_mode"] = "unavailable"
+        info["resource_registered"] = False
+        return info
+
+    mode = getattr(lovelace, "resource_mode", None) or getattr(lovelace, "mode", None)
+    info["resource_mode"] = mode or "unknown"
+
+    resources = getattr(lovelace, "resources", None)
+    if resources is None:
+        info["resource_registered"] = False
+    else:
+        try:
+            ours = [
+                r for r in resources.async_items() if URL_BASE in r.get("url", "")
+            ]
+        except Exception as err:  # noqa: BLE001 — diagnostics must never raise
+            _LOGGER.debug("Could not read Lovelace resources: %s", err)
+            ours = []
+            info["resource_error"] = str(err)
+        info["resource_registered"] = bool(ours)
+        info["resource_urls"] = [r.get("url", "") for r in ours]
+
+    # Which Lovelace dashboards exist at all. An empty list on HA 2026.x means
+    # the user has only the new Overview panel, where no custom card can render.
+    try:
+        dashboards = getattr(lovelace, "dashboards", None) or {}
+        info["lovelace_dashboards"] = sorted(k for k in dashboards if k)
+    except Exception as err:  # noqa: BLE001 — diagnostics must never raise
+        _LOGGER.debug("Could not read Lovelace dashboards: %s", err)
+
+    return info
 
 
 async def async_get_config_entry_diagnostics(
@@ -132,6 +202,7 @@ async def async_get_config_entry_diagnostics(
         "loaded_years": loaded_years,
         "storage_files": storage_files,
         "sensor_states": sensor_states_all,
+        "card_registration": _card_registration(hass),
     }
 
     return diagnostics

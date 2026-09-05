@@ -13,7 +13,7 @@ import {
 import { METRIC_LABELS, resolveMetricValue } from './metrics';
 import { setupLongPress, withCooldown } from './interactions';
 import { logEvent, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services';
-import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, getDogId } from './utils';
+import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, getDogId, dogNamesFromHass } from './utils';
 import { buildEventRowsHTML, displayLabel } from './timeline-render';
 
 /* ── Slugify helper for auto-generating event type keys ─────────────── */
@@ -75,8 +75,14 @@ export class PawsistantCard extends HTMLElement {
     return document.createElement('pawsistant-card-editor');
   }
 
-  static getStubConfig(): PawsistantCardConfig {
-    return { type: 'custom:pawsistant-card', dog: 'MyDog' };
+  // The picker renders this stub as the card's preview and hands it straight to
+  // setConfig when the card is added, so a placeholder name nobody owns shows the
+  // user a red "Unknown dog" error instead of their pet — in the preview and again
+  // on the dashboard until they hand-edit the config. Bind to a real pet when
+  // there is one; 'MyDog' only survives as a last resort before any pet exists.
+  static getStubConfig(hass: HomeAssistant): PawsistantCardConfig {
+    const [dog] = dogNamesFromHass(hass);
+    return { type: 'custom:pawsistant-card', dog: dog || 'MyDog' };
   }
 
   setConfig(config: PawsistantCardConfig) {
