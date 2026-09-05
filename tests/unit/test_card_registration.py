@@ -15,9 +15,11 @@ import importlib
 import pathlib
 import re
 import sys
+import tempfile
 import types
+from contextlib import contextmanager
 from enum import Enum
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -206,7 +208,37 @@ def _make_hass(state: CoreState, resource_mode: str = "storage") -> MagicMock:
     hass.data = {"lovelace": lovelace}
     hass.bus.async_listen_once = MagicMock()
 
+    # Mirror HA: run the callable in a worker and hand back its result, awaitably.
+    # A bare MagicMock here is not awaitable, and registration checks for the card
+    # bundle through this.
+    async def _async_add_executor_job(func, *args):
+        return func(*args)
+
+    hass.async_add_executor_job = _async_add_executor_job
+
     return hass
+
+
+@contextmanager
+def _card_bundle(exists: bool):
+    """Pretend the built card bundle is (or isn't) present on disk.
+
+    pawsistant-card.js is gitignored — it only exists inside a release download —
+    so it is absent from the tree these tests run against. Both states have to be
+    faked: registration is supposed to happen when the bundle is there and to be
+    refused when it isn't.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle = pathlib.Path(tmp) / "pawsistant-card.js"
+        if exists:
+            bundle.write_text("/* card */", encoding="utf-8")
+        with patch.object(
+            PawsistantCardRegistration,
+            "_card_file",
+            new_callable=PropertyMock,
+            return_value=bundle,
+        ):
+            yield bundle
 
 
 # ---------------------------------------------------------------------------
@@ -221,7 +253,8 @@ class TestImmediateRegistration:
         """Lovelace resource is created immediately even when HA is not yet running."""
         hass = _make_hass(CoreState.not_running, resource_mode="storage")
 
-        await _ensure_frontend_registered(hass)
+        with _card_bundle(exists=True):
+            await _ensure_frontend_registered(hass)
 
         # Static path registered immediately
         hass.http.async_register_static_paths.assert_called_once()
@@ -238,7 +271,8 @@ class TestImmediateRegistration:
         """Lovelace resource is created immediately even during CoreState.starting."""
         hass = _make_hass(CoreState.starting, resource_mode="storage")
 
-        await _ensure_frontend_registered(hass)
+        with _card_bundle(exists=True):
+            await _ensure_frontend_registered(hass)
 
         hass.http.async_register_static_paths.assert_called_once()
         hass.data["lovelace"].resources.async_create_item.assert_called_once()
@@ -249,7 +283,8 @@ class TestImmediateRegistration:
         """async_listen_once must NOT be called when CoreState is running."""
         hass = _make_hass(CoreState.running, resource_mode="storage")
 
-        await _ensure_frontend_registered(hass)
+        with _card_bundle(exists=True):
+            await _ensure_frontend_registered(hass)
 
         hass.bus.async_listen_once.assert_not_called()
 
@@ -258,7 +293,8 @@ class TestImmediateRegistration:
         """Lovelace resource must be created immediately when HA is running."""
         hass = _make_hass(CoreState.running, resource_mode="storage")
 
-        await _ensure_frontend_registered(hass)
+        with _card_bundle(exists=True):
+            await _ensure_frontend_registered(hass)
 
         hass.http.async_register_static_paths.assert_called_once()
         lovelace_resources = hass.data["lovelace"].resources
@@ -274,7 +310,9 @@ class TestYamlModeLogging:
         import logging
         hass = _make_hass(CoreState.not_running, resource_mode="yaml")
 
-        with caplog.at_level(logging.INFO, logger="custom_components.pawsistant"):
+        with caplog.at_level(
+            logging.INFO, logger="custom_components.pawsistant"
+        ), _card_bundle(exists=True):
             await _ensure_frontend_registered(hass)
 
         assert any(
@@ -291,10 +329,73 @@ class TestYamlModeLogging:
         import logging
         hass = _make_hass(CoreState.running, resource_mode="yaml")
 
-        with caplog.at_level(logging.INFO, logger="custom_components.pawsistant"):
+        with caplog.at_level(
+            logging.INFO, logger="custom_components.pawsistant"
+        ), _card_bundle(exists=True):
             await _ensure_frontend_registered(hass)
 
         assert any(
             "YAML mode detected" in record.message
             for record in caplog.records
         ), f"Expected YAML mode INFO log. Got: {[r.message for r in caplog.records]}"
+
+
+class TestMissingCardBundle:
+    """A source install has no built bundle — registering one would be a lie.
+
+    pawsistant-card.js is gitignored and ships only inside the release download,
+    so an install taken from a branch or a manual clone has the integration and
+    no card. The frontend/ directory still exists, so the static path registers
+    happily and nothing downstream notices; before this guard the integration
+    created a Lovelace resource pointing at a URL that 404s and logged it as a
+    success, leaving the card silently undefined on every dashboard (#15).
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_resource_registered_when_bundle_missing(self):
+        """No Lovelace resource may be created for a bundle we cannot serve."""
+        hass = _make_hass(CoreState.running, resource_mode="storage")
+
+        with _card_bundle(exists=False):
+            await _ensure_frontend_registered(hass)
+
+        hass.data["lovelace"].resources.async_create_item.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_static_path_registered_when_bundle_missing(self):
+        """The static path is pointless without the bundle behind it."""
+        hass = _make_hass(CoreState.running, resource_mode="storage")
+
+        with _card_bundle(exists=False):
+            await _ensure_frontend_registered(hass)
+
+        hass.http.async_register_static_paths.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_error_logged_when_bundle_missing(self, caplog):
+        """The failure must be loud: this used to be entirely silent."""
+        import logging
+
+        hass = _make_hass(CoreState.running, resource_mode="storage")
+
+        with caplog.at_level(logging.ERROR, logger="custom_components.pawsistant"), _card_bundle(
+            exists=False
+        ):
+            await _ensure_frontend_registered(hass)
+
+        errors = [r.message for r in caplog.records if r.levelno >= logging.ERROR]
+        assert any("card bundle is missing" in m for m in errors), (
+            f"Expected an ERROR naming the missing bundle. Got: {errors}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_yaml_mode_also_refuses_when_bundle_missing(self):
+        """YAML mode tells the user to add the resource — not for a missing file."""
+        import logging
+
+        hass = _make_hass(CoreState.not_running, resource_mode="yaml")
+
+        with _card_bundle(exists=False):
+            await _ensure_frontend_registered(hass)
+
+        hass.http.async_register_static_paths.assert_not_called()
