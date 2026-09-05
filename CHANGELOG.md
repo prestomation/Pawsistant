@@ -18,6 +18,23 @@ All notable changes to Pawsistant will be documented in this file.
   entries it logged on Home Keeper's behalf, and only within the window Home Keeper's
   own completion history still covers, so an entry you logged by hand is never touched.
 
+### Fixed
+- **Preview builds no longer collide with the stable release they were built from.**
+  A `X.Y.Z.dev<pr>` preview stamped its version into `manifest.json` but left
+  `CARD_VERSION` at the stable value, and `CARD_VERSION` is the `?v=` cache-buster on
+  the card's Lovelace resource URL. Installing a preview over the matching stable
+  release (or going back) left the browser serving the other build's cached bundle —
+  a card that wouldn't update, or wouldn't appear, until a full restart. Both values
+  are now stamped from one source before the card is bundled.
+
+### Changed
+- **The release zip is now built from scratch and its contents verified before
+  publishing.** `pawsistant.zip` was a committed file and `zip -r` appends to an
+  existing archive, so a release could ship a stale copy of the integration — `v2.15.0`
+  shipped a manifest reading `2.14.0` this way. The zip is now gitignored, rebuilt from
+  nothing, and checked (manifest version, `CARD_VERSION`, the version baked into the
+  card bundle, and no stray build files) before the release is created.
+
 ## [2.23.1] - 2026-08-03
 
 ### Fixed
