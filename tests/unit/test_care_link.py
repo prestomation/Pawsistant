@@ -326,32 +326,49 @@ class TestManagedBy:
         assert mb["integration"] == "pawsistant"
         assert mb["display_name"] == "Pawsistant"
 
+    # A fixed schedule writes freq/anchor where a floating one writes unit, so no single
+    # payload carries every declared field. The pair of checks below is what pins the
+    # list from both sides: nothing we write goes undeclared, and nothing declared goes
+    # unwritten by *some* shape.
+    _FIXED = {
+        "dog_id": "d1",
+        "event_type": "medicine",
+        "recurrence_type": "fixed",
+        "interval": 1,
+        "freq": "MONTHLY",
+        "anchor": "2026-01-15",
+    }
+
+    # Neither is a field Home Keeper's edit form offers: the first two are our own
+    # bookkeeping, and last_completed is a creation-time seed for the first due date
+    # rather than task state we go on owning.
+    _NOT_FORM_FIELDS = {"source", "managed_by", "last_completed"}
+
     async def test_locks_every_field_we_write(self):
-        """A user edit to a field we own must not survive.
+        """A user edit to a field we own must not survive."""
+        for label, schedule in (("floating", None), ("fixed", self._FIXED)):
+            payload = await self._payload(schedule)
+            written = set(payload) - self._NOT_FORM_FIELDS
+            locked = set(payload["managed_by"]["locked_fields"])
+            assert written <= locked, (
+                f"{label}: fields we write but do not lock: {sorted(written - locked)}"
+            )
 
-        ``source``, ``managed_by`` and ``last_completed`` are excluded: none is a field
-        Home Keeper's edit form offers.
+    async def test_declares_nothing_it_does_not_write(self):
+        """The other direction: no field is claimed that no schedule shape produces.
+
+        Without this, `test_locks_every_field_we_write` would happily pass with junk
+        added to LOCKED_FIELDS — over-claiming is the safer failure mode, but it is
+        still a lie about what we own, and it would withhold a field from the user for
+        no reason.
         """
-        payload = await self._payload()
-        written = set(payload) - {"source", "managed_by", "last_completed"}
-        locked = set(payload["managed_by"]["locked_fields"])
-        assert written <= locked, f"unlocked fields we write: {sorted(written - locked)}"
-
-    async def test_locks_the_cadence_of_a_fixed_schedule(self):
-        """A fixed schedule writes ``freq`` and ``anchor`` where a floating one writes
-        ``unit``, so the declared list has to cover both shapes."""
-        payload = await self._payload(
-            {
-                "dog_id": "d1",
-                "event_type": "medicine",
-                "recurrence_type": "fixed",
-                "interval": 1,
-                "freq": "MONTHLY",
-                "anchor": "2026-01-15",
-            }
+        floating = set(await self._payload())
+        fixed = set(await self._payload(self._FIXED))
+        writable = (floating | fixed) - self._NOT_FORM_FIELDS
+        locked = set(care_link.LOCKED_FIELDS)
+        assert locked <= writable, (
+            f"declared but never written: {sorted(locked - writable)}"
         )
-        locked = set(payload["managed_by"]["locked_fields"])
-        assert {"freq", "anchor", "interval", "recurrence_type"} <= locked
 
     async def test_does_not_lock_notes(self):
         """We never write notes, so the user keeps them."""
