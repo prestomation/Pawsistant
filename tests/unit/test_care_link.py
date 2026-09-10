@@ -265,6 +265,7 @@ class TestCreateTaskSeed:
         assert len(services.calls) == 1
         assert "last_completed" not in services.calls[0]
 
+
     async def test_retries_without_seed_when_rejected(self):
         # Simulate an older Home Keeper whose strict schema rejects last_completed:
         # the first call raises an error naming the key, the retry without it succeeds.
@@ -308,6 +309,72 @@ class TestCreateTaskSeed:
         )
         assert task_id is None
         assert len(services.calls) == 1  # no retry
+
+
+class TestManagedBy:
+    """The ownership block we hand Home Keeper on every task we create."""
+
+    async def _payload(self, schedule=None):
+        services = _Services(lambda data: {"task_id": "t1"})
+        await care_link.create_task(
+            _Hass(services), _Store(), "s1", dict(schedule or _SCHEDULE)
+        )
+        return services.calls[0]
+
+    async def test_declares_us_as_the_owner(self):
+        mb = (await self._payload())["managed_by"]
+        assert mb["integration"] == "pawsistant"
+        assert mb["display_name"] == "Pawsistant"
+
+    # A fixed schedule writes freq/anchor where a floating one writes unit, so no single
+    # payload carries every declared field. The pair of checks below is what pins the
+    # list from both sides: nothing we write goes undeclared, and nothing declared goes
+    # unwritten by *some* shape.
+    _FIXED = {
+        "dog_id": "d1",
+        "event_type": "medicine",
+        "recurrence_type": "fixed",
+        "interval": 1,
+        "freq": "MONTHLY",
+        "anchor": "2026-01-15",
+    }
+
+    # Neither is a field Home Keeper's edit form offers: the first two are our own
+    # bookkeeping, and last_completed is a creation-time seed for the first due date
+    # rather than task state we go on owning.
+    _NOT_FORM_FIELDS = {"source", "managed_by", "last_completed"}
+
+    async def test_locks_every_field_we_write(self):
+        """A user edit to a field we own must not survive."""
+        for label, schedule in (("floating", None), ("fixed", self._FIXED)):
+            payload = await self._payload(schedule)
+            written = set(payload) - self._NOT_FORM_FIELDS
+            locked = set(payload["managed_by"]["locked_fields"])
+            assert written <= locked, (
+                f"{label}: fields we write but do not lock: {sorted(written - locked)}"
+            )
+
+    async def test_declares_nothing_it_does_not_write(self):
+        """The other direction: no field is claimed that no schedule shape produces.
+
+        Without this, `test_locks_every_field_we_write` would happily pass with junk
+        added to LOCKED_FIELDS — over-claiming is the safer failure mode, but it is
+        still a lie about what we own, and it would withhold a field from the user for
+        no reason.
+        """
+        floating = set(await self._payload())
+        fixed = set(await self._payload(self._FIXED))
+        writable = (floating | fixed) - self._NOT_FORM_FIELDS
+        locked = set(care_link.LOCKED_FIELDS)
+        assert locked <= writable, (
+            f"declared but never written: {sorted(locked - writable)}"
+        )
+
+    async def test_does_not_lock_notes(self):
+        """We never write notes, so the user keeps them."""
+        payload = await self._payload()
+        assert "notes" not in payload
+        assert "notes" not in payload["managed_by"]["locked_fields"]
 
 
 class TestDeleteCompletion:
