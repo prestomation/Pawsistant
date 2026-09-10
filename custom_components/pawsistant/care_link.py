@@ -57,6 +57,25 @@ SOURCE_NS = "pawsistant"
 # as a *mirror* rather than something the user logged, which the reconcile heal pass
 # relies on before it deletes anything.
 MIRROR_NOTE = "via Home Keeper"
+# The task fields we own, declared to Home Keeper as ``managed_by.locked_fields``. Home
+# Keeper drops them from its edit form and strips them from every ``update_task``, so a
+# user edit to one of these can never survive. We write all 7 in ``create_task``: the
+# name and the device come from the dog, and the cadence comes from the care schedule.
+#
+# ``notes`` is deliberately absent — we never send it, so it is not ours to claim, and a
+# user is free to write their own on the task.
+#
+# The cadence covers both shapes ``_recurrence_payload`` builds: a fixed schedule sends
+# ``interval``/``freq``/``anchor``, a floating one ``interval``/``unit``.
+LOCKED_FIELDS = [
+    "name",
+    "device_id",
+    "recurrence_type",
+    "interval",
+    "freq",
+    "unit",
+    "anchor",
+]
 
 
 def home_keeper_available(hass: HomeAssistant) -> bool:
@@ -158,7 +177,7 @@ async def create_task(
     The task is tagged with an opaque ``source`` namespaced under :data:`SOURCE_NS`
     so we can find it again; ``add_task`` returns the new id in its service response.
     A ``managed_by`` block declares Pawsistant as the owner so Home Keeper shows a
-    "Managed by Pawsistant" chip and locks the device/name fields.
+    "Managed by Pawsistant" chip and locks the fields we write (:data:`LOCKED_FIELDS`).
 
     ``last_completed`` is an optional "last done" seed (the pet's most recent logged
     event of this type). When given, Home Keeper measures the first due date from it
@@ -176,7 +195,7 @@ async def create_task(
         "integration": SOURCE_NS,
         "display_name": "Pawsistant",
         "icon": "mdi:paw",
-        "locked_fields": ["device_id", "name"],
+        "locked_fields": list(LOCKED_FIELDS),
         "completion_prompt": _completion_prompt(store, dog_id, event_type),
     }
     # Home Keeper requires a config_entry_id before it will honour deletion

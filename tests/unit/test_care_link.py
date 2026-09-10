@@ -265,6 +265,7 @@ class TestCreateTaskSeed:
         assert len(services.calls) == 1
         assert "last_completed" not in services.calls[0]
 
+
     async def test_retries_without_seed_when_rejected(self):
         # Simulate an older Home Keeper whose strict schema rejects last_completed:
         # the first call raises an error naming the key, the retry without it succeeds.
@@ -308,6 +309,55 @@ class TestCreateTaskSeed:
         )
         assert task_id is None
         assert len(services.calls) == 1  # no retry
+
+
+class TestManagedBy:
+    """The ownership block we hand Home Keeper on every task we create."""
+
+    async def _payload(self, schedule=None):
+        services = _Services(lambda data: {"task_id": "t1"})
+        await care_link.create_task(
+            _Hass(services), _Store(), "s1", dict(schedule or _SCHEDULE)
+        )
+        return services.calls[0]
+
+    async def test_declares_us_as_the_owner(self):
+        mb = (await self._payload())["managed_by"]
+        assert mb["integration"] == "pawsistant"
+        assert mb["display_name"] == "Pawsistant"
+
+    async def test_locks_every_field_we_write(self):
+        """A user edit to a field we own must not survive.
+
+        ``source``, ``managed_by`` and ``last_completed`` are excluded: none is a field
+        Home Keeper's edit form offers.
+        """
+        payload = await self._payload()
+        written = set(payload) - {"source", "managed_by", "last_completed"}
+        locked = set(payload["managed_by"]["locked_fields"])
+        assert written <= locked, f"unlocked fields we write: {sorted(written - locked)}"
+
+    async def test_locks_the_cadence_of_a_fixed_schedule(self):
+        """A fixed schedule writes ``freq`` and ``anchor`` where a floating one writes
+        ``unit``, so the declared list has to cover both shapes."""
+        payload = await self._payload(
+            {
+                "dog_id": "d1",
+                "event_type": "medicine",
+                "recurrence_type": "fixed",
+                "interval": 1,
+                "freq": "MONTHLY",
+                "anchor": "2026-01-15",
+            }
+        )
+        locked = set(payload["managed_by"]["locked_fields"])
+        assert {"freq", "anchor", "interval", "recurrence_type"} <= locked
+
+    async def test_does_not_lock_notes(self):
+        """We never write notes, so the user keeps them."""
+        payload = await self._payload()
+        assert "notes" not in payload
+        assert "notes" not in payload["managed_by"]["locked_fields"]
 
 
 class TestDeleteCompletion:

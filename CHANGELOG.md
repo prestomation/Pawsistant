@@ -18,6 +18,11 @@ All notable changes to Pawsistant will be documented in this file.
   entries it logged on Home Keeper's behalf, and only within the window Home Keeper's
   own completion history still covers, so an entry you logged by hand is never touched.
 
+### Changed
+- **Pet task fields.** Pawsistant now owns the schedule on a care task, as it already
+  owned the name and the device. Home Keeper leaves those fields out of its edit form,
+  so change a cadence in Pawsistant rather than in Home Keeper.
+
 ### Fixed
 - **Preview builds no longer collide with the stable release they were built from.**
   A `X.Y.Z.dev<pr>` preview stamped its version into `manifest.json` but left
