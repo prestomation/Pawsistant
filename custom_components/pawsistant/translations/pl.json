@@ -115,6 +115,25 @@
         "data": {
           "when": "Date"
         }
+      },
+      "select_analytics_dog": {
+        "title": "Ustawienia analizy",
+        "description": "Wybierz, dla którego zwierzaka chcesz zmienić ustawienia analizy.",
+        "data": {
+          "dog": "Zwierzak"
+        }
+      },
+      "edit_analytics": {
+        "title": "Ustawienia trendu wagi",
+        "description": "Ustawienia dla {dog_name}. Trend wagi porównuje najstarszy i najnowszy pomiar w ostatnim okresie, więc wybierz okres dopasowany do tego, jak często ważysz tego zwierzaka. Dane z całej historii pozostają dostępne jako atrybuty sensora.",
+        "data": {
+          "weight_window_days": "Ostatni okres",
+          "weight_threshold_pct": "Progowa zmiana (%)"
+        },
+        "data_description": {
+          "weight_window_days": "Pomiary starsze niż to są pomijane. Jeśli okres zawiera mniej niż trzy pomiary, trend jest pokazywany jako nieznany.",
+          "weight_threshold_pct": "O ile musi zmienić się waga, aby uznać to za przyrost lub spadek. Zostaw 0, aby wartość dopasowywała się automatycznie do okresu."
+        }
       }
     },
     "error": {
@@ -141,7 +160,20 @@
         "remove_dog": "Usuń pupila",
         "edit_event_types": "Edytuj typy zdarzeń",
         "done": "Gotowe",
-        "manage_care_schedules": "Manage care schedules"
+        "manage_care_schedules": "Manage care schedules",
+        "edit_analytics": "Ustawienia analizy"
+      }
+    },
+    "weight_window_days": {
+      "options": {
+        "7": "Ostatnie 7 dni",
+        "14": "Ostatnie 14 dni",
+        "30": "Ostatnie 30 dni",
+        "60": "Ostatnie 60 dni",
+        "90": "Ostatnie 90 dni",
+        "180": "Ostatnie 180 dni",
+        "365": "Ostatni rok",
+        "0": "Cała historia"
       }
     }
   },

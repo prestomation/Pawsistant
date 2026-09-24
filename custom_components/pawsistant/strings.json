@@ -115,6 +115,25 @@
         "data": {
           "when": "Date"
         }
+      },
+      "select_analytics_dog": {
+        "title": "Analytics settings",
+        "description": "Choose which pet's analytics settings you want to change.",
+        "data": {
+          "dog": "Pet"
+        }
+      },
+      "edit_analytics": {
+        "title": "Weight trend settings",
+        "description": "Settings for {dog_name}. The weight trend compares the oldest and newest reading inside a recent window, so choose a window that matches how often you weigh this pet. Full-history figures stay available as sensor attributes.",
+        "data": {
+          "weight_window_days": "Recent window",
+          "weight_threshold_pct": "Change threshold (%)"
+        },
+        "data_description": {
+          "weight_window_days": "Readings older than this are ignored. If the window holds fewer than three readings, the trend shows as unknown.",
+          "weight_threshold_pct": "How much the weight must change to count as gaining or losing. Leave at 0 to scale it automatically with the window."
+        }
       }
     },
     "error": {
@@ -141,7 +160,20 @@
         "remove_dog": "Remove a pet",
         "edit_event_types": "Edit event types",
         "done": "Done",
-        "manage_care_schedules": "Manage care schedules"
+        "manage_care_schedules": "Manage care schedules",
+        "edit_analytics": "Analytics settings"
+      }
+    },
+    "weight_window_days": {
+      "options": {
+        "7": "Last 7 days",
+        "14": "Last 14 days",
+        "30": "Last 30 days",
+        "60": "Last 60 days",
+        "90": "Last 90 days",
+        "180": "Last 180 days",
+        "365": "Last year",
+        "0": "All history"
       }
     }
   },

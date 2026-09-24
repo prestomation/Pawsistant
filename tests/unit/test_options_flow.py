@@ -243,6 +243,11 @@ def _inject_stubs() -> None:
     _const.CONF_CARE_SCHEDULES = "care_schedules"
     _const.CARE_UNITS = ["days", "weeks", "months"]
     _const.CARE_FREQS = ["DAILY", "WEEKLY", "MONTHLY"]
+    _const.CONF_ANALYTICS_SETTINGS = "analytics_settings"
+    _const.CONF_WEIGHT_WINDOW_DAYS = "weight_window_days"
+    _const.CONF_WEIGHT_THRESHOLD_PCT = "weight_threshold_pct"
+    _const.DEFAULT_WEIGHT_WINDOW_DAYS = 90
+    _const.WEIGHT_WINDOW_CHOICES = [7, 14, 30, 60, 90, 180, 365, 0]
     sys.modules["custom_components.pawsistant.const"] = _const
 
     # custom_components.pawsistant.care_link — stub the optional Home Keeper link.
@@ -304,6 +309,7 @@ PawsistantOptionsFlow = _cf_mod.PawsistantOptionsFlow
 ACTION_ADD_DOG = _cf_mod.ACTION_ADD_DOG
 ACTION_REMOVE_DOG = _cf_mod.ACTION_REMOVE_DOG
 ACTION_MANAGE_CARE = _cf_mod.ACTION_MANAGE_CARE
+ACTION_EDIT_ANALYTICS = _cf_mod.ACTION_EDIT_ANALYTICS
 _slugify_event_key = _cf_mod._slugify_event_key
 ACTION_DONE = _cf_mod.ACTION_DONE
 
@@ -862,3 +868,151 @@ class TestCareSchedules:
         assert result["type"] == "form"
         store.remove_care_schedule.assert_awaited_once_with("sched-1")
         cl.delete_task.assert_awaited_once_with(hass, "hk-task-id")
+
+
+# ---------------------------------------------------------------------------
+# Tests: analytics settings (per-dog weight-trend window and threshold)
+# ---------------------------------------------------------------------------
+
+
+def _make_analytics_flow(dogs: dict | None = None):
+    """Flow whose store answers the analytics-settings getter/setter."""
+    flow, store, coord, hass = _make_flow(dogs if dogs is not None else SAMPLE_DOGS)
+    store.get_analytics_settings = MagicMock(
+        return_value={"weight_window_days": 90, "weight_threshold_pct": None}
+    )
+    store.set_analytics_settings = AsyncMock()
+    return flow, store, coord, hass
+
+
+class TestAnalyticsSettingsStep:
+    @pytest.mark.asyncio
+    async def test_init_offers_analytics_action(self):
+        """The action must be offered, or the step is unreachable in the UI."""
+        flow, store, coord, hass = _make_analytics_flow()
+        result = await flow.async_step_init()
+        # vol.Schema is stubbed to the identity function here, so the schema is
+        # the plain {key: selector} dict config_flow built.
+        selector = result["data_schema"]["action"]
+        values = [opt["value"] for opt in selector.config.options]
+        assert ACTION_EDIT_ANALYTICS in values
+
+    @pytest.mark.asyncio
+    async def test_init_routes_to_analytics(self):
+        flow, store, coord, hass = _make_analytics_flow()
+        result = await flow.async_step_init(
+            user_input={"action": ACTION_EDIT_ANALYTICS}
+        )
+        assert result["type"] == "form"
+        assert result["step_id"] == "select_analytics_dog"
+
+    @pytest.mark.asyncio
+    async def test_dog_picker_lists_every_dog(self):
+        flow, store, coord, hass = _make_analytics_flow()
+        result = await flow.async_step_select_analytics_dog()
+        # vol.In is stubbed to the identity function, so this is the dict of
+        # dog_id -> name that config_flow passed in.
+        assert set(result["data_schema"]["dog"]) == set(SAMPLE_DOGS)
+
+    @pytest.mark.asyncio
+    async def test_picking_a_dog_advances_to_the_edit_form(self):
+        flow, store, coord, hass = _make_analytics_flow()
+        result = await flow.async_step_select_analytics_dog(
+            user_input={"dog": "dog-1"}
+        )
+        assert result["type"] == "form"
+        assert result["step_id"] == "edit_analytics"
+        # The dog's name belongs in the form so it's clear whose settings
+        # are being edited.
+        assert result["description_placeholders"]["dog_name"] == "Buddy"
+
+    def test_edit_form_prefills_the_stored_settings(self):
+        """Stored values must map onto the form's controls.
+
+        Asserted through the helper rather than the built schema, because the
+        stubbed voluptuous here discards `default=`. The mapping is where the
+        logic lives: the window selector's values are strings, and 0 is the
+        "not set" sentinel for both controls.
+        """
+        assert PawsistantOptionsFlow._analytics_form_defaults(
+            {"weight_window_days": 14, "weight_threshold_pct": 2.5}
+        ) == {"weight_window_days": "14", "weight_threshold_pct": 2.5}
+
+    def test_edit_form_prefills_all_history_as_the_sentinel(self):
+        assert PawsistantOptionsFlow._analytics_form_defaults(
+            {"weight_window_days": None, "weight_threshold_pct": None}
+        ) == {"weight_window_days": "0", "weight_threshold_pct": 0}
+
+    def test_edit_form_falls_back_to_the_default_window(self):
+        assert (
+            PawsistantOptionsFlow._analytics_form_defaults({})["weight_window_days"]
+            == "90"
+        )
+
+    @pytest.mark.asyncio
+    async def test_edit_form_reads_settings_for_the_selected_dog(self):
+        flow, store, coord, hass = _make_analytics_flow()
+        await flow.async_step_select_analytics_dog(user_input={"dog": "dog-2"})
+        await flow.async_step_edit_analytics()
+        store.get_analytics_settings.assert_called_with("dog-2")
+
+    @pytest.mark.asyncio
+    async def test_saving_persists_the_window_for_that_dog(self):
+        flow, store, coord, hass = _make_analytics_flow()
+        await flow.async_step_select_analytics_dog(user_input={"dog": "dog-2"})
+        result = await flow.async_step_edit_analytics(
+            user_input={"weight_window_days": "30", "weight_threshold_pct": 4.0}
+        )
+        store.set_analytics_settings.assert_awaited_once_with(
+            "dog-2", weight_window_days=30, weight_threshold_pct=4.0
+        )
+        assert result["type"] == "create_entry"
+
+    @pytest.mark.asyncio
+    async def test_all_history_choice_stores_none(self):
+        """The "all history" option is a real setting, not an unset window."""
+        flow, store, coord, hass = _make_analytics_flow()
+        await flow.async_step_select_analytics_dog(user_input={"dog": "dog-1"})
+        await flow.async_step_edit_analytics(
+            user_input={"weight_window_days": "0", "weight_threshold_pct": 0}
+        )
+        kwargs = store.set_analytics_settings.await_args.kwargs
+        assert kwargs["weight_window_days"] is None
+
+    @pytest.mark.asyncio
+    async def test_blank_threshold_stores_none_for_scaled_default(self):
+        """0 means "use the window-scaled default", not a 0% band.
+
+        A literal 0% threshold would make every reading gaining or losing.
+        """
+        flow, store, coord, hass = _make_analytics_flow()
+        await flow.async_step_select_analytics_dog(user_input={"dog": "dog-1"})
+        await flow.async_step_edit_analytics(
+            user_input={"weight_window_days": "30", "weight_threshold_pct": 0}
+        )
+        kwargs = store.set_analytics_settings.await_args.kwargs
+        assert kwargs["weight_threshold_pct"] is None
+
+    @pytest.mark.asyncio
+    async def test_saving_refreshes_the_coordinator(self):
+        """Otherwise the sensor keeps its old window until the next 5-min tick."""
+        flow, store, coord, hass = _make_analytics_flow()
+        await flow.async_step_select_analytics_dog(user_input={"dog": "dog-1"})
+        await flow.async_step_edit_analytics(
+            user_input={"weight_window_days": "30", "weight_threshold_pct": 0}
+        )
+        coord.async_refresh.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_missing_store_does_not_crash(self):
+        flow, store, coord, hass = _make_analytics_flow()
+        flow.config_entry.runtime_data = None
+        result = await flow.async_step_select_analytics_dog()
+        assert result["type"] == "create_entry"
+
+    @pytest.mark.asyncio
+    async def test_edit_without_a_selected_dog_bails_out(self):
+        """Reaching the edit form directly must not raise."""
+        flow, store, coord, hass = _make_analytics_flow()
+        result = await flow.async_step_edit_analytics()
+        assert result["type"] == "create_entry"

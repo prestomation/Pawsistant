@@ -38,7 +38,10 @@ try:
     from homeassistant.helpers.device_registry import DeviceInfo
 except ImportError:
     from homeassistant.helpers.entity import DeviceInfo  # type: ignore[no-redef]
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (
+    TimestampDataUpdateCoordinator,
+    UpdateFailed,
+)
 
 from .const import DOMAIN
 from .store import PawsistantStore
@@ -49,8 +52,17 @@ _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(minutes=5)
 
 
-class PawsistantCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
-    """Coordinator that reads Pawsistant events from the local year-partitioned store."""
+class PawsistantCoordinator(
+    TimestampDataUpdateCoordinator[dict[str, list[dict[str, Any]]]]
+):
+    """Coordinator that reads Pawsistant events from the local year-partitioned store.
+
+    Extends the *Timestamp* variant so that ``last_update_success_time`` is set
+    on every successful refresh. The analytics sensors key their per-refresh
+    compute cache on it; on the plain ``DataUpdateCoordinator`` the attribute
+    does not exist, so the key would be ``None`` forever and their state would
+    freeze at whatever was computed first.
+    """
 
     def __init__(
         self,
