@@ -96,7 +96,8 @@ export const SUPPLY_CSS = `
   .stock-line {
     display: flex; justify-content: space-between; gap: 8px;
     font-size: 12px; padding: 6px 8px; border-radius: 6px;
-    background: var(--secondary-background-color, #f5f5f5);
+    background: var(--card-background-color, #fff);
+    border: 1px solid var(--divider-color, #e0e0e0);
     color: var(--primary-text-color); font-variant-numeric: tabular-nums;
   }
   .pw-toast {
@@ -264,7 +265,7 @@ export function suppliesDialogHTML(rows: SupplyRow[]): string {
       const cls = s.status === 'ok' ? '' : ` ${s.status}`;
       const pack = s.pack
         ? `<button type="button" class="pw-sup-pack" data-i="${i}" data-act="pack">${_escapeHTML(
-            T('supply.add_pack', { n: `${formatCount(s.pack)}${s.unit ? ' ' + s.unit : ''}` }),
+            T('supply.add_pack', { n: formatCount(s.pack) }),
           )}</button>`
         : '';
       return `

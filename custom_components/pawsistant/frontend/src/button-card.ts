@@ -690,6 +690,16 @@ export class PawsistantButtonCard extends HTMLElement {
     this._btnCleanups = [];
   }
 
+  connectedCallback(): void {
+    // Home Assistant can take a card out of the page and put it back, for example
+    // while a dashboard lays out its columns. disconnectedCallback drops the button
+    // listeners, so draw the card again, or its buttons stay dead to a tap.
+    if (this._hass && !this._activeForm) {
+      this._lastHash = null;
+      this.hass = this._hass;
+    }
+  }
+
   disconnectedCallback(): void {
     for (const id of this._timers) {
       clearTimeout(id);

@@ -203,18 +203,26 @@ def test_user_keys_update_sends_every_user_key():
         "name": "Rolls",
         "type": "consumable",
         "stock": 5,
-        "reorder_at": None,
         "stock_unit": "roll",
-        "consume_quantity": None,
         "create_buy_task": False,
         "restock_quantity": 8,
     }
+
+
+def test_user_keys_update_leaves_out_an_empty_key():
+    # Home Keeper's schema refuses a null number, and reads a missing key as unset, so
+    # clearing the count means leaving it out.
+    part = {"id": "p1", "name": "Rolls", "type": "consumable", "stock": 3}
+    payload = supplies.user_keys_update(part, {"stock": None})
+    assert "stock" not in payload
+    assert None not in payload.values()
 
 
 def test_a_reorder_point_turns_on_the_buy_task():
     part = {"id": "p1", "name": "Rolls", "create_buy_task": False}
     assert supplies.user_keys_update(part, {"reorder_at": 1})["create_buy_task"] is True
     assert supplies.user_keys_update(part, {"reorder_at": None})["create_buy_task"] is False
+    assert "reorder_at" not in supplies.user_keys_update(part, {"reorder_at": None})
 
 
 def test_stock_unique_id_matches_home_keeper():

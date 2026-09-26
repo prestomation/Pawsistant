@@ -35,7 +35,7 @@ const ICON_EMOJI_MAP: Record<string, string> = {
   'mdi:emoticon-poop': '💩', 'mdi:pill': '💊', 'mdi:scale-bathroom': '⚖️',
   'mdi:needle': '💉', 'mdi:sleep': '😴', 'mdi:content-cut': '✂️',
   'mdi:hand-pointing-up': '🎯', 'mdi:toothbrush': '🦷', 'mdi:emoticon-sick': '🤒',
-  'mdi:tag': '🏷️', 'mdi:school': '🎓',
+  'mdi:tag': '🏷️', 'mdi:school': '🎓', 'mdi:paper-roll': '🧻',
 };
 
 /** Map an MDI icon name (e.g. "mdi:walk") to a fallback emoji. */

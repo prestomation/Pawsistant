@@ -212,7 +212,7 @@ describe('the Supplies popup', () => {
     expect(html).toContain('Poop bag rolls');
     expect(html).toContain('Reorder at 1');
     expect(html).toContain('class="pw-sup-n low">1 roll<');
-    expect(html).toContain('+ pack of 8 roll');
+    expect(html).toContain('+ pack of 8<');
   });
 
   it('has no pack button without a pack size', () => {

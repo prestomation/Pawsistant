@@ -493,3 +493,19 @@ describe('PawsistantButtonCard supplies', () => {
     expect(card.shadowRoot.querySelector('.pw-toast')).toBeNull();
   });
 });
+
+describe('PawsistantButtonCard after a move in the page', () => {
+  it('still answers a tap after it is taken out and put back', () => {
+    const card = new PawsistantButtonCard();
+    card.setConfig({ type: 'custom:pawsistant-button-card', dog: 'Sharky', buttons: [{ event_type: 'poop' }] });
+    const hass = mockHass();
+    card.hass = hass;
+    document.body.appendChild(card);
+    card.remove();
+    document.body.appendChild(card);
+    card.shadowRoot.querySelector('.log-btn').click();
+    expect(card._activeForm).toBe(true);
+    expect(card.shadowRoot.querySelector('#pbc-form-submit')).not.toBeNull();
+    card.remove();
+  });
+});

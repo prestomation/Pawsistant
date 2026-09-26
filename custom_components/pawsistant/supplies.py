@@ -197,17 +197,20 @@ def parts_differ(asset: dict[str, Any], parts: list[dict[str, Any]]) -> bool:
 def user_keys_update(part: dict[str, Any], changes: dict[str, Any]) -> dict[str, Any]:
     """The full user-key set for one part, with *changes* on top.
 
-    Home Keeper's ``update_asset`` takes every user key of a sent part, so a key we
-    leave out would be cleared. A reorder point turns on the Buy task, because that is
-    the reason to set one.
+    Home Keeper's ``update_asset`` takes every user key of a sent part, and reads a key
+    we leave out as unset, so every key that has a value goes. A reorder point turns on
+    the Buy task, because that is the reason to set one.
     """
     merged = {key: part.get(key) for key in PART_USER_KEYS}
     merged.update({k: v for k, v in changes.items() if k in PART_USER_KEYS})
     if "reorder_at" in changes and changes["reorder_at"] is not None:
         merged["create_buy_task"] = True
+    # Home Keeper's service schema refuses a null number, and a key left out is read
+    # as unset, so an empty key is left out rather than sent as null.
+    present = {k: v for k, v in merged.items() if v is not None}
     # Home Keeper checks each sent part as a whole part, so the name and type go too.
     # They are owner keys on our appliance, and Home Keeper keeps the stored ones.
-    return {"id": part["id"], "name": part.get("name"), "type": part.get("type"), **merged}
+    return {"id": part["id"], "name": part.get("name"), "type": part.get("type"), **present}
 
 
 def stock_unique_id(asset_id: str, part_id: str) -> str:
