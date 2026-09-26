@@ -287,6 +287,10 @@
         "metric": {
           "name": "Button metric",
           "description": "What to show on the sensor button. Options: daily_count (N today), days_since (N days), last_value (value from most recent event), hours_since (N hours). Default if omitted is daily_count."
+        },
+        "supply": {
+          "name": "Supply",
+          "description": "A supply that each log of this type uses, counted in Home Keeper. Give a name and the amount one log takes. Set it to null to stop using a supply."
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "Button metric",
           "description": "What to show on the sensor button. Options: daily_count (N today), days_since (N days), last_value (value from most recent event), hours_since (N hours). Defaults to daily_count if omitted."
+        },
+        "supply": {
+          "name": "Supply",
+          "description": "A supply that each log of this type uses, counted in Home Keeper. Give a name and the amount one log takes. Set it to null to stop using a supply."
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "Shown types",
           "description": "Ordered list of event type keys to show as buttons."
+        }
+      }
+    },
+    "update_supply": {
+      "name": "Update supply",
+      "description": "Set the count, the reorder point, the unit or the pack size of the supply that an event type uses.",
+      "fields": {
+        "event_type": {
+          "name": "Event type key",
+          "description": "The event type that uses the supply."
+        },
+        "stock": {
+          "name": "In stock",
+          "description": "How many you have now."
+        },
+        "reorder_at": {
+          "name": "Reorder at",
+          "description": "The count at which Home Keeper adds a Buy task."
+        },
+        "unit": {
+          "name": "Unit",
+          "description": "What the count is in, e.g. roll or tablet."
+        },
+        "pack_size": {
+          "name": "Pack size",
+          "description": "How many to add when you tick the Buy task."
         }
       }
     }

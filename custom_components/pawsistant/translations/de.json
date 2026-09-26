@@ -287,6 +287,10 @@
         "metric": {
           "name": "Schaltflächen-Metrik",
           "description": "Was auf der Sensor-Schaltfläche angezeigt wird. Optionen: daily_count (N heute), days_since (N Tage), last_value (Wert des neuesten Ereignisses), hours_since (N Stunden). Standard ist daily_count, falls ausgelassen."
+        },
+        "supply": {
+          "name": "Vorrat",
+          "description": "Ein Vorrat, den jeder Eintrag dieses Typs verbraucht, gezählt in Home Keeper. Gib einen Namen und die Menge pro Eintrag an. Mit null wird der Vorrat entfernt."
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "Schaltflächen-Metrik",
           "description": "Was auf der Sensor-Schaltfläche angezeigt wird. Optionen: daily_count (N heute), days_since (N Tage), last_value (Wert des neuesten Ereignisses), hours_since (N Stunden). Standard ist daily_count, falls ausgelassen."
+        },
+        "supply": {
+          "name": "Vorrat",
+          "description": "Ein Vorrat, den jeder Eintrag dieses Typs verbraucht, gezählt in Home Keeper. Gib einen Namen und die Menge pro Eintrag an. Mit null wird der Vorrat entfernt."
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "Angezeigte Typen",
           "description": "Geordnete Liste der als Schaltflächen anzuzeigenden Ereignistyp-Schlüssel."
+        }
+      }
+    },
+    "update_supply": {
+      "name": "Vorrat aktualisieren",
+      "description": "Bestand, Nachbestellpunkt, Einheit oder Packungsgröße des Vorrats eines Ereignistyps festlegen.",
+      "fields": {
+        "event_type": {
+          "name": "Ereignistyp-Schlüssel",
+          "description": "Der Ereignistyp, der den Vorrat verbraucht."
+        },
+        "stock": {
+          "name": "Auf Lager",
+          "description": "Wie viele du jetzt hast."
+        },
+        "reorder_at": {
+          "name": "Nachbestellen bei",
+          "description": "Bei diesem Bestand legt Home Keeper eine Kaufaufgabe an."
+        },
+        "unit": {
+          "name": "Einheit",
+          "description": "Worin gezählt wird, z. B. Rolle oder Tablette."
+        },
+        "pack_size": {
+          "name": "Packungsgröße",
+          "description": "Wie viele hinzukommen, wenn du die Kaufaufgabe abhakst."
         }
       }
     }

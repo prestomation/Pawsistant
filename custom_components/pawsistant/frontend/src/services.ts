@@ -12,6 +12,32 @@ export function logEvent(hass: HomeAssistant, dog: string, eventType: string, ex
   });
 }
 
+/**
+ * Log an event and return its id, so a toast can offer Undo. Returns null when the
+ * backend is older and answers with no id.
+ */
+export async function logEventWithId(
+  hass: HomeAssistant,
+  dog: string,
+  eventType: string,
+  extra: Record<string, unknown> = {},
+): Promise<string | null> {
+  const result = (await hass.callService(
+    'pawsistant',
+    'log_event',
+    { dog, event_type: eventType, ...extra },
+    undefined,
+    true,
+    true,
+  )) as { response?: { event_id?: string } } | undefined;
+  return result?.response?.event_id ?? null;
+}
+
+/** Set an event type's supply count, reorder point, unit or pack size. */
+export function updateSupply(hass: HomeAssistant, payload: Record<string, unknown>): Promise<unknown> {
+  return hass.callService('pawsistant', 'update_supply', payload);
+}
+
 export function deleteEvent(hass: HomeAssistant, eventId: string): Promise<unknown> {
   return hass.callService('pawsistant', 'delete_event', {
     event_id: eventId,

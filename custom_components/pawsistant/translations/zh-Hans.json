@@ -287,6 +287,10 @@
         "metric": {
           "name": "按钮指标",
           "description": "传感器按钮上显示的内容。选项：daily_count（今日 N 次）、days_since（N 天前）、last_value（最近事件的数值）、hours_since（N 小时前）。省略时默认为 daily_count。"
+        },
+        "supply": {
+          "name": "用品",
+          "description": "此类型每次记录消耗的用品，由 Home Keeper 计数。填写名称和每次记录的用量。设为 null 可停止使用。"
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "按钮指标",
           "description": "传感器按钮上显示的内容。选项：daily_count（今日 N 次）、days_since（N 天前）、last_value（最近事件的数值）、hours_since（N 小时前）。省略时默认为 daily_count。"
+        },
+        "supply": {
+          "name": "用品",
+          "description": "此类型每次记录消耗的用品，由 Home Keeper 计数。填写名称和每次记录的用量。设为 null 可停止使用。"
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "显示类型",
           "description": "要显示为按钮的事件类型键的有序列表。"
+        }
+      }
+    },
+    "update_supply": {
+      "name": "更新用品",
+      "description": "设置某事件类型所用用品的库存、补货点、单位或包装数量。",
+      "fields": {
+        "event_type": {
+          "name": "事件类型键",
+          "description": "使用该用品的事件类型。"
+        },
+        "stock": {
+          "name": "库存",
+          "description": "你现在有多少。"
+        },
+        "reorder_at": {
+          "name": "补货点",
+          "description": "达到此数量时 Home Keeper 会添加购买任务。"
+        },
+        "unit": {
+          "name": "单位",
+          "description": "计数单位，例如卷或片。"
+        },
+        "pack_size": {
+          "name": "包装数量",
+          "description": "勾选购买任务时增加的数量。"
         }
       }
     }

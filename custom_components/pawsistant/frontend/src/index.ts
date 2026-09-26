@@ -12,7 +12,7 @@ import {
 } from './registry';
 import { METRIC_LABELS, resolveMetricValue } from './metrics';
 import { setupLongPress, withCooldown } from './interactions';
-import { logEvent, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services';
+import { logEvent, logEventWithId, updateSupply, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services';
 import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, getDogId, dogNamesFromHass } from './utils';
 import { buildEventRowsHTML, displayLabel } from './timeline-render';
 
@@ -28,6 +28,9 @@ import type { HomeAssistant, PawsistantCardConfig, DogEntities, Registry, Regist
 import { PawsistantCardEditor } from './editor';
 import { openBackdateForm, openWeightForm, openEditForm, closeForm, showFormError } from './forms';
 import { bindEvents } from './bindings';
+import { badgeHTML, stockOf, supplyRows, openSuppliesDialog, showToast, toastText, SUPPLY_CSS } from './supply';
+import type { Stock } from './supply';
+import type { EventMeta, SupplyFormState } from './types';
 import { setLang, T, TP } from './i18n';
 
 /* ── Card picker registration ───────────────────────────────────────────── */
@@ -438,6 +441,7 @@ export class PawsistantCard extends HTMLElement {
         <button class="log-btn" ${dataAttrs} aria-label="${_escapeHTML(ariaLabel)}">
           <span class="btn-emoji" aria-hidden="true">${meta.emoji}</span>
           <span class="btn-label">${_escapeHTML(this._displayLabel(type, meta))}${countSuffix}</span>
+          ${badgeHTML(stockOf(hass, meta.supply))}
         </button>
       `;
     }
@@ -455,6 +459,12 @@ export class PawsistantCard extends HTMLElement {
           box-shadow: var(--ha-card-box-shadow, none);
           overflow: hidden;
         }
+        ${SUPPLY_CSS}
+        .supplies-btn {
+          background: none; border: none; cursor: pointer; font-size: 16px;
+          min-width: 36px; min-height: 36px; border-radius: 6px;
+        }
+        .supplies-btn:hover { background: var(--secondary-background-color, #f5f5f5); }
         .card-header {
           display: flex;
           align-items: center;
@@ -973,6 +983,18 @@ export class PawsistantCard extends HTMLElement {
           font-weight: 600;
           color: var(--primary-text-color);
         }
+        .et-supply {
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 8px;
+          padding: 8px 12px 12px;
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .et-supply legend { padding: 0 4px; }
+        .et-supply-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .et-supply .et-form-field { margin: 0; }
         .et-form-field {
           display: flex;
           flex-direction: column;
@@ -1072,6 +1094,8 @@ export class PawsistantCard extends HTMLElement {
     `;
 
     bindEvents(this, root);
+    root.querySelector('#supplies-btn')?.addEventListener('click', () => this._openSupplies());
+    this._drawToast();
   }
 
   /* ── Render main card content ──────────────────────────────────────── */
@@ -1079,6 +1103,7 @@ export class PawsistantCard extends HTMLElement {
     return `
         <div class="card-header">
           <span class="card-title">🐾 ${_escapeHTML(dogName)}</span>
+          ${this._supplyRows().length ? `<button class="supplies-btn" id="supplies-btn" title="${_escapeHTML(T('supply.open'))}" aria-label="${_escapeHTML(T('supply.open'))}" aria-haspopup="dialog">📦</button>` : ''}
           <button class="event-types-gear-btn" id="et-gear-btn" title="${T('panel.configure')}" aria-label="${T('panel.configure')}">⚙️</button>
         </div>
 
@@ -1205,6 +1230,40 @@ export class PawsistantCard extends HTMLElement {
     // In add mode: key is auto-generated from name; in edit mode: show as read-only
     const keyPreview = isAdd ? slugifyEventKey(nameVal) : keyVal;
 
+    // "Uses a supply": what the type has now, or what the user typed before an error.
+    const current = isEdit ? getMeta(keyVal, this._registry().registry) : null;
+    const stock = current ? stockOf(this._hass, current.supply) : null;
+    const sup: SupplyFormState = this._eventTypeFormDraft?.supply || {
+      name: current?.supply?.name || '',
+      amount: current?.supply?.amount !== undefined ? String(current.supply.amount) : '1',
+      stock: stock ? String(stock.count) : '',
+      reorder_at: stock?.reorderAt !== null && stock?.reorderAt !== undefined ? String(stock.reorderAt) : '',
+      unit: stock?.unit || '',
+      pack: stock?.pack !== null && stock?.pack !== undefined ? String(stock.pack) : '',
+    };
+    const inputStyle = 'width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font-size:15px;';
+    const supField = (id: string, label: string, value: string, type = 'text', placeholder = '') => `
+      <div class="et-form-field">
+        <label class="et-form-label" for="${id}">${esc(label)}</label>
+        <input type="${type}" id="${id}" value="${esc(value)}"${type === 'number' ? ' min="0" step="any" inputmode="decimal"' : ''}
+          ${placeholder ? `placeholder="${esc(placeholder)}"` : ''} style="${inputStyle}" />
+      </div>`;
+    const supplyHTML = `
+      <fieldset class="et-supply">
+        <legend class="et-form-label">${esc(T('panel.form.supply_section'))}</legend>
+        ${supField('et-supply-name', T('panel.form.supply_name'), sup.name, 'text', T('panel.form.supply_name_placeholder'))}
+        <div class="et-supply-row">
+          ${supField('et-supply-amount', T('panel.form.supply_amount'), sup.amount, 'number')}
+          ${supField('et-supply-unit', T('panel.form.supply_unit'), sup.unit)}
+        </div>
+        <div class="et-supply-row">
+          ${supField('et-supply-stock', T('panel.form.supply_stock'), sup.stock, 'number')}
+          ${supField('et-supply-reorder', T('panel.form.supply_reorder'), sup.reorder_at, 'number')}
+        </div>
+        ${supField('et-supply-pack', T('panel.form.supply_pack'), sup.pack, 'number')}
+        <div style="font-size:11px;color:var(--secondary-text-color);">${esc(T('panel.form.supply_hint'))}</div>
+      </fieldset>`;
+
     const errorHTML = this._eventTypeFormError
       ? `<div class="et-form-error visible" role="alert">${_escapeHTML(this._eventTypeFormError)}</div>`
       : `<div class="et-form-error" role="alert"></div>`;
@@ -1252,6 +1311,7 @@ export class PawsistantCard extends HTMLElement {
                 ${T('panel.form.metric_hint')}
               </div>
             </div>
+            ${supplyHTML}
             ${errorHTML}
             <div class="et-form-actions">
               <button class="et-btn-cancel" id="et-form-cancel">${T('panel.form.cancel')}</button>
@@ -1313,6 +1373,15 @@ export class PawsistantCard extends HTMLElement {
     const icon = iconEl?.value || '';
     const color = formEl.querySelector<HTMLInputElement>('#et-color-input')?.value || '';
     const metric = formEl.querySelector<HTMLSelectElement>('#et-metric-select')?.value || 'daily_count';
+    const val = (id: string) => (formEl.querySelector<HTMLInputElement>(`#${id}`)?.value || '').trim();
+    const supply: SupplyFormState = {
+      name: val('et-supply-name'),
+      amount: val('et-supply-amount'),
+      stock: val('et-supply-stock'),
+      reorder_at: val('et-supply-reorder'),
+      unit: val('et-supply-unit'),
+      pack: val('et-supply-pack'),
+    };
 
     let eventType: string;
     if (isAdd) {
@@ -1333,6 +1402,7 @@ export class PawsistantCard extends HTMLElement {
       icon: normalizedIcon,
       color: color.trim(),
       metric,
+      supply,
     };
 
     // Basic client-side validation before calling service
@@ -1353,16 +1423,39 @@ export class PawsistantCard extends HTMLElement {
     }
 
     // Build service call
-    const payload = {
+    const payload: Record<string, unknown> = {
       event_type: eventType,
       name: name.trim(),
       icon: normalizedIcon,
       color: color.trim(),
       metric: metric,
     };
+    // A supply name sets or changes the supply. An empty name clears one the type had.
+    const hadSupply = !isAdd && Boolean(getMeta(eventType, this._registry().registry).supply);
+    if (supply.name) {
+      const amount = supply.amount === '' ? 1 : Number(supply.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        this._eventTypeFormError = T('panel.form.supply_amount');
+        this._render();
+        return;
+      }
+      payload.supply = { name: supply.name, amount };
+    } else if (hadSupply) {
+      payload.supply = null;
+    }
+    const counts: Record<string, unknown> = {};
+    if (supply.name) {
+      if (supply.stock !== '') counts.stock = Number(supply.stock);
+      if (supply.reorder_at !== '') counts.reorder_at = Number(supply.reorder_at);
+      if (supply.unit !== '') counts.unit = supply.unit;
+      if (supply.pack !== '') counts.pack_size = Number(supply.pack);
+    }
 
     const callFn = isAdd ? addEventType : updateEventType;
     callFn(this._hass!, payload)
+      .then(() => (Object.keys(counts).length
+        ? updateSupply(this._hass!, { event_type: eventType, ...counts })
+        : undefined))
       .then(() => {
         this._eventTypeFormDraft = null;
         this._closeEventTypesPanel();
@@ -1420,8 +1513,11 @@ export class PawsistantCard extends HTMLElement {
     /* U7 — debounce: set pending, re-enable after service call */
     if (btn && btn.dataset && btn.dataset.pending) return;
     if (btn) btn.dataset.pending = '1';
-    this._logEvent(type)
-      .then(() => {
+    const meta = getMeta(type, this._registry().registry);
+    const before = stockOf(this._hass, meta.supply);
+    logEventWithId(this._hass!, this._config.dog, type)
+      .then((eventId) => {
+        this._supplyToast(meta, type, before, eventId);
         if (btn) {
           delete btn.dataset.pending;
           btn.classList.remove('flash');
@@ -1435,6 +1531,67 @@ export class PawsistantCard extends HTMLElement {
         if (btn) delete btn.dataset.pending;
       });
   }, 500);
+
+  /* ── Supplies ──────────────────────────────────────────────────────── */
+  /** The toast after a log, kept here so a re-render can draw it again. */
+  _toast: { text: string; sub: string; eventId: string | null; until: number } | null = null;
+
+  _supplyRows() {
+    const { registry } = this._registry();
+    return supplyRows(
+      this._hass,
+      this._shownTypes().map(type => {
+        const meta = getMeta(type, registry);
+        return { meta, label: this._displayLabel(type, meta) };
+      }),
+    );
+  }
+
+  _openSupplies() {
+    if (this._activeForm || !this._hass) return;
+    const rows = this._supplyRows();
+    if (!rows.length) return;
+    this._activeForm = 'supplies';
+    openSuppliesDialog(this.shadowRoot!, this._hass, rows, () => {
+      this._activeForm = null;
+      this._lastHash = null;
+      if (this._hass) this.hass = this._hass;
+    });
+  }
+
+  /** Note what a log took, for the toast. *before* is the count at the tap. */
+  _supplyToast(meta: EventMeta, type: string, before: Stock | null, eventId: string | null) {
+    const amount = meta.supply?.amount;
+    if (!before || !amount) return;
+    const { text, sub } = toastText(this._displayLabel(type, meta), before, amount);
+    this._toast = { text, sub, eventId, until: Date.now() + 6000 };
+    this._drawToast();
+  }
+
+  _drawToast() {
+    const t = this._toast;
+    const section = this.shadowRoot?.querySelector<HTMLElement>('.quick-log-section');
+    if (!t || !section) return;
+    const left = t.until - Date.now();
+    if (left <= 0) {
+      this._toast = null;
+      return;
+    }
+    const hass = this._hass;
+    showToast(section, {
+      text: t.text,
+      sub: t.sub,
+      timeoutMs: left,
+      onUndo: t.eventId && hass
+        ? () => {
+          this._toast = null;
+          return deleteEvent(hass, t.eventId!)
+            .then(() => this._fetchTimeline())
+            .catch((err) => console.error('[pawsistant-card] undo failed:', err));
+        }
+        : undefined,
+    });
+  }
 
   /* ── Success flash ─────────────────────────────────────────────────── */
   _showSuccessFlash(btn: HTMLButtonElement) {

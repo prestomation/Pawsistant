@@ -37,7 +37,7 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.util import dt as dt_util
 
-from . import care_link
+from . import care_link, supply_link
 from .const import CONF_SPECIES, DEFAULT_SPECIES, DOMAIN, CONF_EVENT_TYPES, CONF_BUTTON_METRICS, DEFAULT_EVENT_TYPES, DEFAULT_BUTTON_METRICS, CARE_UNITS, CARE_FREQS
 
 _LOGGER = logging.getLogger(__name__)
@@ -661,6 +661,9 @@ class PawsistantOptionsFlow(OptionsFlow):
                     self.hass, store, schedule_id, schedule, last_completed=last_completed
                 )
                 await store.add_care_schedule(schedule_id, schedule)
+                # A dose that uses a supply takes it off the count when the new task
+                # is completed, from here or from Home Keeper.
+                await supply_link.sync_links(self.hass, store)
                 self._pending_care = None
                 if coord is not None:
                     await coord.async_refresh()
@@ -768,6 +771,10 @@ class PawsistantOptionsFlow(OptionsFlow):
                     "color": color.upper(),
                 }
                 stored = store.get_stored_event_type_overrides()
+                # This form does not edit the supply, so keep the one the type has.
+                supply = (store.get_event_types().get(key) or {}).get("supply")
+                if supply:
+                    entry["supply"] = supply
                 stored[key] = entry
                 store.save_event_types(stored)
 

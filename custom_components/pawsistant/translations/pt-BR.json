@@ -287,6 +287,10 @@
         "metric": {
           "name": "Métrica do botão",
           "description": "O que mostrar no botão do sensor. Opções: daily_count (N hoje), days_since (N dias), last_value (valor do evento mais recente), hours_since (N horas). Padrão daily_count se omitido."
+        },
+        "supply": {
+          "name": "Suprimento",
+          "description": "Um suprimento que cada registro deste tipo usa, contado no Home Keeper. Informe um nome e a quantidade por registro. Use null para parar de usar."
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "Métrica do botão",
           "description": "O que mostrar no botão do sensor. Opções: daily_count (N hoje), days_since (N dias), last_value (valor do evento mais recente), hours_since (N horas). Padrão daily_count se omitido."
+        },
+        "supply": {
+          "name": "Suprimento",
+          "description": "Um suprimento que cada registro deste tipo usa, contado no Home Keeper. Informe um nome e a quantidade por registro. Use null para parar de usar."
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "Tipos exibidos",
           "description": "Lista ordenada de chaves de tipo de evento para mostrar como botões."
+        }
+      }
+    },
+    "update_supply": {
+      "name": "Atualizar suprimento",
+      "description": "Defina o estoque, o ponto de reposição, a unidade ou o tamanho do pacote do suprimento de um tipo de evento.",
+      "fields": {
+        "event_type": {
+          "name": "Chave do tipo de evento",
+          "description": "O tipo de evento que usa o suprimento."
+        },
+        "stock": {
+          "name": "Em estoque",
+          "description": "Quantos você tem agora."
+        },
+        "reorder_at": {
+          "name": "Repor em",
+          "description": "Com esta quantidade o Home Keeper cria uma tarefa de compra."
+        },
+        "unit": {
+          "name": "Unidade",
+          "description": "Em que se conta, ex. rolo ou comprimido."
+        },
+        "pack_size": {
+          "name": "Tamanho do pacote",
+          "description": "Quantos somar ao marcar a tarefa de compra."
         }
       }
     }

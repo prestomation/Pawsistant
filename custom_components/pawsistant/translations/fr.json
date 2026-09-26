@@ -287,6 +287,10 @@
         "metric": {
           "name": "Métrique du bouton",
           "description": "Ce qui s'affiche sur le bouton du capteur. Options : daily_count (N aujourd'hui), days_since (N jours), last_value (valeur de l'événement le plus récent), hours_since (N heures). Par défaut, daily_count si omis."
+        },
+        "supply": {
+          "name": "Fourniture",
+          "description": "Une fourniture utilisée par chaque saisie de ce type, comptée dans Home Keeper. Indiquez un nom et la quantité par saisie. Mettez null pour ne plus l'utiliser."
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "Métrique du bouton",
           "description": "Ce qui s'affiche sur le bouton du capteur. Options : daily_count (N aujourd'hui), days_since (N jours), last_value (valeur de l'événement le plus récent), hours_since (N heures). Par défaut, daily_count si omis."
+        },
+        "supply": {
+          "name": "Fourniture",
+          "description": "Une fourniture utilisée par chaque saisie de ce type, comptée dans Home Keeper. Indiquez un nom et la quantité par saisie. Mettez null pour ne plus l'utiliser."
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "Types affichés",
           "description": "Liste ordonnée des clés de type d'événement à afficher sous forme de boutons."
+        }
+      }
+    },
+    "update_supply": {
+      "name": "Mettre à jour la fourniture",
+      "description": "Définir le stock, le seuil de commande, l'unité ou la taille du paquet de la fourniture d'un type d'événement.",
+      "fields": {
+        "event_type": {
+          "name": "Clé du type d'événement",
+          "description": "Le type d'événement qui utilise la fourniture."
+        },
+        "stock": {
+          "name": "En stock",
+          "description": "Combien vous en avez maintenant."
+        },
+        "reorder_at": {
+          "name": "Commander à",
+          "description": "À ce nombre, Home Keeper crée une tâche d'achat."
+        },
+        "unit": {
+          "name": "Unité",
+          "description": "L'unité de comptage, p. ex. rouleau ou comprimé."
+        },
+        "pack_size": {
+          "name": "Taille du paquet",
+          "description": "Combien ajouter quand vous cochez la tâche d'achat."
         }
       }
     }

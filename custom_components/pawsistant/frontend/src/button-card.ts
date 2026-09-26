@@ -10,7 +10,9 @@ import type { HomeAssistant, PawsistantButtonCardConfig, ButtonConfig, EventMeta
 import { buildRegistry, getMeta } from './registry';
 import { resolveMetricValue } from './metrics';
 import { setLang, T } from './i18n';
-import { logEvent } from './services';
+import { logEventWithId, deleteEvent } from './services';
+import { badgeHTML, showToast, stockOf, supplyRows, openSuppliesDialog, toastText, SUPPLY_CSS } from './supply';
+import type { Stock } from './supply';
 import { findEntitiesByDog, stateNum, stateAttr, toDisplayWeight, _escapeHTML, getDogId, dogNamesFromHass } from './utils';
 import { renderPawsistantButton } from './button';
 import { openBackdateForm, openWeightForm } from './standalone-forms';
@@ -39,6 +41,9 @@ export class PawsistantButtonCard extends HTMLElement {
   _btnCleanups: (() => void)[] = [];
   _formCleanup: (() => void) | null = null;
   _eventLogHandle: EventLogHandle | null = null;
+  /** The toast after a log, kept here so a re-render can draw it again. */
+  _toast: { text: string; sub: string; eventId: string | null; until: number } | null = null;
+  _closeSupplies: (() => void) | null = null;
 
   constructor() {
     super();
@@ -103,6 +108,15 @@ export class PawsistantButtonCard extends HTMLElement {
       JSON.stringify(stateAttr(hass, ent.timeline, 'days_since') || {}),
       JSON.stringify(stateAttr(hass, ent.timeline, 'last_event_ts') || {}),
     ];
+    // The badge follows Home Keeper's spares number of each supply.
+    const { registry } = buildRegistry(hass);
+    for (const btn of cfg.buttons) {
+      const entityId = registry[btn.event_type]?.supply?.entity_id;
+      if (entityId) {
+        const st = hass.states[entityId];
+        parts.push(`${entityId}=${st?.state ?? ''}/${st?.attributes?.status ?? ''}`);
+      }
+    }
     // Include relevant entity states for metric computation per button.
     for (const btn of cfg.buttons) {
       const metric = this._getMetric(btn.event_type);
@@ -329,6 +343,13 @@ export class PawsistantButtonCard extends HTMLElement {
         .log-btn.success-flash {
           animation: success-anim 0.6s ease forwards;
         }
+        .pbc-supplies-btn {
+          position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+          background: none; border: none; cursor: pointer; font-size: 15px;
+          padding: 6px; border-radius: 6px; min-width: 36px; min-height: 36px;
+        }
+        .pbc-supplies-btn:hover { background: var(--secondary-background-color, #f5f5f5); }
+        ${SUPPLY_CSS}
         @keyframes success-anim {
           0%   { background: var(--success-color, #4caf50); transform: scale(1); }
           40%  { transform: scale(0.93); }
@@ -346,6 +367,7 @@ export class PawsistantButtonCard extends HTMLElement {
     if (logBtn) {
       logBtn.addEventListener('click', () => this._openEventLog());
     }
+    root.getElementById('pbc-supplies-btn')?.addEventListener('click', () => this._openSupplies());
 
     const grid = root.getElementById('pbc-grid')!;
 
@@ -358,6 +380,7 @@ export class PawsistantButtonCard extends HTMLElement {
         container: grid,
         meta: { ...meta, label: this._displayLabel(btnCfg.event_type, meta) },
         metricText,
+        badge: badgeHTML(stockOf(hass, meta.supply)),
         onTap: () => {
           if (isWeight) {
             this._openWeight(btn, meta, btnCfg.event_type);
@@ -377,17 +400,89 @@ export class PawsistantButtonCard extends HTMLElement {
       grid.appendChild(btn);
       this._btnCleanups.push(btnCleanup);
     }
+    this._drawToast();
+  }
+
+  /* ── Supplies ──────────────────────────────────────────────────────── */
+
+  _supplyRows() {
+    const hass = this._hass;
+    if (!hass) return [];
+    const { registry } = buildRegistry(hass);
+    return supplyRows(
+      hass,
+      this._config.buttons.map(b => {
+        const meta = getMeta(b.event_type, registry);
+        return { meta, label: this._displayLabel(b.event_type, meta) };
+      }),
+    );
+  }
+
+  _openSupplies(): void {
+    if (this._activeForm || !this._hass) return;
+    const rows = this._supplyRows();
+    if (!rows.length) return;
+    this._activeForm = true;
+    this._closeSupplies = openSuppliesDialog(this.shadowRoot!, this._hass, rows, () => {
+      this._closeSupplies = null;
+      this._activeForm = false;
+      this._lastHash = null;
+      if (this._hass) this.hass = this._hass;
+    });
+  }
+
+  /** Note what a log took, for the toast. *before* is the count at the tap. */
+  _supplyToast(meta: EventMeta, eventType: string, before: Stock | null, eventId: string | null): void {
+    const amount = meta.supply?.amount;
+    if (!before || !amount) return;
+    const { text, sub } = toastText(this._displayLabel(eventType, meta), before, amount);
+    this._toast = { text, sub, eventId, until: Date.now() + 6000 };
+    this._drawToast();
+  }
+
+  _drawToast(): void {
+    const t = this._toast;
+    const card = this.shadowRoot?.querySelector<HTMLElement>('.pbc-card');
+    if (!t || !card) return;
+    const left = t.until - Date.now();
+    if (left <= 0) {
+      this._toast = null;
+      return;
+    }
+    const hass = this._hass;
+    showToast(card, {
+      text: t.text,
+      sub: t.sub,
+      timeoutMs: left,
+      onUndo: t.eventId && hass
+        ? () => {
+          this._toast = null;
+          return deleteEvent(hass, t.eventId!).catch((err) => {
+            console.error('[pawsistant-button-card] undo failed:', err);
+          });
+        }
+        : undefined,
+    });
   }
 
   _headerHTML(showTitle: boolean): string {
     const cfg = this._config;
     const titleHTML = showTitle ? `<div class="pbc-title">${_escapeHTML(cfg.dog)}</div>` : '';
-    if (cfg.show_event_log !== true) return titleHTML;
+    const hasSupplies = this._supplyRows().length > 0;
+    if (cfg.show_event_log !== true && !hasSupplies) return titleHTML;
     const label = T('button_card.open_event_log');
+    const suppliesLabel = T('supply.open');
+    const logBtn = cfg.show_event_log === true
+      ? `<button class="pbc-log-btn" id="pbc-log-btn" aria-label="${label}" title="${label}" aria-haspopup="dialog">📋</button>`
+      : '';
+    const suppliesBtn = hasSupplies
+      ? `<button class="pbc-supplies-btn" id="pbc-supplies-btn" aria-label="${suppliesLabel}" title="${suppliesLabel}" aria-haspopup="dialog">📦</button>`
+      : '';
     return `
       <div class="pbc-header">
+        ${suppliesBtn}
         ${titleHTML}
-        <button class="pbc-log-btn" id="pbc-log-btn" aria-label="${label}" title="${label}" aria-haspopup="dialog">📋</button>
+        ${logBtn}
       </div>
     `;
   }
@@ -467,6 +562,10 @@ export class PawsistantButtonCard extends HTMLElement {
   }
 
   _closeEventLog(): void {
+    if (this._closeSupplies) {
+      this._closeSupplies();
+      this._closeSupplies = null;
+    }
     if (this._eventLogHandle) {
       this._eventLogHandle.cleanup();
       this._eventLogHandle = null;
@@ -505,6 +604,7 @@ export class PawsistantButtonCard extends HTMLElement {
     if (this._activeForm) return;
     this._activeForm = true;
     const formSlot = this.shadowRoot!.getElementById('pbc-form-slot')!;
+    const before = stockOf(this._hass, meta.supply);
 
     const result = await openBackdateForm({
       container: formSlot,
@@ -516,10 +616,12 @@ export class PawsistantButtonCard extends HTMLElement {
 
     if (result) {
       this._showSuccessFlash(btn);
+      this._supplyToast(meta, eventType, before, result.eventId ?? null);
       setTimeout(() => {
         result.cleanup();
         this._activeForm = false;
         this._lastHash = null;
+        if (this._hass) this.hass = this._hass;
       }, 600);
     } else {
       this._activeForm = false;
@@ -556,9 +658,12 @@ export class PawsistantButtonCard extends HTMLElement {
   }
 
   _instantLog(btn: HTMLButtonElement, eventType: string): void {
-    logEvent(this._hass!, this._config.dog, eventType)
-      .then(() => {
+    const meta = getMeta(eventType, buildRegistry(this._hass).registry);
+    const before = stockOf(this._hass, meta.supply);
+    logEventWithId(this._hass!, this._config.dog, eventType)
+      .then((eventId) => {
         this._showSuccessFlash(btn);
+        this._supplyToast(meta, eventType, before, eventId);
       })
       .catch((err) => {
         console.error('[pawsistant-button-card] instant log failed:', err);
@@ -583,6 +688,16 @@ export class PawsistantButtonCard extends HTMLElement {
       cleanup();
     }
     this._btnCleanups = [];
+  }
+
+  connectedCallback(): void {
+    // Home Assistant can take a card out of the page and put it back, for example
+    // while a dashboard lays out its columns. disconnectedCallback drops the button
+    // listeners, so draw the card again, or its buttons stay dead to a tap.
+    if (this._hass && !this._activeForm) {
+      this._lastHash = null;
+      this.hass = this._hass;
+    }
   }
 
   disconnectedCallback(): void {

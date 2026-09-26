@@ -287,6 +287,10 @@
         "metric": {
           "name": "ボタンメトリクス",
           "description": "センサーボタンに表示する内容。オプション：daily_count（今日 N 回）、days_since（N 日前）、last_value（最新イベントの値）、hours_since（N 時間前）。省略した場合のデフォルトは daily_count です。"
+        },
+        "supply": {
+          "name": "消耗品",
+          "description": "この種類の記録ごとに使う消耗品。Home Keeper で数えます。名前と1回あたりの量を指定します。null で使用をやめます。"
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "ボタンメトリクス",
           "description": "センサーボタンに表示する内容。オプション：daily_count（今日 N 回）、days_since（N 日前）、last_value（最新イベントの値）、hours_since（N 時間前）。省略した場合のデフォルトは daily_count です。"
+        },
+        "supply": {
+          "name": "消耗品",
+          "description": "この種類の記録ごとに使う消耗品。Home Keeper で数えます。名前と1回あたりの量を指定します。null で使用をやめます。"
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "表示タイプ",
           "description": "ボタンとして表示するイベントタイプキーの順序付きリスト。"
+        }
+      }
+    },
+    "update_supply": {
+      "name": "消耗品を更新",
+      "description": "イベントの種類が使う消耗品の在庫数、再注文点、単位、パックサイズを設定します。",
+      "fields": {
+        "event_type": {
+          "name": "イベントの種類キー",
+          "description": "消耗品を使うイベントの種類。"
+        },
+        "stock": {
+          "name": "在庫",
+          "description": "今ある数。"
+        },
+        "reorder_at": {
+          "name": "再注文点",
+          "description": "この数になると Home Keeper が購入タスクを追加します。"
+        },
+        "unit": {
+          "name": "単位",
+          "description": "数える単位（例：ロール、錠）。"
+        },
+        "pack_size": {
+          "name": "パックサイズ",
+          "description": "購入タスクにチェックしたときに足す数。"
         }
       }
     }

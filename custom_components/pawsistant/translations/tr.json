@@ -287,6 +287,10 @@
         "metric": {
           "name": "Düğme metriği",
           "description": "Sensör düğmesinde gösterilecek değer. Seçenekler: daily_count (bugün N), days_since (N gün), last_value (en son olayın değeri), hours_since (N saat). Atlanırsa varsayılan daily_count olur."
+        },
+        "supply": {
+          "name": "Malzeme",
+          "description": "Bu türdeki her kaydın kullandığı, Home Keeper'da sayılan malzeme. Bir ad ve kayıt başına miktar verin. Kullanmayı bırakmak için null yapın."
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "Düğme metriği",
           "description": "Sensör düğmesinde gösterilecek değer. Seçenekler: daily_count (bugün N), days_since (N gün), last_value (en son olayın değeri), hours_since (N saat). Atlanırsa varsayılan daily_count olur."
+        },
+        "supply": {
+          "name": "Malzeme",
+          "description": "Bu türdeki her kaydın kullandığı, Home Keeper'da sayılan malzeme. Bir ad ve kayıt başına miktar verin. Kullanmayı bırakmak için null yapın."
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "Görüntülenen türler",
           "description": "Düğme olarak gösterilecek olay türü anahtarlarının sıralı listesi."
+        }
+      }
+    },
+    "update_supply": {
+      "name": "Malzemeyi güncelle",
+      "description": "Bir olay türünün malzemesinin stokunu, yeniden sipariş noktasını, birimini veya paket boyutunu ayarlayın.",
+      "fields": {
+        "event_type": {
+          "name": "Olay türü anahtarı",
+          "description": "Malzemeyi kullanan olay türü."
+        },
+        "stock": {
+          "name": "Stokta",
+          "description": "Şu anda kaç tane var."
+        },
+        "reorder_at": {
+          "name": "Sipariş noktası",
+          "description": "Bu sayıda Home Keeper bir satın alma görevi ekler."
+        },
+        "unit": {
+          "name": "Birim",
+          "description": "Neyle sayıldığı, ör. rulo veya tablet."
+        },
+        "pack_size": {
+          "name": "Paket boyutu",
+          "description": "Satın alma görevini işaretleyince kaç tane eklenir."
         }
       }
     }

@@ -255,6 +255,15 @@ update_event_type:
             - days_since
             - last_value
             - hours_since
+    supply:
+      name: Supply
+      description: >
+        A supply that each log of this type uses, counted in Home Keeper. Give a
+        name and the amount one log takes, e.g. {"name": "Poop bag rolls",
+        "amount": 1}. Set it to null to stop using a supply. Needs Home Keeper.
+      required: false
+      selector:
+        object:
 
 add_event_type:
   name: Add Event Type
@@ -306,6 +315,15 @@ add_event_type:
             - days_since
             - last_value
             - hours_since
+    supply:
+      name: Supply
+      description: >
+        A supply that each log of this type uses, counted in Home Keeper. Give a
+        name and the amount one log takes, e.g. {"name": "Poop bag rolls",
+        "amount": 1}. Set it to null to stop using a supply. Needs Home Keeper.
+      required: false
+      selector:
+        object:
 
 delete_event_type:
   name: Delete Event Type
@@ -339,3 +357,50 @@ set_shown_types:
       required: false
       selector:
         object:
+
+update_supply:
+  name: Update supply
+  description: >
+    Set the count, the reorder point, the unit or the pack size of the supply that an
+    event type uses. Home Keeper adds a Buy task to your shopping list when the count
+    reaches the reorder point.
+  fields:
+    event_type:
+      name: Event type key
+      description: The event type that uses the supply (e.g. roll, carprofen).
+      required: true
+      selector:
+        text:
+    stock:
+      name: In stock
+      description: How many you have now. Decimals are allowed.
+      required: false
+      selector:
+        number:
+          min: 0
+          step: any
+          mode: box
+    reorder_at:
+      name: Reorder at
+      description: The count at which Home Keeper adds a Buy task.
+      required: false
+      selector:
+        number:
+          min: 0
+          step: any
+          mode: box
+    unit:
+      name: Unit
+      description: What the count is in, e.g. roll or tablet.
+      required: false
+      selector:
+        text:
+    pack_size:
+      name: Pack size
+      description: How many to add when you tick the Buy task.
+      required: false
+      selector:
+        number:
+          min: 0
+          step: any
+          mode: box

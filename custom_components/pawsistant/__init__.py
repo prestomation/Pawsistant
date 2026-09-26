@@ -54,7 +54,7 @@ from .const import (
     DEFAULT_EVENT_TYPES,
     DEFAULT_BUTTON_METRICS,
 )
-from . import care_link
+from . import care_link, supplies, supply_link
 from .coordinator import PawsistantCoordinator
 from .store import PawsistantStore, _parse_timestamp
 
@@ -127,6 +127,8 @@ UPDATE_EVENT_TYPE_SCHEMA = vol.Schema(
         vol.Optional("icon"): cv.string,
         vol.Optional("color"): cv.string,
         vol.Optional("metric"): cv.string,
+        # ``{name, amount}``, or None to stop using a supply.
+        vol.Optional("supply"): vol.Any(None, dict),
     }
 )
 
@@ -137,6 +139,21 @@ ADD_EVENT_TYPE_SCHEMA = vol.Schema(
         vol.Required("icon"): cv.string,
         vol.Required("color"): cv.string,
         vol.Optional("metric", default="daily_count"): cv.string,
+        vol.Optional("supply"): vol.Any(None, dict),
+    }
+)
+
+UPDATE_SUPPLY_SCHEMA = vol.Schema(
+    {
+        vol.Required("event_type"): cv.string,
+        vol.Optional("stock"): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=0))),
+        vol.Optional("reorder_at"): vol.Any(
+            None, vol.All(vol.Coerce(float), vol.Range(min=0))
+        ),
+        vol.Optional("unit"): vol.Any(None, cv.string),
+        vol.Optional("pack_size"): vol.Any(
+            None, vol.All(vol.Coerce(float), vol.Range(min=0))
+        ),
     }
 )
 
@@ -479,8 +496,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 hass, task_id, (event or {}).get("timestamp")
             )
 
-    async def handle_log_event(call: ServiceCall) -> None:
-        """Handle pawsistant.log_event."""
+    async def _give_back_supply(event: dict[str, Any] | None) -> None:
+        """Give back the stock a just-deleted event took, when it took any itself."""
+        draw = (event or {}).get("supply_draw")
+        if isinstance(draw, dict) and draw.get("asset_id") and draw.get("part_id"):
+            await supply_link.give_back(
+                hass,
+                draw["asset_id"],
+                draw["part_id"],
+                float(draw.get("applied_delta") or 0),
+            )
+
+    async def _resolve_supply(
+        event_type: str, raw: Any, all_types: dict[str, dict[str, Any]]
+    ) -> dict[str, Any] | None:
+        """Check a ``supply`` field and turn it into the stored form, or raise."""
+        from homeassistant.exceptions import ServiceValidationError
+
+        try:
+            wanted = supplies.normalize_supply_input(raw)
+        except supplies.SupplyError as err:
+            raise ServiceValidationError(str(err)) from err
+        if wanted is None:
+            return None
+        resolved = await supply_link.resolve_supply(hass, all_types, wanted)
+        if resolved is None:
+            raise ServiceValidationError(
+                "A supply needs Home Keeper 0.27.0b5 or newer. Install or update Home "
+                "Keeper, then try again."
+            )
+        return resolved
+
+    async def _after_supply_change() -> None:
+        """Tidy the appliance's parts and re-link the care tasks to their supplies."""
+        store, _coord = _get_store_and_coord()
+        await supply_link.sync_parts(hass, store.get_event_types())
+        await supply_link.sync_links(hass, store)
+
+    async def handle_log_event(call: ServiceCall) -> dict[str, Any] | None:
+        """Handle pawsistant.log_event. Returns the new event's id, for an undo."""
         store, coord = _get_store_and_coord()
         dog_name: str = call.data["dog"]
         event_type: str = call.data["event_type"]
@@ -491,7 +545,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         dog_id = _find_dog_id(store, dog_name)
         if dog_id is None:
             _LOGGER.error("pawsistant.log_event: dog '%s' not found", dog_name)
-            return
+            return None
+
+        # A supply is drawn once per log. With a care schedule, Home Keeper draws it
+        # when the linked task is completed below. Without one, we draw it here and
+        # keep what Home Keeper really took on the event, so a delete gives that back.
+        found = store.find_care_schedule(dog_id, event_type)
+        supply = supplies.event_type_supply(store.get_event_types().get(event_type))
+        extra: dict[str, Any] = {}
+        if supply is not None and not (found and found[1].get("task_id")):
+            applied = await supply_link.draw(hass, supply, supply["amount"])
+            if applied is not None:
+                extra["supply_draw"] = {
+                    "asset_id": supply["asset_id"],
+                    "part_id": supply["part_id"],
+                    "applied_delta": applied,
+                }
 
         event = await store.add_event(
             dog_id=dog_id,
@@ -499,6 +568,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             note=note,
             value=value,
             timestamp=timestamp,
+            extra=extra,
         )
         _LOGGER.debug(
             "Logged %s event for '%s' (id=%s)", event_type, dog_name, event["id"]
@@ -508,14 +578,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Cross-integration: if this activity has a care schedule, mark the linked
         # Home Keeper task done too ("the same button"). care_link passes our origin
         # marker so the resulting completion event is ignored by our own listener.
-        found = store.find_care_schedule(dog_id, event_type)
         if found:
             await care_link.complete_task(
                 hass, found[1].get("task_id"), event["timestamp"]
             )
+        return {"event_id": event["id"]}
 
     hass.services.async_register(
-        DOMAIN, "log_event", handle_log_event, schema=LOG_EVENT_SCHEMA
+        DOMAIN,
+        "log_event",
+        handle_log_event,
+        schema=LOG_EVENT_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
     async def handle_delete_event(call: ServiceCall) -> None:
@@ -530,6 +604,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.debug("Deleted event %s", event_id)
             await coord.async_refresh()
             await _undo_linked_completion(store, event)
+            await _give_back_supply(event)
         else:
             _LOGGER.warning(
                 "pawsistant.delete_event: event id '%s' not found", event_id
@@ -759,11 +834,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     f"Invalid metric '{metric_val}'. Must be one of: "
                     f"{', '.join(VALID_BUTTON_METRICS)}."
                 )
+        supply_changed = "supply" in call.data
+        if supply_changed:
+            update["supply"] = await _resolve_supply(
+                event_type, call.data["supply"], all_types
+            )
 
         if not update:
             raise ServiceValidationError(
                 "No fields to update. Provide at least one of: "
-                "name, icon, color, metric."
+                "name, icon, color, metric, supply."
             )
 
         # Merge update into stored event types.
@@ -773,6 +853,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         stored = store.get_stored_event_type_overrides()
         existing_resolved = all_types.get(event_type, {})
         merged = {**existing_resolved, **update}
+        if merged.get("supply") is None:
+            merged.pop("supply", None)
         # Preserve all existing stored overrides (including tombstones for other keys),
         # then set/update just this key.
         new_overrides = dict(stored)
@@ -795,6 +877,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info(
             "Updated event type '%s': %s", event_type, update
         )
+        if supply_changed:
+            await _after_supply_change()
         await coord.async_refresh()
 
     hass.services.async_register(
@@ -853,9 +937,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 f"Use update_event_type to modify it, or choose a different key."
             )
 
+        entry_data: dict[str, Any] = {"name": name, "icon": icon_val, "color": color_val}
+        supply = None
+        if call.data.get("supply") is not None:
+            supply = await _resolve_supply(key, call.data["supply"], all_types)
+            entry_data["supply"] = supply
+
         # Build stored overrides (only the new key)
         event_types = store.get_stored_event_type_overrides()
-        event_types[key] = {"name": name, "icon": icon_val, "color": color_val}
+        event_types[key] = entry_data
         store.save_event_types(event_types)
 
         # Persist metric override if not default
@@ -868,6 +958,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info(
             "Added event type '%s' (%s, %s, %s)", key, name, icon_val, color_val
         )
+        if supply is not None:
+            await _after_supply_change()
         await coord.async_refresh()
 
     hass.services.async_register(
@@ -875,6 +967,50 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "add_event_type",
         handle_add_event_type,
         schema=ADD_EVENT_TYPE_SCHEMA,
+    )
+
+    async def handle_update_supply(call: ServiceCall) -> None:
+        """Handle pawsistant.update_supply: the count, reorder point, unit, pack size.
+
+        These are the user's numbers on a part of our own appliance. The call reaches
+        Home Keeper as ours, so a household member can set the count of a pet supply
+        without admin rights, and only of a pet supply.
+        """
+        from homeassistant.exceptions import ServiceValidationError
+
+        store, coord = _get_store_and_coord()
+        event_type: str = call.data["event_type"]
+        supply = supplies.event_type_supply(store.get_event_types().get(event_type))
+        if supply is None:
+            raise ServiceValidationError(
+                f"Event type '{event_type}' does not use a supply. Set one with "
+                "update_event_type first."
+            )
+        changes: dict[str, Any] = {}
+        for field, key in (
+            ("stock", "stock"),
+            ("reorder_at", "reorder_at"),
+            ("unit", "stock_unit"),
+            ("pack_size", "restock_quantity"),
+        ):
+            if field in call.data:
+                changes[key] = call.data[field]
+        if not changes:
+            raise ServiceValidationError(
+                "No fields to update. Provide at least one of: "
+                "stock, reorder_at, unit, pack_size."
+            )
+        if not await supply_link.update_stock(hass, supply, changes):
+            raise ServiceValidationError(
+                f"Home Keeper did not accept the change to the supply of '{event_type}'."
+            )
+        await coord.async_refresh()
+
+    hass.services.async_register(
+        DOMAIN,
+        "update_supply",
+        handle_update_supply,
+        schema=UPDATE_SUPPLY_SCHEMA,
     )
 
     async def handle_delete_event_type(call: ServiceCall) -> None:
@@ -907,6 +1043,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         else:
             event_types.pop(event_type, None)
         store.save_event_types(event_types)
+
+        # Read from the registry as it was before the delete above.
+        had_supply = supplies.event_type_supply(all_types.get(event_type)) is not None
 
         # Remove metric override if present
         metrics = store.get_stored_button_metric_overrides()
@@ -958,6 +1097,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         store.sync_save_meta()
         _LOGGER.info("Deleted event type '%s'", event_type)
+        # A supply nobody uses any more leaves the appliance, unless it has a count.
+        if had_supply:
+            await supply_link.sync_parts(hass, store.get_event_types())
         await coord.async_refresh()
 
     hass.services.async_register(
@@ -1096,6 +1238,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async def _run() -> None:
             store, _coord = _get_store_and_coord()
             await care_link.reconcile(hass, store)
+            # After reconcile, so a recreated task is linked to its supply too.
+            await supply_link.sync_links(hass, store)
 
         hass.async_create_task(_run())
 
@@ -1126,6 +1270,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return False
 
 
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """On removal, hand the supplies appliance to the user, or delete an empty one.
+
+    The counts are the user's. Deleting a counted appliance would delete them too.
+    """
+    await supply_link.hand_back(hass)
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
@@ -1149,6 +1301,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "add_event_type",
             "delete_event_type",
             "set_shown_types",
+            "update_supply",
         ):
             hass.services.async_remove(DOMAIN, service)
 
