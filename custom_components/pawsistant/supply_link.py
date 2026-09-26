@@ -118,8 +118,10 @@ async def draw(hass: HomeAssistant, supply: dict[str, Any], amount: float) -> fl
 
     The count stops at zero, so the applied delta can be smaller than asked for. A Home
     Keeper that returns no response gives no figure; the asked delta is then the best
-    guess. None when nothing was called.
+    guess. None when nothing was called, and for a supply with no part to draw from.
     """
+    if not supply.get("asset_id") or not supply.get("part_id"):
+        return None
     data = {
         "asset_id": supply["asset_id"],
         "part_id": supply["part_id"],

@@ -565,3 +565,13 @@ async def test_a_supply_without_home_keeper_is_refused(hass, enable_custom_integ
             {"event_type": "poop", "supply": {"name": "Rolls"}},
             blocking=True,
         )
+
+
+@requires_hk_supplies
+@pytest.mark.asyncio
+async def test_draw_ignores_a_supply_with_no_part(hass, enable_custom_integrations):
+    from custom_components.pawsistant import supply_link
+
+    await testing.async_setup_fake_home_keeper(hass)
+    assert await supply_link.draw(hass, {"amount": 1}, 1) is None
+    assert await supply_link.draw(hass, {"asset_id": "a1", "part_id": ""}, 1) is None
