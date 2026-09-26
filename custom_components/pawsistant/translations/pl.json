@@ -287,6 +287,10 @@
         "metric": {
           "name": "Metryka przycisku",
           "description": "Co wyświetlać na przycisku czujnika. Opcje: daily_count (N dzisiaj), days_since (N dni), last_value (wartość z ostatniego zdarzenia), hours_since (N godzin). Domyślnie daily_count, jeśli pominięto."
+        },
+        "supply": {
+          "name": "Zapas",
+          "description": "Zapas zużywany przez każdy wpis tego typu, liczony w Home Keeper. Podaj nazwę i ilość na wpis. Ustaw null, aby przestać go używać."
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "Metryka przycisku",
           "description": "Co wyświetlać na przycisku czujnika. Opcje: daily_count (N dzisiaj), days_since (N dni), last_value (wartość z ostatniego zdarzenia), hours_since (N godzin). Domyślnie daily_count, jeśli pominięto."
+        },
+        "supply": {
+          "name": "Zapas",
+          "description": "Zapas zużywany przez każdy wpis tego typu, liczony w Home Keeper. Podaj nazwę i ilość na wpis. Ustaw null, aby przestać go używać."
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "Wyświetlane typy",
           "description": "Uporządkowana lista kluczy typów zdarzeń wyświetlanych jako przyciski."
+        }
+      }
+    },
+    "update_supply": {
+      "name": "Aktualizuj zapas",
+      "description": "Ustaw stan, próg zamówienia, jednostkę lub wielkość opakowania zapasu typu zdarzenia.",
+      "fields": {
+        "event_type": {
+          "name": "Klucz typu zdarzenia",
+          "description": "Typ zdarzenia, który używa zapasu."
+        },
+        "stock": {
+          "name": "Na stanie",
+          "description": "Ile masz teraz."
+        },
+        "reorder_at": {
+          "name": "Zamów przy",
+          "description": "Przy tej liczbie Home Keeper tworzy zadanie zakupu."
+        },
+        "unit": {
+          "name": "Jednostka",
+          "description": "W czym liczysz, np. rolka lub tabletka."
+        },
+        "pack_size": {
+          "name": "Wielkość opakowania",
+          "description": "Ile dodać po odhaczeniu zadania zakupu."
         }
       }
     }

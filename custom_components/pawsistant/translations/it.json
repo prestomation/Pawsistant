@@ -287,6 +287,10 @@
         "metric": {
           "name": "Metrica del pulsante",
           "description": "Cosa mostrare sul pulsante del sensore. Opzioni: daily_count (N oggi), days_since (N giorni), last_value (valore dell'evento più recente), hours_since (N ore). Predefinito daily_count se omesso."
+        },
+        "supply": {
+          "name": "Scorta",
+          "description": "Una scorta usata da ogni registrazione di questo tipo, contata in Home Keeper. Indica un nome e la quantità per registrazione. Usa null per non usarla più."
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "Metrica del pulsante",
           "description": "Cosa mostrare sul pulsante del sensore. Opzioni: daily_count (N oggi), days_since (N giorni), last_value (valore dell'evento più recente), hours_since (N ore). Predefinito daily_count se omesso."
+        },
+        "supply": {
+          "name": "Scorta",
+          "description": "Una scorta usata da ogni registrazione di questo tipo, contata in Home Keeper. Indica un nome e la quantità per registrazione. Usa null per non usarla più."
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "Tipi visualizzati",
           "description": "Elenco ordinato delle chiavi dei tipi di evento da mostrare come pulsanti."
+        }
+      }
+    },
+    "update_supply": {
+      "name": "Aggiorna scorta",
+      "description": "Imposta giacenza, punto di riordino, unità o dimensione della confezione della scorta di un tipo di evento.",
+      "fields": {
+        "event_type": {
+          "name": "Chiave del tipo di evento",
+          "description": "Il tipo di evento che usa la scorta."
+        },
+        "stock": {
+          "name": "In magazzino",
+          "description": "Quanti ne hai ora."
+        },
+        "reorder_at": {
+          "name": "Riordina a",
+          "description": "A questa quantità Home Keeper crea un'attività di acquisto."
+        },
+        "unit": {
+          "name": "Unità",
+          "description": "In cosa si conta, ad es. rotolo o compressa."
+        },
+        "pack_size": {
+          "name": "Dimensione confezione",
+          "description": "Quanti aggiungere quando spunti l'attività di acquisto."
         }
       }
     }

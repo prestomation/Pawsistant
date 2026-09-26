@@ -12,6 +12,8 @@ interface RenderButtonOptions {
   container: HTMLElement;
   meta: EventMeta;
   metricText: string;
+  /** The stock badge markup from `supply.badgeHTML`, or '' for none. */
+  badge?: string;
   onTap: (btn: HTMLButtonElement) => void;
   onLongPress: (btn: HTMLButtonElement) => void;
   timers: (ReturnType<typeof setTimeout> | number)[];
@@ -38,6 +40,8 @@ export function renderPawsistantButton(opts: RenderButtonOptions): RenderButtonR
   labelSpan.className = 'btn-label';
   labelSpan.textContent = meta.label + (metricText ? ` ${metricText}` : '');
   btn.appendChild(labelSpan);
+
+  if (opts.badge) btn.insertAdjacentHTML('beforeend', opts.badge);
 
   const lpCleanup = setupLongPress(btn, { onTap, onLongPress }, timers);
 

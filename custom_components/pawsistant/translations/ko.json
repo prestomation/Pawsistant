@@ -287,6 +287,10 @@
         "metric": {
           "name": "버튼 메트릭",
           "description": "센서 버튼에 표시할 내용. 옵션: daily_count (오늘 N회), days_since (N일), last_value (가장 최근 이벤트의 값), hours_since (N시간). 생략하면 기본값은 daily_count입니다."
+        },
+        "supply": {
+          "name": "소모품",
+          "description": "이 유형의 기록마다 사용하는 소모품으로, Home Keeper에서 셉니다. 이름과 기록당 양을 입력하세요. null로 설정하면 사용을 멈춥니다."
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "버튼 메트릭",
           "description": "센서 버튼에 표시할 내용. 옵션: daily_count (오늘 N회), days_since (N일), last_value (가장 최근 이벤트의 값), hours_since (N시간). 생략하면 기본값은 daily_count입니다."
+        },
+        "supply": {
+          "name": "소모품",
+          "description": "이 유형의 기록마다 사용하는 소모품으로, Home Keeper에서 셉니다. 이름과 기록당 양을 입력하세요. null로 설정하면 사용을 멈춥니다."
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "표시 유형",
           "description": "버튼으로 표시할 이벤트 유형 키의 순서 있는 목록."
+        }
+      }
+    },
+    "update_supply": {
+      "name": "소모품 업데이트",
+      "description": "이벤트 유형이 사용하는 소모품의 재고, 재주문 기준, 단위 또는 팩 크기를 설정합니다.",
+      "fields": {
+        "event_type": {
+          "name": "이벤트 유형 키",
+          "description": "소모품을 사용하는 이벤트 유형."
+        },
+        "stock": {
+          "name": "재고",
+          "description": "지금 가진 수량."
+        },
+        "reorder_at": {
+          "name": "재주문 기준",
+          "description": "이 수량이 되면 Home Keeper가 구매 작업을 추가합니다."
+        },
+        "unit": {
+          "name": "단위",
+          "description": "세는 단위(예: 롤, 정)."
+        },
+        "pack_size": {
+          "name": "팩 크기",
+          "description": "구매 작업을 체크하면 더할 수량."
         }
       }
     }

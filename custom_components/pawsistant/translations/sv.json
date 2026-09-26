@@ -287,6 +287,10 @@
         "metric": {
           "name": "Knappmetrik",
           "description": "Vad som visas på sensorknappen. Alternativ: daily_count (N idag), days_since (N dagar), last_value (värde från den senaste händelsen), hours_since (N timmar). Standardvärdet är daily_count om det utelämnas."
+        },
+        "supply": {
+          "name": "Förråd",
+          "description": "Ett förråd som varje registrering av den här typen använder, räknat i Home Keeper. Ange ett namn och mängden per registrering. Sätt null för att sluta."
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "Knappmetrik",
           "description": "Vad som visas på sensorknappen. Alternativ: daily_count (N idag), days_since (N dagar), last_value (värde från den senaste händelsen), hours_since (N timmar). Standardvärdet är daily_count om det utelämnas."
+        },
+        "supply": {
+          "name": "Förråd",
+          "description": "Ett förråd som varje registrering av den här typen använder, räknat i Home Keeper. Ange ett namn och mängden per registrering. Sätt null för att sluta."
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "Visade typer",
           "description": "Ordnad lista med händelsetyp-nycklar som ska visas som knappar."
+        }
+      }
+    },
+    "update_supply": {
+      "name": "Uppdatera förråd",
+      "description": "Ange lager, beställningspunkt, enhet eller förpackningsstorlek för förrådet till en händelsetyp.",
+      "fields": {
+        "event_type": {
+          "name": "Nyckel för händelsetyp",
+          "description": "Händelsetypen som använder förrådet."
+        },
+        "stock": {
+          "name": "I lager",
+          "description": "Hur många du har nu."
+        },
+        "reorder_at": {
+          "name": "Beställ vid",
+          "description": "Vid detta antal skapar Home Keeper en köpuppgift."
+        },
+        "unit": {
+          "name": "Enhet",
+          "description": "Vad som räknas, t.ex. rulle eller tablett."
+        },
+        "pack_size": {
+          "name": "Förpackningsstorlek",
+          "description": "Hur många som läggs till när du bockar av köpuppgiften."
         }
       }
     }

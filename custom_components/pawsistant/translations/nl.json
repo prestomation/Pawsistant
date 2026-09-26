@@ -287,6 +287,10 @@
         "metric": {
           "name": "Knopmetriek",
           "description": "Wat wordt weergegeven op de sensorknop. Opties: daily_count (N vandaag), days_since (N dagen), last_value (waarde van de meest recente gebeurtenis), hours_since (N uur). Standaard is daily_count als weggelaten."
+        },
+        "supply": {
+          "name": "Voorraad",
+          "description": "Een voorraad die elke registratie van dit type gebruikt, geteld in Home Keeper. Geef een naam en de hoeveelheid per registratie. Zet op null om te stoppen."
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "Knopmetriek",
           "description": "Wat wordt weergegeven op de sensorknop. Opties: daily_count (N vandaag), days_since (N dagen), last_value (waarde van de meest recente gebeurtenis), hours_since (N uur). Standaard is daily_count als weggelaten."
+        },
+        "supply": {
+          "name": "Voorraad",
+          "description": "Een voorraad die elke registratie van dit type gebruikt, geteld in Home Keeper. Geef een naam en de hoeveelheid per registratie. Zet op null om te stoppen."
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "Weergegeven types",
           "description": "Geordende lijst van gebeurtenistype-sleutels die als knoppen worden weergegeven."
+        }
+      }
+    },
+    "update_supply": {
+      "name": "Voorraad bijwerken",
+      "description": "Stel het aantal, het bestelpunt, de eenheid of de verpakkingsgrootte in van de voorraad van een gebeurtenistype.",
+      "fields": {
+        "event_type": {
+          "name": "Sleutel van gebeurtenistype",
+          "description": "Het gebeurtenistype dat de voorraad gebruikt."
+        },
+        "stock": {
+          "name": "Op voorraad",
+          "description": "Hoeveel je nu hebt."
+        },
+        "reorder_at": {
+          "name": "Bestellen bij",
+          "description": "Bij dit aantal maakt Home Keeper een koop-taak."
+        },
+        "unit": {
+          "name": "Eenheid",
+          "description": "Waarin geteld wordt, bijv. rol of tablet."
+        },
+        "pack_size": {
+          "name": "Verpakkingsgrootte",
+          "description": "Hoeveel erbij komt als je de koop-taak afvinkt."
         }
       }
     }

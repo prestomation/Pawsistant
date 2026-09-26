@@ -79,6 +79,7 @@ export function buildRegistry(hass: HomeAssistant | null): RegistryResult {
               color: v.color || fallbackEntry.color || '#888',
               icon: v.icon || '',
             };
+            if (v.supply && typeof v.supply === 'object') liveRegistry[k].supply = v.supply;
           }
         }
       }
@@ -98,12 +99,14 @@ export function getMeta(type: string, registry: Registry | null): EventMeta {
     const resolvedEmoji = (entry.emoji && entry.emoji !== '📝')
       ? entry.emoji
       : (entry.icon ? iconToEmoji(entry.icon)! : (entry.emoji || '📝'));
-    return {
+    const meta: EventMeta = {
       emoji: resolvedEmoji,
       label: entry.label || type,
       color: entry.color || 'var(--secondary-text-color, #888)',
       icon: entry.icon || '',
     };
+    if (entry.supply) meta.supply = entry.supply;
+    return meta;
   }
   const fallback = FALLBACK_EVENT_META[type];
   if (fallback) return { ...fallback, icon: '' };

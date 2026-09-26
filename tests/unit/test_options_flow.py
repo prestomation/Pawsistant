@@ -206,6 +206,7 @@ def _inject_stubs() -> None:
     vol_mod.Schema = lambda s, **kw: s
     vol_mod.Required = lambda k, **kw: k
     vol_mod.Optional = lambda k, **kw: k
+    vol_mod.Any = lambda *a: a[-1]
     vol_mod.In = lambda v: v
     vol_mod.All = lambda *a: a[0]
     vol_mod.Range = lambda **kw: None
@@ -257,6 +258,11 @@ def _inject_stubs() -> None:
     _care_link.delete_task = AsyncMock(return_value=None)
     _care_link.complete_task = AsyncMock(return_value=None)
     sys.modules["custom_components.pawsistant.care_link"] = _care_link
+
+    # custom_components.pawsistant.supply_link — the supplies side of Home Keeper.
+    _supply_link = types.ModuleType("custom_components.pawsistant.supply_link")
+    _supply_link.sync_links = AsyncMock(return_value=None)
+    sys.modules["custom_components.pawsistant.supply_link"] = _supply_link
 
     # custom_components.pawsistant — always stub to prevent __init__.py from
     # being executed when config_flow.py is loaded via importlib.

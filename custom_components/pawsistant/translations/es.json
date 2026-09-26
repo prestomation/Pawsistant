@@ -287,6 +287,10 @@
         "metric": {
           "name": "Métrica del botón",
           "description": "Qué mostrar en el botón del sensor. Opciones: daily_count (N hoy), days_since (hace N días), last_value (valor del evento más reciente), hours_since (hace N horas). Por defecto, daily_count."
+        },
+        "supply": {
+          "name": "Suministro",
+          "description": "Un suministro que usa cada registro de este tipo, contado en Home Keeper. Indica un nombre y la cantidad por registro. Usa null para dejar de usarlo."
         }
       }
     },
@@ -313,6 +317,10 @@
         "metric": {
           "name": "Métrica del botón",
           "description": "Qué mostrar en el botón del sensor. Opciones: daily_count (N hoy), days_since (hace N días), last_value (valor del evento más reciente), hours_since (hace N horas). Por defecto, daily_count."
+        },
+        "supply": {
+          "name": "Suministro",
+          "description": "Un suministro que usa cada registro de este tipo, contado en Home Keeper. Indica un nombre y la cantidad por registro. Usa null para dejar de usarlo."
         }
       }
     },
@@ -337,6 +345,32 @@
         "shown_types": {
           "name": "Tipos visibles",
           "description": "Lista ordenada de claves de tipo de evento a mostrar como botones."
+        }
+      }
+    },
+    "update_supply": {
+      "name": "Actualizar suministro",
+      "description": "Define la existencia, el punto de pedido, la unidad o el tamaño del paquete del suministro de un tipo de evento.",
+      "fields": {
+        "event_type": {
+          "name": "Clave del tipo de evento",
+          "description": "El tipo de evento que usa el suministro."
+        },
+        "stock": {
+          "name": "En existencia",
+          "description": "Cuántos tienes ahora."
+        },
+        "reorder_at": {
+          "name": "Pedir en",
+          "description": "Con esta cantidad Home Keeper crea una tarea de compra."
+        },
+        "unit": {
+          "name": "Unidad",
+          "description": "En qué se cuenta, p. ej. rollo o pastilla."
+        },
+        "pack_size": {
+          "name": "Tamaño del paquete",
+          "description": "Cuántos se suman al marcar la tarea de compra."
         }
       }
     }

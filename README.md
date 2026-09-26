@@ -92,6 +92,36 @@ Pawsistant also **announces itself to Home Keeper** so it appears under Home Kee
 page (where the care schedules above live) — so if you have both, you'll discover they
 pair up from either side.
 
+### Supplies (Home Keeper integration)
+
+An event type can **use a supply** that Home Keeper counts, such as poop bag rolls or
+medicine tablets. Each log of that type takes a set amount off the count. When the
+count reaches its reorder point, Home Keeper adds a Buy task to your shopping list.
+Tick that task at the store and Home Keeper adds the pack size back.
+
+Two common setups:
+
+- **Poop bag rolls.** Add a custom event type **Roll** with the supply *Poop bag rolls*,
+  1 per log. Tap Roll when you put a new roll on the leash. Poop logs do not change the
+  count, so it stays correct when you use someone else's bag.
+- **Medicine.** Add a custom event type for each medicine, such as **Carprofen**, with
+  the supply *Carprofen 75 mg* and 1 tablet (or 0.5) per log. It can keep its care
+  schedule and its *Days since* number. Home Keeper takes the dose when the task is
+  completed, from Pawsistant or from Home Keeper, and gives it back on an undo.
+
+Set a supply in the card: open ⚙️, edit the event type, and fill in **Uses a supply**
+(the supply name, the amount per log, the count now, the reorder point, the unit and the
+pack size). Each supply is a part of one **Pet supplies** appliance in Home Keeper. You
+own the counts; Pawsistant owns the appliance name and its list of parts.
+
+On the card, a button that uses a supply shows the count in its corner. The badge is
+amber at the reorder point and red at 0. The log form shows what the log takes, and a
+toast after a log shows what is left, with **Undo**. The 📦 button in the card header
+opens **Supplies**, where anyone can correct a count or add a pack.
+
+Supplies need Home Keeper 0.27.0b5 or newer. If you remove Pawsistant, it hands a
+counted **Pet supplies** appliance over to you in Home Keeper, with your counts.
+
 ---
 
 ## Lovelace Card
@@ -172,6 +202,23 @@ Log an activity for a dog.
 | `note` | — | Optional note |
 | `value` | — | Numeric value (required for `weight` events; lbs) |
 | `timestamp` | — | ISO 8601 timestamp for backdating; defaults to now |
+
+`log_event` returns `{event_id}` when you ask for a response.
+
+### `pawsistant.update_supply`
+Set the count, reorder point, unit or pack size of the supply an event type uses.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `event_type` | ✅ | The event type that uses the supply |
+| `stock` | — | How many you have now |
+| `reorder_at` | — | The count at which Home Keeper adds a Buy task |
+| `unit` | — | What the count is in, e.g. `roll` or `tablet` |
+| `pack_size` | — | How many to add when you tick the Buy task |
+
+Set the supply itself with the `supply` field of `pawsistant.add_event_type` or
+`pawsistant.update_event_type`: `{"name": "Poop bag rolls", "amount": 1}`, or `null` to
+stop using one.
 
 ### `pawsistant.delete_event`
 Delete an event by ID.

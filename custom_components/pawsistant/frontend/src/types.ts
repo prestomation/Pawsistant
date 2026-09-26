@@ -22,7 +22,14 @@ export interface HassConnection {
 
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
-  callService: (domain: string, service: string, data: Record<string, unknown>) => Promise<unknown>;
+  callService: (
+    domain: string,
+    service: string,
+    data: Record<string, unknown>,
+    target?: Record<string, unknown>,
+    notifyOnError?: boolean,
+    returnResponse?: boolean,
+  ) => Promise<unknown>;
   connection?: HassConnection;
   language?: string;
   config?: { time_zone?: string };
@@ -54,17 +61,29 @@ export interface WSEvent {
 
 /* ── Registry types ───────────────────────────────────────────────── */
 
+/** The supply an event type uses: a part that Home Keeper counts. */
+export interface SupplyMeta {
+  asset_id?: string;
+  part_id?: string;
+  name?: string;
+  amount?: number;
+  /** Home Keeper's spares number for the part; the backend resolves it. */
+  entity_id?: string | null;
+}
+
 export interface EventMeta {
   emoji: string;
   label: string;
   color: string;
   icon?: string;
+  supply?: SupplyMeta;
 }
 
 export interface EventMetaInput {
   name?: string;
   icon?: string;
   color?: string;
+  supply?: SupplyMeta;
 }
 
 export interface Registry {
@@ -109,6 +128,17 @@ export interface EventTypeFormState {
   icon: string;
   color: string;
   metric: string;
+  /** The "Uses a supply" fields, as typed. Empty strings mean "not set". */
+  supply?: SupplyFormState;
+}
+
+export interface SupplyFormState {
+  name: string;
+  amount: string;
+  stock: string;
+  reorder_at: string;
+  unit: string;
+  pack: string;
 }
 
 /* ── Metric label formatters ───────────────────────────────────────── */
@@ -145,6 +175,8 @@ export interface BackdateFormResult {
   timestamp: string;
   note?: string;
   cleanup: () => void;
+  /** The logged event, for an Undo; null from an older backend. */
+  eventId?: string | null;
 }
 
 export interface WeightFormResult {

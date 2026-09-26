@@ -404,3 +404,92 @@ describe('PawsistantButtonCard event log popup', () => {
     expect(card._hass.connection.sendMessagePromise).not.toHaveBeenCalled();
   });
 });
+
+describe('PawsistantButtonCard supplies', () => {
+  const SUPPLY = { entity_id: 'number.rolls_spares', amount: 1, name: 'Poop bag rolls' };
+
+  function supplyHass(count = '3', status = 'ok') {
+    const hass = mockHass(['Sharky'], {
+      roll: { name: 'Roll', icon: 'mdi:paper-roll', color: '#888', supply: SUPPLY },
+      poop: { name: 'Poop', icon: 'mdi:emoticon-poop', color: '#888' },
+    });
+    hass.states['number.rolls_spares'] = {
+      state: count,
+      attributes: { unit_of_measurement: 'roll', status, reorder_at: 1, restock_quantity: 8 },
+    };
+    return hass;
+  }
+
+  function mount(hass) {
+    const card = new PawsistantButtonCard();
+    card.setConfig({
+      type: 'custom:pawsistant-button-card',
+      dog: 'Sharky',
+      buttons: [{ event_type: 'roll' }, { event_type: 'poop' }],
+    });
+    card.hass = hass;
+    return card;
+  }
+
+  it('shows a stock badge only on the button that uses a supply', () => {
+    const card = mount(supplyHass('1', 'low'));
+    const buttons = card.shadowRoot.querySelectorAll('.log-btn');
+    expect(buttons[0].querySelector('.stock-badge.low').textContent).toBe('1');
+    expect(buttons[1].querySelector('.stock-badge')).toBeNull();
+  });
+
+  it('redraws the badge when the count changes', () => {
+    const card = mount(supplyHass('3'));
+    card.hass = supplyHass('2');
+    expect(card.shadowRoot.querySelector('.stock-badge').textContent).toBe('2');
+  });
+
+  it('offers the Supplies popup from the header', () => {
+    const card = mount(supplyHass('3'));
+    const btn = card.shadowRoot.getElementById('pbc-supplies-btn');
+    expect(btn).not.toBeNull();
+    btn.click();
+    expect(card.shadowRoot.querySelector('.pw-sup-dialog')).not.toBeNull();
+    expect(card._activeForm).toBe(true);
+    card.shadowRoot.querySelector('.pw-sup-close').click();
+    expect(card._activeForm).toBe(false);
+  });
+
+  it('has no Supplies button when no button uses a supply', () => {
+    const card = new PawsistantButtonCard();
+    card.setConfig({ type: 'custom:pawsistant-button-card', dog: 'Sharky', buttons: [{ event_type: 'poop' }] });
+    card.hass = supplyHass('3');
+    expect(card.shadowRoot.getElementById('pbc-supplies-btn')).toBeNull();
+  });
+
+  it('shows what is left after a log, with an Undo that deletes the event', async () => {
+    const hass = supplyHass('2');
+    hass.callService.mockResolvedValue({ response: { event_id: 'ev-7' } });
+    const card = mount(hass);
+    const btn = card.shadowRoot.querySelector('.log-btn');
+    card._instantLog(btn, 'roll');
+    await Promise.resolve();
+    await Promise.resolve();
+    const toast = card.shadowRoot.querySelector('.pw-toast');
+    expect(toast.textContent).toContain('Roll logged · 1 left');
+    expect(toast.textContent).toContain('Low stock: Home Keeper added a Buy task');
+    // The count arrives from Home Keeper: the card redraws, and the toast stays.
+    const next = supplyHass('1', 'low');
+    next.callService = hass.callService;
+    card.hass = next;
+    const again = card.shadowRoot.querySelector('.pw-toast');
+    expect(again).not.toBeNull();
+    again.querySelector('button').click();
+    expect(hass.callService).toHaveBeenLastCalledWith('pawsistant', 'delete_event', { event_id: 'ev-7' });
+  });
+
+  it('shows no toast for a log that uses no supply', async () => {
+    const hass = supplyHass('3');
+    const card = mount(hass);
+    const poop = card.shadowRoot.querySelectorAll('.log-btn')[1];
+    card._instantLog(poop, 'poop');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(card.shadowRoot.querySelector('.pw-toast')).toBeNull();
+  });
+});

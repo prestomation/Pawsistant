@@ -56,7 +56,47 @@ describe('openBackdateForm', () => {
     expect(hass.callService).toHaveBeenCalledWith('pawsistant', 'log_event', expect.objectContaining({
       dog: 'Sharky',
       event_type: 'poop',
-    }));
+    }), undefined, true, true);
+    // An older backend answers with no id, so there is nothing to undo.
+    expect(result.eventId).toBeNull();
+  });
+
+  it('returns the new event id for an undo', async () => {
+    const container = document.createElement('div');
+    const hass = mockHass();
+    hass.callService.mockResolvedValue({ response: { event_id: 'ev-1' } });
+    const meta = { emoji: '🧻', label: 'Roll', color: '#888' };
+    const promise = openBackdateForm({ container, meta, hass, dog: 'Sharky', eventType: 'roll' });
+    container.querySelector('#pbc-form-submit').click();
+    const result = await promise;
+    expect(result.eventId).toBe('ev-1');
+  });
+
+  it('shows what the log takes from a counted supply', async () => {
+    const container = document.createElement('div');
+    const hass = mockHass();
+    hass.states['number.rolls_spares'] = {
+      state: '3',
+      attributes: { unit_of_measurement: 'roll', status: 'ok', reorder_at: 1 },
+    };
+    const meta = {
+      emoji: '🧻', label: 'Roll', color: '#888',
+      supply: { entity_id: 'number.rolls_spares', amount: 1, name: 'Poop bag rolls' },
+    };
+    openBackdateForm({ container, meta, hass, dog: 'Sharky', eventType: 'roll' });
+    const line = container.querySelector('.stock-line');
+    expect(line).not.toBeNull();
+    expect(line.textContent).toBe('Takes 1 roll · 3 → 2 left');
+    // The line sits above the note field.
+    expect(line.nextElementSibling.classList.contains('form-field')).toBe(true);
+  });
+
+  it('shows no stock line for a type without a supply', () => {
+    const container = document.createElement('div');
+    const hass = mockHass();
+    const meta = { emoji: '💩', label: 'Poop', color: '#888' };
+    openBackdateForm({ container, meta, hass, dog: 'Sharky', eventType: 'poop' });
+    expect(container.querySelector('.stock-line')).toBeNull();
   });
 
   it('resolves null on cancel', async () => {

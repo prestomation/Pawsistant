@@ -5,6 +5,10 @@ All notable changes to Pawsistant will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Supplies.** An event type can use a supply that Home Keeper counts, and each log
+  takes its amount off the count. The button shows what is left, and at the reorder
+  point Home Keeper adds a Buy task to your shopping list. Needs Home Keeper 0.27.0b5
+  or newer.
 - **Undoing a pet-care completion now syncs both ways with Home Keeper.** Completing a
   scheduled activity already travelled in both directions; correcting a mistake did not.
   Undo a completion in Home Keeper and the logged entry it created disappears from
