@@ -79,6 +79,24 @@ def _sort_key(timestamp: Any) -> datetime:
     return parsed if parsed is not None else datetime.min.replace(tzinfo=timezone.utc)
 
 
+def _export_timestamp(value: Any) -> Any:
+    """Return *value* with UTC added when it has no timezone.
+
+    The store reads a timestamp without a timezone as UTC (``store._parse_timestamp``). The
+    export writes that zone, so that the import, which refuses such a timestamp,
+    accepts every export. A value that does not parse stays as it is.
+    """
+    if not isinstance(value, str) or not value:
+        return value
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    if parsed.tzinfo is not None:
+        return value
+    return parsed.replace(tzinfo=timezone.utc).isoformat()
+
+
 def build_export(snapshot: dict[str, Any]) -> dict[str, Any]:
     """Return the portable ``data`` document for *snapshot*.
 
@@ -105,6 +123,9 @@ def build_export(snapshot: dict[str, Any]) -> dict[str, Any]:
     schedules.sort(key=lambda s: s["id"])
 
     events = [dict(event) for event in snapshot.get("events", [])]
+    for event in events:
+        if "timestamp" in event:
+            event["timestamp"] = _export_timestamp(event["timestamp"])
     # Newest first, as in the year files. The id breaks a tie so that 2 exports of
     # the same data are equal.
     events.sort(key=lambda e: str(e.get("id", "")))

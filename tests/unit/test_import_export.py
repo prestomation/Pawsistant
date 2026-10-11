@@ -155,6 +155,22 @@ class TestExport:
         assert [e["id"] for e in data["events"]] == ["e3", "e2", "e1"]
         assert data["events"][1]["value"] == 30.5
 
+    def test_timestamp_without_zone_is_written_as_utc(self):
+        snapshot = _sample_store()
+        snapshot["events"][0]["timestamp"] = "2025-06-01T08:30:00"
+        snapshot["events"][1]["timestamp"] = "not a time"
+        data = ie.build_export(snapshot)
+        stamps = {e["id"]: e["timestamp"] for e in data["events"]}
+        assert stamps[snapshot["events"][0]["id"]] == "2025-06-01T08:30:00+00:00"
+        assert stamps[snapshot["events"][1]["id"]] == "not a time"
+        assert stamps["e3"] == "2026-04-01T10:00:00+00:00"
+
+    def test_export_of_old_naive_store_imports_clean(self):
+        snapshot = _sample_store()
+        snapshot["events"][0]["timestamp"] = "2025-06-01T08:30:00"
+        plan = ie.plan_import(ie.build_export(snapshot), _empty())
+        assert plan.ok
+
     def test_export_does_not_change_the_snapshot(self):
         snapshot = _sample_store()
         before = copy.deepcopy(snapshot)

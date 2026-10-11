@@ -5,6 +5,10 @@ All notable changes to Pawsistant will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Pet data in Home Keeper's export.** The Home Keeper export file now holds your dogs,
+  logs and care schedules, and its import brings them back or applies your edits. Use
+  the new admin-only `pawsistant.export_data` and `pawsistant.import_data` services to
+  do the same for Pawsistant alone.
 - **Undoing a pet-care completion now syncs both ways with Home Keeper.** Completing a
   scheduled activity already travelled in both directions; correcting a mistake did not.
   Undo a completion in Home Keeper and the logged entry it created disappears from
