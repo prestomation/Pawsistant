@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Usuń pupila",
-      "description": "Usuwa pupila i trwale usuwa wszystkie jego zdarzenia. Tej akcji nie można cofnąć.",
+      "description": "Usuwa pupila i trwale usuwa wszystkie jego zdarzenia. Tej akcji nie można cofnąć. Tylko administrator może użyć tej akcji.",
       "fields": {
         "dog": {
           "name": "Pupil",
@@ -256,7 +256,7 @@
     },
     "import_events": {
       "name": "Importuj zdarzenia",
-      "description": "Masowy import zdarzeń z zewnętrznej tablicy JSON. Przeznaczony do jednorazowej migracji z wersji DogLog opartej na Firebase. Zdarzenia, których `id` już istnieje w lokalnym magazynie, są pomijane.",
+      "description": "Masowy import zdarzeń z zewnętrznej tablicy JSON. Przeznaczony do jednorazowej migracji z wersji DogLog opartej na Firebase. Zdarzenia, których `id` już istnieje w lokalnym magazynie, są pomijane. Tylko administrator może użyć tej akcji.",
       "fields": {
         "events": {
           "name": "Zdarzenia",

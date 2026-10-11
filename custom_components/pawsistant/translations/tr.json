@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Evcil Hayvanı Kaldır",
-      "description": "Bir evcil hayvanı kaldırır ve tüm olaylarını kalıcı olarak siler. Bu işlem geri alınamaz.",
+      "description": "Bir evcil hayvanı kaldırır ve tüm olaylarını kalıcı olarak siler. Bu işlem geri alınamaz. Bu eylemi yalnızca bir yönetici kullanabilir.",
       "fields": {
         "dog": {
           "name": "Evcil hayvan",
@@ -256,7 +256,7 @@
     },
     "import_events": {
       "name": "Olayları İçe Aktar",
-      "description": "Olayları harici bir JSON dizisinden toplu olarak içe aktarır. DogLog'un Firebase tabanlı sürümünden tek seferlik geçiş için tasarlanmıştır. `id` alanı yerel depoda zaten mevcut olan olaylar atlanır.",
+      "description": "Olayları harici bir JSON dizisinden toplu olarak içe aktarır. DogLog'un Firebase tabanlı sürümünden tek seferlik geçiş için tasarlanmıştır. `id` alanı yerel depoda zaten mevcut olan olaylar atlanır. Bu eylemi yalnızca bir yönetici kullanabilir.",
       "fields": {
         "events": {
           "name": "Olaylar",

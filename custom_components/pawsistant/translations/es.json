@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Eliminar mascota",
-      "description": "Elimina una mascota y borra permanentemente todos sus eventos. Esta acción no se puede deshacer.",
+      "description": "Elimina una mascota y borra permanentemente todos sus eventos. Esta acción no se puede deshacer. Solo un administrador puede usar esta acción.",
       "fields": {
         "dog": {
           "name": "Mascota",
@@ -256,7 +256,7 @@
     },
     "import_events": {
       "name": "Importar eventos",
-      "description": "Importa eventos en masa desde un array JSON externo. Pensado para una migración única desde la versión de DogLog basada en Firebase. Los eventos cuyo `id` ya existe en el almacén local se omiten.",
+      "description": "Importa eventos en masa desde un array JSON externo. Pensado para una migración única desde la versión de DogLog basada en Firebase. Los eventos cuyo `id` ya existe en el almacén local se omiten. Solo un administrador puede usar esta acción.",
       "fields": {
         "events": {
           "name": "Eventos",

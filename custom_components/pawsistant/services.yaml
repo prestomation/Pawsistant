@@ -137,7 +137,7 @@ remove_dog:
   name: Remove Pet
   description: >
     Remove a pet and permanently delete all of its events.
-    This action cannot be undone.
+    This action cannot be undone. Only an administrator can use this action.
   fields:
     dog:
       name: Pet
@@ -194,7 +194,8 @@ import_events:
   description: >
     Bulk-import events from an external JSON array. Intended for one-time
     migration from the Firebase-backed version of DogLog. Events whose `id`
-    already exists in the local store are skipped.
+    already exists in the local store are skipped. Only an administrator can
+    use this action.
   fields:
     events:
       name: Events

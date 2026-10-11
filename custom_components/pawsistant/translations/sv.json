@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Ta bort husdjur",
-      "description": "Tar bort ett husdjur och raderar permanent alla dess händelser. Denna åtgärd kan inte ångras.",
+      "description": "Tar bort ett husdjur och raderar permanent alla dess händelser. Denna åtgärd kan inte ångras. Endast en administratör kan använda den här åtgärden.",
       "fields": {
         "dog": {
           "name": "Husdjur",
@@ -256,7 +256,7 @@
     },
     "import_events": {
       "name": "Importera händelser",
-      "description": "Massimporterar händelser från en extern JSON-array. Avsett för engångsmigration från den Firebase-baserade versionen av DogLog. Händelser vars `id` redan finns i det lokala lagret hoppas över.",
+      "description": "Massimporterar händelser från en extern JSON-array. Avsett för engångsmigration från den Firebase-baserade versionen av DogLog. Händelser vars `id` redan finns i det lokala lagret hoppas över. Endast en administratör kan använda den här åtgärden.",
       "fields": {
         "events": {
           "name": "Händelser",

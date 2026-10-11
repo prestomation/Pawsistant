@@ -11,9 +11,9 @@ Services:
   pawsistant.log_event      — Log an activity for a named dog
   pawsistant.delete_event   — Delete an event by ID
   pawsistant.add_dog        — Register a new dog
-  pawsistant.remove_dog     — Remove a dog and all its events
+  pawsistant.remove_dog     — Remove a dog and all its events (admin only)
   pawsistant.list_events    — Fire a HA event with query results (for automations)
-  pawsistant.import_events  — Bulk-import events from a JSON array (Firebase migration)
+  pawsistant.import_events  — Bulk-import events from a JSON array (admin only)
   pawsistant.export_data    — Return all data as 1 document (admin only)
   pawsistant.import_data    — Upsert a document from export_data (admin only)
 """
@@ -664,7 +664,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def handle_remove_dog(call: ServiceCall) -> None:
-        """Handle pawsistant.remove_dog."""
+        """Handle pawsistant.remove_dog (admin only)."""
+        await _verify_admin(hass, call)
         from homeassistant.helpers import entity_registry as er
 
         store, coord = _get_store_and_coord()
@@ -758,6 +759,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         Accepts a list of event dicts (e.g. exported from Firebase) and
         bulk-imports them into the local store.  Duplicate IDs are skipped.
         """
+        await _verify_admin(hass, call)
         store, coord = _get_store_and_coord()
         raw_events: list[Any] = call.data["events"]
         if not isinstance(raw_events, list):

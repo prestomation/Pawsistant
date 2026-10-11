@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Remover pet",
-      "description": "Remove um pet e exclui permanentemente todos os seus eventos. Esta ação não pode ser desfeita.",
+      "description": "Remove um pet e exclui permanentemente todos os seus eventos. Esta ação não pode ser desfeita. Somente um administrador pode usar esta ação.",
       "fields": {
         "dog": {
           "name": "Pet",
@@ -256,7 +256,7 @@
     },
     "import_events": {
       "name": "Importar eventos",
-      "description": "Importa eventos em massa a partir de um array JSON externo. Destinado a uma migração única da versão do DogLog baseada no Firebase. Eventos cujo `id` já existe no armazenamento local são ignorados.",
+      "description": "Importa eventos em massa a partir de um array JSON externo. Destinado a uma migração única da versão do DogLog baseada no Firebase. Eventos cujo `id` já existe no armazenamento local são ignorados. Somente um administrador pode usar esta ação.",
       "fields": {
         "events": {
           "name": "Eventos",

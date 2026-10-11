@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Haustier entfernen",
-      "description": "Entfernt ein Haustier und löscht dauerhaft alle seine Ereignisse. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "description": "Entfernt ein Haustier und löscht dauerhaft alle seine Ereignisse. Diese Aktion kann nicht rückgängig gemacht werden. Nur ein Administrator kann diese Aktion verwenden.",
       "fields": {
         "dog": {
           "name": "Haustier",
@@ -256,7 +256,7 @@
     },
     "import_events": {
       "name": "Ereignisse importieren",
-      "description": "Importiert Ereignisse in großen Mengen aus einem externen JSON-Array. Gedacht für eine einmalige Migration von der Firebase-basierten Version von DogLog. Ereignisse, deren `id` bereits im lokalen Speicher vorhanden ist, werden übersprungen.",
+      "description": "Importiert Ereignisse in großen Mengen aus einem externen JSON-Array. Gedacht für eine einmalige Migration von der Firebase-basierten Version von DogLog. Ereignisse, deren `id` bereits im lokalen Speicher vorhanden ist, werden übersprungen. Nur ein Administrator kann diese Aktion verwenden.",
       "fields": {
         "events": {
           "name": "Ereignisse",
