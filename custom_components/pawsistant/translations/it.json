@@ -346,7 +346,7 @@
     },
     "delete_event_type": {
       "name": "Elimina tipo di evento",
-      "description": "Elimina definitivamente un tipo di evento personalizzato. I tipi integrati (food, walk, ecc.) non possono essere eliminati: usa update_event_type per modificarli. Gli eventi già registrati con questo tipo vengono conservati nel database.",
+      "description": "Elimina definitivamente un tipo di evento personalizzato. I tipi integrati (food, walk, ecc.) non possono essere eliminati: usa update_event_type per modificarli. Gli eventi già registrati con questo tipo vengono conservati nel database. Solo un amministratore può usare questa azione.",
       "fields": {
         "event_type": {
           "name": "Chiave del tipo di evento",

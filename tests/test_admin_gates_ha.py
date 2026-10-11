@@ -1,7 +1,8 @@
 """Home Assistant tests for the admin-only bulk services.
 
-``pawsistant.import_events`` and ``pawsistant.remove_dog`` change many records at
-once, so only an administrator can call them. A call with no user (an automation or
+``pawsistant.import_events``, ``pawsistant.remove_dog`` and
+``pawsistant.delete_event_type`` change many records at once, so only an
+administrator can call them. A call with no user (an automation or
 a script) still works. These use real Home Assistant (the ``real_ha`` marker), so
 they run in the first pytest process.
 """
@@ -129,3 +130,61 @@ async def test_call_without_user_can_remove_dog(hass, enable_custom_integrations
     entry = await _setup(hass)
     await _remove_dog(hass)
     assert entry.runtime_data.store.get_dog_by_name("Buddy") is None
+
+
+async def _add_custom_type(hass) -> None:
+    await hass.services.async_call(
+        DOMAIN,
+        "add_event_type",
+        {"event_type": "brush", "name": "Brush", "icon": "mdi:brush", "color": "#336699"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+
+async def _delete_custom_type(hass, context=None) -> None:
+    await hass.services.async_call(
+        DOMAIN, "delete_event_type", {"event_type": "brush"}, blocking=True, context=context
+    )
+    await hass.async_block_till_done()
+
+
+def _has_custom_type(entry: MockConfigEntry) -> bool:
+    return "brush" in entry.runtime_data.store.get_event_types()
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_delete_event_type(
+    hass, enable_custom_integrations, hass_read_only_user
+):
+    entry = await _setup(hass)
+    await _add_custom_type(hass)
+    with pytest.raises(Unauthorized):
+        await _delete_custom_type(hass, Context(user_id=hass_read_only_user.id))
+    assert _has_custom_type(entry)
+
+
+@pytest.mark.asyncio
+async def test_unknown_user_cannot_delete_event_type(hass, enable_custom_integrations):
+    entry = await _setup(hass)
+    await _add_custom_type(hass)
+    with pytest.raises(Unauthorized):
+        await _delete_custom_type(hass, Context(user_id="no-such-user"))
+    assert _has_custom_type(entry)
+
+
+@pytest.mark.asyncio
+async def test_admin_can_delete_event_type(hass, enable_custom_integrations, hass_admin_user):
+    entry = await _setup(hass)
+    await _add_custom_type(hass)
+    assert _has_custom_type(entry)
+    await _delete_custom_type(hass, Context(user_id=hass_admin_user.id))
+    assert not _has_custom_type(entry)
+
+
+@pytest.mark.asyncio
+async def test_call_without_user_can_delete_event_type(hass, enable_custom_integrations):
+    entry = await _setup(hass)
+    await _add_custom_type(hass)
+    await _delete_custom_type(hass)
+    assert not _has_custom_type(entry)

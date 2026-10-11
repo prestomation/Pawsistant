@@ -346,7 +346,7 @@
     },
     "delete_event_type": {
       "name": "Olay Türünü Sil",
-      "description": "Özel bir olay türünü kalıcı olarak siler. Yerleşik türler (food, walk vb.) silinemez — bunları değiştirmek için update_event_type kullanın. Bu türle zaten kaydedilmiş olaylar veritabanında korunur.",
+      "description": "Özel bir olay türünü kalıcı olarak siler. Yerleşik türler (food, walk vb.) silinemez — bunları değiştirmek için update_event_type kullanın. Bu türle zaten kaydedilmiş olaylar veritabanında korunur. Bu eylemi yalnızca bir yönetici kullanabilir.",
       "fields": {
         "event_type": {
           "name": "Olay türü anahtarı",

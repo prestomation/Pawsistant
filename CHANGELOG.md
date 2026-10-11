@@ -26,8 +26,8 @@ All notable changes to Pawsistant will be documented in this file.
 - **Pet task fields.** Pawsistant now owns the schedule on a care task, as it already
   owned the name and the device. Home Keeper leaves those fields out of its edit form,
   so change a cadence in Pawsistant rather than in Home Keeper.
-- **Admin-only bulk actions.** Only an administrator can import events or remove a pet
-  now. Automations and scripts still work.
+- **Admin-only bulk actions.** Only an administrator can import events, remove a pet or
+  delete an event type now. Automations and scripts still work.
 
 ### Fixed
 - **Preview builds no longer collide with the stable release they were built from.**

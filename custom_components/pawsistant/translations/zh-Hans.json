@@ -346,7 +346,7 @@
     },
     "delete_event_type": {
       "name": "删除事件类型",
-      "description": "永久删除自定义事件类型。内置类型（food、walk 等）无法删除——请改用 update_event_type 进行修改。已使用此类型记录的事件将保留在数据库中。",
+      "description": "永久删除自定义事件类型。内置类型（food、walk 等）无法删除——请改用 update_event_type 进行修改。已使用此类型记录的事件将保留在数据库中。 只有管理员可以使用此操作。",
       "fields": {
         "event_type": {
           "name": "事件类型键",

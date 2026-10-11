@@ -346,7 +346,7 @@
     },
     "delete_event_type": {
       "name": "Ereignistyp löschen",
-      "description": "Löscht dauerhaft einen benutzerdefinierten Ereignistyp. Integrierte Typen (food, walk usw.) können nicht gelöscht werden – verwende stattdessen update_event_type, um sie zu ändern. Bereits mit diesem Typ protokollierte Ereignisse bleiben in der Datenbank erhalten.",
+      "description": "Löscht dauerhaft einen benutzerdefinierten Ereignistyp. Integrierte Typen (food, walk usw.) können nicht gelöscht werden – verwende stattdessen update_event_type, um sie zu ändern. Bereits mit diesem Typ protokollierte Ereignisse bleiben in der Datenbank erhalten. Nur ein Administrator kann diese Aktion verwenden.",
       "fields": {
         "event_type": {
           "name": "Ereignistyp-Schlüssel",

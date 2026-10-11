@@ -346,7 +346,7 @@
     },
     "delete_event_type": {
       "name": "Excluir tipo de evento",
-      "description": "Exclui permanentemente um tipo de evento personalizado. Tipos integrados (food, walk, etc.) não podem ser excluídos — use update_event_type para modificá-los. Eventos já registrados com este tipo são preservados no banco de dados.",
+      "description": "Exclui permanentemente um tipo de evento personalizado. Tipos integrados (food, walk, etc.) não podem ser excluídos — use update_event_type para modificá-los. Eventos já registrados com este tipo são preservados no banco de dados. Somente um administrador pode usar esta ação.",
       "fields": {
         "event_type": {
           "name": "Chave do tipo de evento",

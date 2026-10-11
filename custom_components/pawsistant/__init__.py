@@ -1008,7 +1008,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def handle_delete_event_type(call: ServiceCall) -> None:
-        """Handle pawsistant.delete_event_type."""
+        """Handle pawsistant.delete_event_type (admin only)."""
+        await _verify_admin(hass, call)
         from homeassistant.exceptions import ServiceValidationError
 
         store, coord = _get_store_and_coord()

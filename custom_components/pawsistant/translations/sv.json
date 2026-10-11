@@ -346,7 +346,7 @@
     },
     "delete_event_type": {
       "name": "Radera händelsetyp",
-      "description": "Raderar permanent en anpassad händelsetyp. Inbyggda typer (food, walk osv.) kan inte raderas – använd update_event_type för att ändra dem istället. Händelser som redan loggats med denna typ bevaras i databasen.",
+      "description": "Raderar permanent en anpassad händelsetyp. Inbyggda typer (food, walk osv.) kan inte raderas – använd update_event_type för att ändra dem istället. Händelser som redan loggats med denna typ bevaras i databasen. Endast en administratör kan använda den här åtgärden.",
       "fields": {
         "event_type": {
           "name": "Händelsetyp-nyckel",
