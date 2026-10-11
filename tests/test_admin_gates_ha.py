@@ -78,6 +78,14 @@ async def test_non_admin_cannot_import_events(
 
 
 @pytest.mark.asyncio
+async def test_unknown_user_cannot_import_events(hass, enable_custom_integrations):
+    entry = await _setup(hass)
+    with pytest.raises(Unauthorized):
+        await _import_events(hass, entry, Context(user_id="no-such-user"))
+    assert not await _imported(entry)
+
+
+@pytest.mark.asyncio
 async def test_admin_can_import_events(hass, enable_custom_integrations, hass_admin_user):
     entry = await _setup(hass)
     await _import_events(hass, entry, Context(user_id=hass_admin_user.id))
@@ -98,6 +106,14 @@ async def test_non_admin_cannot_remove_dog(
     entry = await _setup(hass)
     with pytest.raises(Unauthorized):
         await _remove_dog(hass, Context(user_id=hass_read_only_user.id))
+    assert entry.runtime_data.store.get_dog_by_name("Buddy") is not None
+
+
+@pytest.mark.asyncio
+async def test_unknown_user_cannot_remove_dog(hass, enable_custom_integrations):
+    entry = await _setup(hass)
+    with pytest.raises(Unauthorized):
+        await _remove_dog(hass, Context(user_id="no-such-user"))
     assert entry.runtime_data.store.get_dog_by_name("Buddy") is not None
 
 
