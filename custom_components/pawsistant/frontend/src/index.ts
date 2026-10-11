@@ -1119,6 +1119,10 @@ export class PawsistantCard extends HTMLElement {
     const hiddenKeys = allKeys.filter(k => !shownInOrder.includes(k));
     const orderedKeys = [...shownInOrder, ...hiddenKeys];
 
+    // The delete_event_type service is admin-only. Show the delete button
+    // only to an admin user. A missing user is not an admin.
+    const isAdmin = this._hass?.user?.is_admin === true;
+
     // List view — drag handle + visibility checkbox + edit/delete
     const rows = orderedKeys.map(key => {
       const displayMeta = getMeta(key, allTypes);
@@ -1139,7 +1143,7 @@ export class PawsistantCard extends HTMLElement {
               <span class="et-visible-icon">${isVisible ? '👁' : '🚫'}</span>
             </label>
             <button class="et-btn edit" data-et-key="${esc(key)}" title="${T('panel.edit_key', { key: esc(key) })}">✎</button>
-            <button class="et-btn delete" data-et-key="${esc(key)}" title="${T('panel.delete_key', { key: esc(key) })}">✕</button>
+            ${isAdmin ? `<button class="et-btn delete" data-et-key="${esc(key)}" title="${T('panel.delete_key', { key: esc(key) })}">✕</button>` : ''}
           </div>
         </li>`;
     }).join('');
