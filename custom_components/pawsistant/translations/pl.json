@@ -264,6 +264,34 @@
         }
       }
     },
+    "export_data": {
+      "name": "Eksportuj dane",
+      "description": "Zwraca wszystkie dane Pawsistant jako jeden dokument: zwierzęta, typy zdarzeń, metryki przycisków, widoczne przyciski, harmonogramy opieki i wszystkie zdarzenia. Tylko administrator może użyć tej akcji. Home Keeper używa jej do wspólnego eksportu.",
+      "fields": {
+        "files_dir": {
+          "name": "Folder plików",
+          "description": "Home Keeper ustawia ten folder dla eksportu w pakiecie. Pawsistant nie ma plików, więc nie używa tego folderu."
+        }
+      }
+    },
+    "import_data": {
+      "name": "Importuj dane",
+      "description": "Dodaje lub aktualizuje rekordy dokumentu z export_data. Rekord, którego nie ma w dokumencie, pozostaje. Tylko administrator może użyć tej akcji.",
+      "fields": {
+        "document": {
+          "name": "Dokument",
+          "description": "Dane z export_data. Możesz je edytować przed importem."
+        },
+        "dry_run": {
+          "name": "Próba",
+          "description": "Sprawdza dokument i zwraca raport, ale niczego nie zapisuje."
+        },
+        "files_dir": {
+          "name": "Folder plików",
+          "description": "Home Keeper ustawia ten folder dla eksportu w pakiecie. Pawsistant nie ma plików, więc nie używa tego folderu."
+        }
+      }
+    },
     "update_event_type": {
       "name": "Aktualizuj typ zdarzenia",
       "description": "Aktualizuje nazwę wyświetlaną, ikonę, kolor lub metrykę przycisku istniejącego typu zdarzenia. Zmieniane są tylko podane pola — pominięte pola pozostają bez zmian. Można aktualizować zarówno typy wbudowane, jak i niestandardowe. Czujnik natychmiast odzwierciedla zmiany po wywołaniu.",

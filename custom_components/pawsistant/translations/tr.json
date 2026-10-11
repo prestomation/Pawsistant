@@ -264,6 +264,34 @@
         }
       }
     },
+    "export_data": {
+      "name": "Verileri dışa aktar",
+      "description": "Tüm Pawsistant verilerini tek bir belge olarak döndürür: evcil hayvanlar, olay türleri, düğme ölçümleri, gösterilen düğmeler, bakım planları ve tüm olaylar. Bu eylemi yalnızca bir yönetici kullanabilir. Home Keeper bunu birleşik dışa aktarımı için kullanır.",
+      "fields": {
+        "files_dir": {
+          "name": "Dosya klasörü",
+          "description": "Home Keeper bu klasörü paket dışa aktarımı için ayarlar. Pawsistant'ın dosyası olmadığı için klasörü kullanmaz."
+        }
+      }
+    },
+    "import_data": {
+      "name": "Verileri içe aktar",
+      "description": "export_data belgesindeki kayıtları ekler veya günceller. Belgede olmayan bir kayıt kalır. Bu eylemi yalnızca bir yönetici kullanabilir.",
+      "fields": {
+        "document": {
+          "name": "Belge",
+          "description": "export_data'dan gelen veriler. İçe aktarmadan önce düzenleyebilirsiniz."
+        },
+        "dry_run": {
+          "name": "Deneme çalıştırması",
+          "description": "Belgeyi denetler ve raporu döndürür, ancak hiçbir şey yazmaz."
+        },
+        "files_dir": {
+          "name": "Dosya klasörü",
+          "description": "Home Keeper bu klasörü paket dışa aktarımı için ayarlar. Pawsistant'ın dosyası olmadığı için klasörü kullanmaz."
+        }
+      }
+    },
     "update_event_type": {
       "name": "Olay Türünü Güncelle",
       "description": "Mevcut bir olay türünün görünen adını, simgesini, rengini veya düğme metriğini günceller. Yalnızca belirttiğiniz alanlar değiştirilir — atlanmış alanlar olduğu gibi bırakılır. Hem yerleşik hem de özel türler güncellenebilir. Sensör, çağrıdan sonra değişiklikleri hemen yansıtır.",

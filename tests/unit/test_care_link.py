@@ -311,6 +311,17 @@ class TestCreateTaskSeed:
         assert len(services.calls) == 1  # no retry
 
 
+class TestRegisterCompanion:
+    """The companion record we announce to Home Keeper."""
+
+    async def test_declares_the_import_export_capability(self):
+        services = _Services(lambda data: None)
+        await care_link.register_companion(_Hass(services), "entry-1")
+        payload = services.calls[0]
+        assert payload["domain"] == "pawsistant"
+        assert payload["capabilities"] == ["care_schedules", "import_export"]
+
+
 class TestManagedBy:
     """The ownership block we hand Home Keeper on every task we create."""
 

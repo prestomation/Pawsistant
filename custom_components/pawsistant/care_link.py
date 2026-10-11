@@ -29,6 +29,7 @@ writing straight to the store rather than re-entering the ``log_event`` /
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -107,7 +108,10 @@ async def register_companion(hass: HomeAssistant, entry_id: str) -> None:
                 ),
                 "config_entry_id": entry_id,
                 "docs_url": "https://github.com/prestomation/Pawsistant",
-                "capabilities": ["care_schedules"],
+                # ``import_export``: Pawsistant has the admin-only services
+                # ``export_data`` and ``import_data``, so its data is in Home
+                # Keeper's combined export (see ``import_export.py``).
+                "capabilities": ["care_schedules", "import_export"],
             },
             blocking=False,
         )
@@ -427,7 +431,23 @@ async def _heal_orphaned_mirrors(store, schedule: dict[str, Any], task: dict) ->
     return removed
 
 
+# The key in ``hass.data`` of the lock that lets only 1 reconcile pass run at a time.
+_RECONCILE_LOCK = f"{DOMAIN}_reconcile_lock"
+
+
 async def reconcile(hass: HomeAssistant, store) -> None:
+    """Self-heal the link in both directions. Only 1 pass runs at a time.
+
+    An import can start a pass while the pass of an entry reload also runs. Without
+    the lock, both passes can see the same missing task and make it 2 times. With
+    the lock, the second pass sees the task that the first pass made.
+    """
+    lock: asyncio.Lock = hass.data.setdefault(_RECONCILE_LOCK, asyncio.Lock())
+    async with lock:
+        await _reconcile(hass, store)
+
+
+async def _reconcile(hass: HomeAssistant, store) -> None:
     """Self-heal the link in both directions.
 
     Recreates Home Keeper tasks for schedules whose task is missing (covering tasks a

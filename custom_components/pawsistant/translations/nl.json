@@ -264,6 +264,34 @@
         }
       }
     },
+    "export_data": {
+      "name": "Gegevens exporteren",
+      "description": "Geeft alle Pawsistant-gegevens terug als één document: huisdieren, gebeurtenistypen, knopstatistieken, getoonde knoppen, verzorgingsschema's en alle gebeurtenissen. Alleen een beheerder kan deze actie gebruiken. Home Keeper gebruikt deze voor zijn gecombineerde export.",
+      "fields": {
+        "files_dir": {
+          "name": "Bestandsmap",
+          "description": "Home Keeper stelt deze map in voor een bundelexport. Pawsistant heeft geen bestanden en gebruikt de map dus niet."
+        }
+      }
+    },
+    "import_data": {
+      "name": "Gegevens importeren",
+      "description": "Voegt de records van een document uit export_data toe of werkt ze bij. Een record dat niet in het document staat, blijft bestaan. Alleen een beheerder kan deze actie gebruiken.",
+      "fields": {
+        "document": {
+          "name": "Document",
+          "description": "De gegevens uit export_data. U kunt ze vóór de import bewerken."
+        },
+        "dry_run": {
+          "name": "Proefrun",
+          "description": "Controleert het document en geeft het rapport terug, maar schrijft niets."
+        },
+        "files_dir": {
+          "name": "Bestandsmap",
+          "description": "Home Keeper stelt deze map in voor een bundelexport. Pawsistant heeft geen bestanden en gebruikt de map dus niet."
+        }
+      }
+    },
     "update_event_type": {
       "name": "Gebeurtenistype bijwerken",
       "description": "Werkt de weergavenaam, het pictogram, de kleur of de knopmetriek van een bestaand gebeurtenistype bij. Alleen de velden die je opgeeft worden gewijzigd — weggelaten velden blijven ongewijzigd. Zowel ingebouwde als aangepaste types kunnen worden bijgewerkt. De sensor weerspiegelt de wijzigingen direct na de aanroep.",

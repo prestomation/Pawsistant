@@ -264,6 +264,34 @@
         }
       }
     },
+    "export_data": {
+      "name": "Daten exportieren",
+      "description": "Gibt alle Pawsistant-Daten als ein Dokument zurück: Haustiere, Ereignistypen, Schaltflächen-Metriken, angezeigte Schaltflächen, Pflegepläne und alle Ereignisse. Nur ein Administrator kann diese Aktion verwenden. Home Keeper nutzt sie für seinen gemeinsamen Export.",
+      "fields": {
+        "files_dir": {
+          "name": "Dateiordner",
+          "description": "Home Keeper setzt diesen Ordner für einen Paket-Export. Pawsistant hat keine Dateien und verwendet den Ordner daher nicht."
+        }
+      }
+    },
+    "import_data": {
+      "name": "Daten importieren",
+      "description": "Fügt die Einträge eines Dokuments aus export_data hinzu oder aktualisiert sie. Einträge, die nicht im Dokument stehen, bleiben erhalten. Nur ein Administrator kann diese Aktion verwenden.",
+      "fields": {
+        "document": {
+          "name": "Dokument",
+          "description": "Die Daten aus export_data. Sie können sie vor dem Import bearbeiten."
+        },
+        "dry_run": {
+          "name": "Testlauf",
+          "description": "Prüft das Dokument und gibt den Bericht zurück, schreibt aber nichts."
+        },
+        "files_dir": {
+          "name": "Dateiordner",
+          "description": "Home Keeper setzt diesen Ordner für einen Paket-Export. Pawsistant hat keine Dateien und verwendet den Ordner daher nicht."
+        }
+      }
+    },
     "update_event_type": {
       "name": "Ereignistyp aktualisieren",
       "description": "Aktualisiert Anzeigename, Symbol, Farbe oder Schaltflächen-Metrik eines vorhandenen Ereignistyps. Nur die von dir angegebenen Felder werden geändert – ausgelassene Felder bleiben unberührt. Sowohl integrierte als auch benutzerdefinierte Typen können aktualisiert werden. Der Sensor spiegelt die Änderungen nach dem Aufruf sofort wider.",
