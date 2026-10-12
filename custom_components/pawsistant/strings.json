@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Remove Pet",
-      "description": "Remove a pet and permanently delete all of its events. This action cannot be undone.",
+      "description": "Remove a pet and permanently delete all of its events. This action cannot be undone. Only an administrator can use this action.",
       "fields": {
         "dog": {
           "name": "Pet",
@@ -256,7 +256,7 @@
     },
     "import_events": {
       "name": "Import Events",
-      "description": "Bulk-import events from an external JSON array. Intended for one-time migration from the Firebase-backed version of DogLog. Events whose `id` already exists in the local store are skipped.",
+      "description": "Bulk-import events from an external JSON array. Intended for one-time migration from the Firebase-backed version of DogLog. Events whose `id` already exists in the local store are skipped. Only an administrator can use this action.",
       "fields": {
         "events": {
           "name": "Events",
@@ -346,7 +346,7 @@
     },
     "delete_event_type": {
       "name": "Delete Event Type",
-      "description": "Permanently delete a custom event type. Built-in types (food, walk, etc.) cannot be deleted — use update_event_type to modify them instead. Events already logged with this type are preserved in the database.",
+      "description": "Permanently delete a custom event type. Built-in types (food, walk, etc.) cannot be deleted — use update_event_type to modify them instead. Events already logged with this type are preserved in the database. Only an administrator can use this action.",
       "fields": {
         "event_type": {
           "name": "Event type key",

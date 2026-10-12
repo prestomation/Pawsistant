@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Usuń pupila",
-      "description": "Usuwa pupila i trwale usuwa wszystkie jego zdarzenia. Tej akcji nie można cofnąć.",
+      "description": "Usuwa pupila i trwale usuwa wszystkie jego zdarzenia. Tej akcji nie można cofnąć. Tylko administrator może użyć tej akcji.",
       "fields": {
         "dog": {
           "name": "Pupil",
@@ -256,7 +256,7 @@
     },
     "import_events": {
       "name": "Importuj zdarzenia",
-      "description": "Masowy import zdarzeń z zewnętrznej tablicy JSON. Przeznaczony do jednorazowej migracji z wersji DogLog opartej na Firebase. Zdarzenia, których `id` już istnieje w lokalnym magazynie, są pomijane.",
+      "description": "Masowy import zdarzeń z zewnętrznej tablicy JSON. Przeznaczony do jednorazowej migracji z wersji DogLog opartej na Firebase. Zdarzenia, których `id` już istnieje w lokalnym magazynie, są pomijane. Tylko administrator może użyć tej akcji.",
       "fields": {
         "events": {
           "name": "Zdarzenia",
@@ -346,7 +346,7 @@
     },
     "delete_event_type": {
       "name": "Usuń typ zdarzenia",
-      "description": "Trwale usuwa niestandardowy typ zdarzenia. Typów wbudowanych (food, walk itp.) nie można usunąć — użyj update_event_type, aby je zmodyfikować. Zdarzenia już zapisane z tym typem są zachowane w bazie danych.",
+      "description": "Trwale usuwa niestandardowy typ zdarzenia. Typów wbudowanych (food, walk itp.) nie można usunąć — użyj update_event_type, aby je zmodyfikować. Zdarzenia już zapisane z tym typem są zachowane w bazie danych. Tylko administrator może użyć tej akcji.",
       "fields": {
         "event_type": {
           "name": "Klucz typu zdarzenia",

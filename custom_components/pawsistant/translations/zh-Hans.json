@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "移除宠物",
-      "description": "移除一只宠物并永久删除其所有事件。此操作无法撤销。",
+      "description": "移除一只宠物并永久删除其所有事件。此操作无法撤销。 只有管理员可以使用此操作。",
       "fields": {
         "dog": {
           "name": "宠物",
@@ -256,7 +256,7 @@
     },
     "import_events": {
       "name": "导入事件",
-      "description": "从外部 JSON 数组批量导入事件。适用于从 Firebase 版本的 DogLog 一次性迁移数据。`id` 已存在于本地存储中的事件将被跳过。",
+      "description": "从外部 JSON 数组批量导入事件。适用于从 Firebase 版本的 DogLog 一次性迁移数据。`id` 已存在于本地存储中的事件将被跳过。 只有管理员可以使用此操作。",
       "fields": {
         "events": {
           "name": "事件",
@@ -346,7 +346,7 @@
     },
     "delete_event_type": {
       "name": "删除事件类型",
-      "description": "永久删除自定义事件类型。内置类型（food、walk 等）无法删除——请改用 update_event_type 进行修改。已使用此类型记录的事件将保留在数据库中。",
+      "description": "永久删除自定义事件类型。内置类型（food、walk 等）无法删除——请改用 update_event_type 进行修改。已使用此类型记录的事件将保留在数据库中。 只有管理员可以使用此操作。",
       "fields": {
         "event_type": {
           "name": "事件类型键",

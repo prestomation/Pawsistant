@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Huisdier verwijderen",
-      "description": "Verwijdert een huisdier en wist permanent al zijn gebeurtenissen. Deze actie kan niet ongedaan worden gemaakt.",
+      "description": "Verwijdert een huisdier en wist permanent al zijn gebeurtenissen. Deze actie kan niet ongedaan worden gemaakt. Alleen een beheerder kan deze actie gebruiken.",
       "fields": {
         "dog": {
           "name": "Huisdier",
@@ -256,7 +256,7 @@
     },
     "import_events": {
       "name": "Gebeurtenissen importeren",
-      "description": "Importeert gebeurtenissen in bulk vanuit een extern JSON-array. Bedoeld voor eenmalige migratie vanuit de Firebase-gebaseerde versie van DogLog. Gebeurtenissen waarvan de `id` al bestaat in de lokale opslag worden overgeslagen.",
+      "description": "Importeert gebeurtenissen in bulk vanuit een extern JSON-array. Bedoeld voor eenmalige migratie vanuit de Firebase-gebaseerde versie van DogLog. Gebeurtenissen waarvan de `id` al bestaat in de lokale opslag worden overgeslagen. Alleen een beheerder kan deze actie gebruiken.",
       "fields": {
         "events": {
           "name": "Gebeurtenissen",
@@ -346,7 +346,7 @@
     },
     "delete_event_type": {
       "name": "Gebeurtenistype verwijderen",
-      "description": "Verwijdert permanent een aangepast gebeurtenistype. Ingebouwde types (food, walk, enz.) kunnen niet worden verwijderd — gebruik update_event_type om ze te wijzigen. Gebeurtenissen die al zijn geregistreerd met dit type blijven bewaard in de database.",
+      "description": "Verwijdert permanent een aangepast gebeurtenistype. Ingebouwde types (food, walk, enz.) kunnen niet worden verwijderd — gebruik update_event_type om ze te wijzigen. Gebeurtenissen die al zijn geregistreerd met dit type blijven bewaard in de database. Alleen een beheerder kan deze actie gebruiken.",
       "fields": {
         "event_type": {
           "name": "Gebeurtenistype-sleutel",

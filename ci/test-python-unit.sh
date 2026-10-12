@@ -3,7 +3,8 @@ set -euo pipefail
 
 find custom_components -name "*.py" -exec python -m py_compile {} +
 # Run real-HA tests first (before any mock contamination)
-python -m pytest tests/test_sensor_utils.py tests/test_import_export_ha.py -v
+python -m pytest tests/test_sensor_utils.py tests/test_import_export_ha.py \
+  tests/test_admin_gates_ha.py -v
 # Run all remaining tests (use HA mocks)
 python -m pytest tests/ -v --ignore=tests/integration --ignore=tests/test_sensor_utils.py \
-  --ignore=tests/test_import_export_ha.py
+  --ignore=tests/test_import_export_ha.py --ignore=tests/test_admin_gates_ha.py

@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Supprimer un animal",
-      "description": "Supprime un animal et efface définitivement tous ses événements. Cette action est irréversible.",
+      "description": "Supprime un animal et efface définitivement tous ses événements. Cette action est irréversible. Seul un administrateur peut utiliser cette action.",
       "fields": {
         "dog": {
           "name": "Animal",
@@ -256,7 +256,7 @@
     },
     "import_events": {
       "name": "Importer des événements",
-      "description": "Importe en masse des événements depuis un tableau JSON externe. Conçu pour une migration unique depuis la version de DogLog basée sur Firebase. Les événements dont l'`id` existe déjà dans le stockage local sont ignorés.",
+      "description": "Importe en masse des événements depuis un tableau JSON externe. Conçu pour une migration unique depuis la version de DogLog basée sur Firebase. Les événements dont l'`id` existe déjà dans le stockage local sont ignorés. Seul un administrateur peut utiliser cette action.",
       "fields": {
         "events": {
           "name": "Événements",
@@ -346,7 +346,7 @@
     },
     "delete_event_type": {
       "name": "Supprimer un type d'événement",
-      "description": "Supprime définitivement un type d'événement personnalisé. Les types intégrés (food, walk, etc.) ne peuvent pas être supprimés — utilisez update_event_type pour les modifier. Les événements déjà enregistrés avec ce type sont conservés dans la base de données.",
+      "description": "Supprime définitivement un type d'événement personnalisé. Les types intégrés (food, walk, etc.) ne peuvent pas être supprimés — utilisez update_event_type pour les modifier. Les événements déjà enregistrés avec ce type sont conservés dans la base de données. Seul un administrateur peut utiliser cette action.",
       "fields": {
         "event_type": {
           "name": "Clé du type d'événement",

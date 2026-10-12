@@ -198,7 +198,7 @@ Register a new dog (triggers integration reload to create sensors).
 | `birth_date` | — | Birth date (YYYY-MM-DD) |
 
 ### `pawsistant.remove_dog`
-Remove a dog and all associated events.
+Remove a dog and all associated events. **Administrators only.**
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -225,7 +225,7 @@ action:
 ```
 
 ### `pawsistant.import_events`
-Bulk-import events from a JSON array (for migrating from other systems).
+Bulk-import events from a JSON array (for migrating from other systems). **Administrators only.**
 
 | Field | Required | Description |
 |-------|----------|-------------|

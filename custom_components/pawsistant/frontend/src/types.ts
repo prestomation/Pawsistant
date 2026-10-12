@@ -26,6 +26,8 @@ export interface HomeAssistant {
   connection?: HassConnection;
   language?: string;
   config?: { time_zone?: string };
+  // The current user. The card uses is_admin to show admin-only controls.
+  user?: { is_admin?: boolean };
 }
 
 /* ── Event / Timeline types ───────────────────────────────────────── */
