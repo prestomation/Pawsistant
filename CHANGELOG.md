@@ -23,6 +23,7 @@ All notable changes to Pawsistant will be documented in this file.
   own completion history still covers, so an entry you logged by hand is never touched.
 
 ### Changed
+- **Home Assistant 2025.1 or newer.** HACS now blocks the install on an older Home Assistant. Home Assistant 2025.1 is the oldest version that Pawsistant tests.
 - **Pet task fields.** Pawsistant now owns the schedule on a care task, as it already
   owned the name and the device. Home Keeper leaves those fields out of its edit form,
   so change a cadence in Pawsistant rather than in Home Keeper.
@@ -30,6 +31,7 @@ All notable changes to Pawsistant will be documented in this file.
   delete an event type now. Automations and scripts still work.
 
 ### Fixed
+- **Card on Home Assistant 2025.1.** Pawsistant now adds its card to the Lovelace resources on Home Assistant 2025.1. Before, it took that version for YAML mode and did not add the card.
 - **Preview builds no longer collide with the stable release they were built from.**
   A `X.Y.Z.dev<pr>` preview stamped its version into `manifest.json` but left
   `CARD_VERSION` at the stable value, and `CARD_VERSION` is the `?v=` cache-buster on

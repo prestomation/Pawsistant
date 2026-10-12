@@ -8,10 +8,26 @@ on:
 
 jobs:
   integration:
+    # The stable lane keeps the name `integration`, so a required check still matches.
+    name: ${{ matrix.ha == 'stable' && 'integration' || format('integration (HA {0})', matrix.ha) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        ha: [stable, oldest]
     steps:
       - uses: actions/checkout@v4
+
+      # HA_TAG is the Docker image tag. The oldest lane uses ci/oldest-ha.env.
+      - name: Choose the Home Assistant version
+        run: |
+          if [ "${{ matrix.ha }}" = "oldest" ]; then
+            . ci/oldest-ha.env
+            echo "HA_TAG=$OLDEST_HA" >> "$GITHUB_ENV"
+          else
+            echo "HA_TAG=stable" >> "$GITHUB_ENV"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -52,6 +68,11 @@ jobs:
           echo "Home Assistant failed to start within 120s"
           docker compose -f tests/integration/docker-compose.yml logs
           exit 1
+
+      - name: Show the Home Assistant version
+        continue-on-error: true
+        working-directory: tests/integration
+        run: docker compose exec -T homeassistant python -c "from homeassistant.const import __version__; print('HA', __version__)"
 
       - name: Run integration tests
         run: bash ci/test-python-integration.sh

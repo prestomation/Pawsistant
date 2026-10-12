@@ -324,7 +324,7 @@ MIT
 [coverage-shield]: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/prestomation/Pawsistant/python-coverage-comment-action-data/endpoint.json&style=for-the-badge
 [hacs-validation-shield]: https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml/badge.svg
 [hacs-validation]: https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml
-[ha-version-shield]: https://img.shields.io/badge/Home%20Assistant-2024.4%2B-blue.svg?style=for-the-badge
+[ha-version-shield]: https://img.shields.io/badge/Home%20Assistant-2025.1%2B-blue.svg?style=for-the-badge
 [ha-version]: https://www.home-assistant.io/
 [kofi-shield]: https://img.shields.io/badge/Ko--fi-donate-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white
 [kofi]: https://ko-fi.com/prestomation

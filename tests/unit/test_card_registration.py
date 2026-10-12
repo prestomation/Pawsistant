@@ -400,3 +400,42 @@ class TestMissingCardBundle:
             await _ensure_frontend_registered(hass)
 
         hass.http.async_register_static_paths.assert_not_called()
+
+
+class TestLovelaceDataAsDict:
+    """Home Assistant 2025.1 keeps Lovelace's shared data in a dict, not an object."""
+
+    @staticmethod
+    def _dict_hass(mode: str) -> MagicMock:
+        hass = _make_hass(CoreState.running)
+        resources = hass.data["lovelace"].resources
+        hass.data["lovelace"] = {"mode": mode, "resources": resources}
+        return hass
+
+    @pytest.mark.asyncio
+    async def test_storage_mode_registers_the_resource(self):
+        hass = self._dict_hass("storage")
+
+        with _card_bundle(exists=True):
+            await _ensure_frontend_registered(hass)
+
+        hass.data["lovelace"]["resources"].async_create_item.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_yaml_mode_does_not_register_the_resource(self):
+        hass = self._dict_hass("yaml")
+
+        with _card_bundle(exists=True):
+            await _ensure_frontend_registered(hass)
+
+        hass.data["lovelace"]["resources"].async_create_item.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_dict_without_a_mode_counts_as_yaml(self):
+        hass = _make_hass(CoreState.running)
+        hass.data["lovelace"] = {}
+
+        with _card_bundle(exists=True):
+            await _ensure_frontend_registered(hass)
+
+        hass.http.async_register_static_paths.assert_called_once()
