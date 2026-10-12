@@ -223,28 +223,28 @@ class PawsistantCardRegistration:
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
 
-    @property
-    def _resource_mode(self) -> str:
-        """Return the Lovelace resource mode (HA 2026+ uses resource_mode)."""
-        lovelace = self.hass.data.get("lovelace")
-        if lovelace is None:
-            return "yaml"
-        # HA 2026.2+ uses resource_mode attribute
-        if hasattr(lovelace, "resource_mode"):
-            return lovelace.resource_mode
-        # HA 2025.x used mode
-        if hasattr(lovelace, "mode"):
-            return lovelace.mode
-        return "yaml"
+    def _lovelace_value(self, name: str):
+        """Read one field of Lovelace's shared data, or None when it is missing.
 
-    @property
-    def _resources(self):
+        Home Assistant 2025.1 keeps that data in a dict. From 2025.2 it is an object.
+        """
         lovelace = self.hass.data.get("lovelace")
         if lovelace is None:
             return None
-        if hasattr(lovelace, "resources"):
-            return lovelace.resources
-        return None
+        if isinstance(lovelace, dict):
+            return lovelace.get(name)
+        return getattr(lovelace, name, None)
+
+    @property
+    def _resource_mode(self) -> str:
+        """Return the Lovelace resource mode (HA 2026+ uses resource_mode)."""
+        # HA 2026.2+ uses resource_mode. Before that, the field is called mode.
+        mode = self._lovelace_value("resource_mode") or self._lovelace_value("mode")
+        return mode if isinstance(mode, str) else "yaml"
+
+    @property
+    def _resources(self):
+        return self._lovelace_value("resources")
 
     @property
     def _card_file(self) -> Path:
