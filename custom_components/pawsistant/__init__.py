@@ -14,6 +14,8 @@ Services:
   pawsistant.remove_dog     — Remove a dog and all its events
   pawsistant.list_events    — Fire a HA event with query results (for automations)
   pawsistant.import_events  — Bulk-import events from a JSON array (Firebase migration)
+  pawsistant.export_data    — Return all data as 1 document (admin only)
+  pawsistant.import_data    — Upsert a document from export_data (admin only)
 """
 
 from __future__ import annotations
@@ -146,6 +148,61 @@ DELETE_EVENT_TYPE_SCHEMA = vol.Schema(
         vol.Optional("delete_events", default=False): cv.boolean,
     }
 )
+
+EXPORT_DATA_SCHEMA = vol.Schema(
+    {
+        # Pawsistant has no files, so it does not write to files_dir. It is
+        # validated all the same, as the Home Keeper contract tells.
+        vol.Optional("files_dir"): cv.string,
+    }
+)
+
+IMPORT_DATA_SCHEMA = vol.Schema(
+    {
+        # Any value: the import plan reports a document of the wrong shape as a
+        # problem with a path, which is more useful than a schema error.
+        vol.Required("document"): object,
+        vol.Optional("dry_run", default=False): cv.boolean,
+        vol.Optional("files_dir"): cv.string,
+    }
+)
+
+# The event that a real (not dry run) import fires after it writes.
+EVENT_DATA_IMPORTED = f"{DOMAIN}_data_imported"
+# Home Keeper gives a files_dir only below this folder in the config directory.
+HK_FILES_ROOT = (".storage", "home_keeper_import_export")
+
+
+async def _verify_admin(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Refuse a call from a user who is not an administrator.
+
+    A call without a user (an automation, or another integration such as Home
+    Keeper) has ``context.user_id`` set to None. Home Assistant trusts such a call,
+    so this function does too. This is the same rule as in Home Keeper.
+    """
+    from homeassistant.exceptions import Unauthorized
+
+    user_id = call.context.user_id
+    if user_id is None:
+        return
+    user = await hass.auth.async_get_user(user_id)
+    if user is None or not user.is_admin:
+        raise Unauthorized(context=call.context)
+
+
+def _verify_files_dir(hass: HomeAssistant, files_dir: str | None) -> None:
+    """Refuse a files_dir that is not below Home Keeper's import/export folder."""
+    from homeassistant.exceptions import ServiceValidationError
+
+    if files_dir is None:
+        return
+    root = Path(hass.config.path(*HK_FILES_ROOT)).resolve()
+    target = Path(files_dir)
+    if not target.is_absolute():
+        target = Path(hass.config.path()) / target
+    if ".." in Path(files_dir).parts or not target.resolve().is_relative_to(root):
+        raise ServiceValidationError(f"files_dir must be a folder below {root}.")
+
 
 SET_SHOWN_TYPES_SCHEMA = vol.Schema(
     {
@@ -715,6 +772,77 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DOMAIN, "import_events", handle_import_events, schema=IMPORT_EVENTS_SCHEMA
     )
 
+    # ── Export and import (Home Keeper's combined export) ─────────────────
+    # Admin only: the document holds all data, and an import writes all of it.
+    # See import_export.py for the document and the rules of the import.
+
+    async def handle_export_data(call: ServiceCall) -> dict[str, Any]:
+        """Handle pawsistant.export_data."""
+        from homeassistant.loader import async_get_integration
+
+        from . import import_export
+
+        await _verify_admin(hass, call)
+        _verify_files_dir(hass, call.data.get("files_dir"))
+        store, _coord = _get_store_and_coord()
+        integration = await async_get_integration(hass, DOMAIN)
+        return {
+            "format": import_export.FORMAT,
+            "version": str(integration.version),
+            "data": import_export.build_export(await store.export_snapshot()),
+            "skipped": {},
+        }
+
+    hass.services.async_register(
+        DOMAIN,
+        "export_data",
+        handle_export_data,
+        schema=EXPORT_DATA_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    async def handle_import_data(call: ServiceCall) -> dict[str, Any]:
+        """Handle pawsistant.import_data."""
+        from . import import_export
+
+        await _verify_admin(hass, call)
+        _verify_files_dir(hass, call.data.get("files_dir"))
+        store, coord = _get_store_and_coord()
+        dry_run: bool = call.data.get("dry_run", False)
+        current = await store.import_snapshot()
+        plan = import_export.plan_import(call.data["document"], current)
+        report = plan.report(dry_run=dry_run)
+        if dry_run or not plan.ok or not plan.has_changes:
+            return report
+
+        new_dogs = any(dog_id not in current["dogs"] for dog_id in plan.dogs)
+        for task_id in await store.apply_import(plan):
+            # The cadence of this schedule changed. Delete the old task; the
+            # reconcile pass below makes a new one with the new cadence.
+            await care_link.delete_task(hass, task_id)
+        _LOGGER.info("import_data: %s", report["counts"])
+        hass.bus.async_fire(EVENT_DATA_IMPORTED, {"counts": report["counts"]})
+
+        if new_dogs:
+            # Reload the entry so that the new dogs get their sensor entities,
+            # as add_dog does. The reload loads the store again from disk.
+            await hass.config_entries.async_reload(entry.entry_id)
+            store, coord = _get_store_and_coord()
+        else:
+            await coord.async_refresh()
+        # Make the Home Keeper tasks of the imported care schedules. A schedule is
+        # exported without its task id, so a new schedule has no task yet.
+        await care_link.reconcile(hass, store)
+        return report
+
+    hass.services.async_register(
+        DOMAIN,
+        "import_data",
+        handle_import_data,
+        schema=IMPORT_DATA_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+
     # ── Event type management services ────────────────────────────────────
 
     async def handle_update_event_type(call: ServiceCall) -> None:
@@ -1145,6 +1273,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "remove_dog",
             "list_events",
             "import_events",
+            "export_data",
+            "import_data",
             "update_event_type",
             "add_event_type",
             "delete_event_type",

@@ -319,3 +319,119 @@ async def test_completion_for_unknown_source_is_ignored(hass, enable_custom_inte
     await hass.async_block_till_done()
 
     assert await _medicine_count(store, dog_id) == before
+
+
+# ---------------------------------------------------------------------------
+# Combined export and import (pawsistant.export_data / pawsistant.import_data)
+# ---------------------------------------------------------------------------
+
+
+def _our_tasks(hk) -> list[dict]:
+    return [t for t in hk.tasks.values() if "pawsistant" in (t.get("source") or {})]
+
+
+async def _import(hass, document) -> dict:
+    with patch(
+        "custom_components.pawsistant._ensure_frontend_registered", new=AsyncMock()
+    ):
+        report = await hass.services.async_call(
+            DOMAIN,
+            "import_data",
+            {"document": document},
+            blocking=True,
+            return_response=True,
+        )
+        await hass.async_block_till_done()
+    return report
+
+
+async def _export_data(hass) -> dict:
+    response = await hass.services.async_call(
+        DOMAIN, "export_data", {}, blocking=True, return_response=True
+    )
+    return response["data"]
+
+
+@pytest.mark.asyncio
+async def test_import_of_own_export_keeps_the_one_task(hass, enable_custom_integrations):
+    """The export has no task id, but an import back must not make a 2nd task."""
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    task_id = await _make_linked_schedule(hass, store, dog_id)
+
+    data = await _export_data(hass)
+    assert "task_id" not in data["care_schedules"][0]
+
+    report = await _import(hass, data)
+
+    assert report["ok"] is True
+    assert [t["id"] for t in _our_tasks(hk)] == [task_id]
+    assert entry.runtime_data.store.get_care_schedule("sched-1")["task_id"] == task_id
+
+
+@pytest.mark.asyncio
+async def test_import_makes_the_task_of_a_new_schedule_once(
+    hass, enable_custom_integrations
+):
+    """A schedule from another install gets its Home Keeper task from reconcile.
+
+    The new dog makes the import reload the entry, and the reload starts its own
+    reconcile pass. The 2 passes must not make the task 2 times.
+    """
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+
+    data = await _export_data(hass)
+    data["dogs"].append({"id": "dog-far", "name": "Luna"})
+    data["care_schedules"].append(
+        {
+            "id": "sched-far",
+            "dog_id": "dog-far",
+            "event_type": "grooming",
+            "recurrence_type": "floating",
+            "interval": 6,
+            "unit": "weeks",
+            "task_id": "a-task-id-from-the-other-install",
+        }
+    )
+
+    report = await _import(hass, data)
+
+    assert report["ok"] is True
+    tasks = _our_tasks(hk)
+    assert len(tasks) == 1
+    assert tasks[0]["source"]["pawsistant"] == {
+        "dog_id": "dog-far",
+        "event_type": "grooming",
+        "schedule_id": "sched-far",
+    }
+    store = entry.runtime_data.store
+    assert store.get_care_schedule("sched-far")["task_id"] == tasks[0]["id"]
+
+
+@pytest.mark.asyncio
+async def test_import_of_a_new_cadence_replaces_the_task(
+    hass, enable_custom_integrations
+):
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    old_task_id = await _make_linked_schedule(hass, store, dog_id)
+
+    data = await _export_data(hass)
+    data["care_schedules"][0]["interval"] = 3
+
+    report = await _import(hass, data)
+
+    assert report["ok"] is True
+    tasks = _our_tasks(hk)
+    assert len(tasks) == 1
+    assert tasks[0]["id"] != old_task_id
+    assert tasks[0]["interval"] == 3
+    assert entry.runtime_data.store.get_care_schedule("sched-1")["task_id"] == tasks[0]["id"]

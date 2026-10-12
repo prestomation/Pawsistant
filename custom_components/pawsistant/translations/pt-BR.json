@@ -264,6 +264,34 @@
         }
       }
     },
+    "export_data": {
+      "name": "Exportar dados",
+      "description": "Retorna todos os dados do Pawsistant como um documento: pets, tipos de evento, métricas dos botões, botões exibidos, agendas de cuidados e todos os eventos. Apenas um administrador pode usar esta ação. O Home Keeper a usa para sua exportação combinada.",
+      "fields": {
+        "files_dir": {
+          "name": "Pasta de arquivos",
+          "description": "O Home Keeper define esta pasta para uma exportação em pacote. O Pawsistant não tem arquivos, então não usa a pasta."
+        }
+      }
+    },
+    "import_data": {
+      "name": "Importar dados",
+      "description": "Adiciona ou atualiza os registros de um documento do export_data. Um registro que não está no documento permanece. Apenas um administrador pode usar esta ação.",
+      "fields": {
+        "document": {
+          "name": "Documento",
+          "description": "Os dados do export_data. Você pode editá-los antes da importação."
+        },
+        "dry_run": {
+          "name": "Simulação",
+          "description": "Verifica o documento e retorna o relatório, mas não grava nada."
+        },
+        "files_dir": {
+          "name": "Pasta de arquivos",
+          "description": "O Home Keeper define esta pasta para uma exportação em pacote. O Pawsistant não tem arquivos, então não usa a pasta."
+        }
+      }
+    },
     "update_event_type": {
       "name": "Atualizar tipo de evento",
       "description": "Atualiza o nome de exibição, o ícone, a cor ou a métrica do botão de um tipo de evento existente. Apenas os campos que você fornecer são alterados — os campos omitidos permanecem inalterados. Tipos integrados e personalizados podem ser atualizados. O sensor reflete as alterações imediatamente após a chamada.",

@@ -264,6 +264,34 @@
         }
       }
     },
+    "export_data": {
+      "name": "Exportera data",
+      "description": "Returnerar all Pawsistant-data som ett dokument: husdjur, händelsetyper, knappmått, visade knappar, skötselscheman och alla händelser. Bara en administratör kan använda den här åtgärden. Home Keeper använder den för sin samlade export.",
+      "fields": {
+        "files_dir": {
+          "name": "Filmapp",
+          "description": "Home Keeper anger den här mappen för en paketexport. Pawsistant har inga filer och använder därför inte mappen."
+        }
+      }
+    },
+    "import_data": {
+      "name": "Importera data",
+      "description": "Lägger till eller uppdaterar posterna i ett dokument från export_data. En post som inte finns i dokumentet behålls. Bara en administratör kan använda den här åtgärden.",
+      "fields": {
+        "document": {
+          "name": "Dokument",
+          "description": "Datan från export_data. Du kan redigera den före importen."
+        },
+        "dry_run": {
+          "name": "Testkörning",
+          "description": "Kontrollerar dokumentet och returnerar rapporten, men skriver ingenting."
+        },
+        "files_dir": {
+          "name": "Filmapp",
+          "description": "Home Keeper anger den här mappen för en paketexport. Pawsistant har inga filer och använder därför inte mappen."
+        }
+      }
+    },
     "update_event_type": {
       "name": "Uppdatera händelsetyp",
       "description": "Uppdaterar visningsnamn, ikon, färg eller knappmetrik för en befintlig händelsetyp. Endast de fält du anger ändras – utelämnade fält lämnas oförändrade. Både inbyggda och anpassade typer kan uppdateras. Sensorn återspeglar ändringarna omedelbart efter anropet.",

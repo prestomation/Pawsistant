@@ -206,6 +206,51 @@ import_events:
       selector:
         object:
 
+export_data:
+  name: Export data
+  description: >
+    Return all Pawsistant data as 1 document: pets, event types, button
+    metrics, shown buttons, care schedules and all events. Only an
+    administrator can use this action. Home Keeper uses it for its combined
+    export.
+  fields:
+    files_dir:
+      name: Files folder
+      description: >
+        Home Keeper sets this folder for a bundle export. Pawsistant has no
+        files, so it does not use the folder.
+      required: false
+      selector:
+        text:
+
+import_data:
+  name: Import data
+  description: >
+    Add or update the records of a document from export_data. A record that
+    is not in the document stays. Only an administrator can use this action.
+  fields:
+    document:
+      name: Document
+      description: The data from export_data. You can edit it before the import.
+      required: true
+      selector:
+        object:
+    dry_run:
+      name: Dry run
+      description: Check the document and return the report, but write nothing.
+      required: false
+      default: false
+      selector:
+        boolean:
+    files_dir:
+      name: Files folder
+      description: >
+        Home Keeper sets this folder for a bundle export. Pawsistant has no
+        files, so it does not use the folder.
+      required: false
+      selector:
+        text:
+
 update_event_type:
   name: Update Event Type
   description: >

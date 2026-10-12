@@ -264,6 +264,34 @@
         }
       }
     },
+    "export_data": {
+      "name": "Exporter les données",
+      "description": "Renvoie toutes les données de Pawsistant dans un seul document : animaux, types d'événement, métriques des boutons, boutons affichés, plans de soins et tous les événements. Seul un administrateur peut utiliser cette action. Home Keeper l'utilise pour son export combiné.",
+      "fields": {
+        "files_dir": {
+          "name": "Dossier de fichiers",
+          "description": "Home Keeper définit ce dossier pour un export en paquet. Pawsistant n'a pas de fichiers, il n'utilise donc pas ce dossier."
+        }
+      }
+    },
+    "import_data": {
+      "name": "Importer les données",
+      "description": "Ajoute ou met à jour les enregistrements d'un document issu de export_data. Un enregistrement absent du document est conservé. Seul un administrateur peut utiliser cette action.",
+      "fields": {
+        "document": {
+          "name": "Document",
+          "description": "Les données issues de export_data. Vous pouvez les modifier avant l'import."
+        },
+        "dry_run": {
+          "name": "Simulation",
+          "description": "Vérifie le document et renvoie le rapport, sans rien écrire."
+        },
+        "files_dir": {
+          "name": "Dossier de fichiers",
+          "description": "Home Keeper définit ce dossier pour un export en paquet. Pawsistant n'a pas de fichiers, il n'utilise donc pas ce dossier."
+        }
+      }
+    },
     "update_event_type": {
       "name": "Mettre à jour un type d'événement",
       "description": "Met à jour le nom affiché, l'icône, la couleur ou la métrique du bouton d'un type d'événement existant. Seuls les champs fournis sont modifiés — les champs omis restent inchangés. Les types intégrés et personnalisés peuvent tous deux être mis à jour. Le capteur reflète immédiatement les modifications après l'appel.",

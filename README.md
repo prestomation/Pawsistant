@@ -87,6 +87,14 @@ time moves the completion to match. If the two ever drift apart — an undo whil
 Assistant was restarting, say — Pawsistant tidies up on the next start, and only ever
 touches entries it logged on Home Keeper's behalf, never one you logged yourself.
 
+**One export for both.** Pawsistant joins Home Keeper's export and import. Home
+Keeper's export file then also holds your pets, event types, button settings, care
+schedules and all logged events. Import that file on a new install and Pawsistant adds
+or updates its records; it never deletes a record that is not in the file. Pawsistant
+then makes the Home Keeper tasks of the care schedules again. See
+[`pawsistant.export_data`](#pawsistantexport_data) and
+[`pawsistant.import_data`](#pawsistantimport_data).
+
 Pawsistant also **announces itself to Home Keeper** so it appears under Home Keeper's
 **Settings → Companions** section, with a *Configure* link to Pawsistant's settings
 page (where the care schedules above live) — so if you have both, you'll discover they
@@ -222,6 +230,45 @@ Bulk-import events from a JSON array (for migrating from other systems).
 | Field | Required | Description |
 |-------|----------|-------------|
 | `events` | ✅ | List of event dicts with keys: `event_type`, `timestamp`, `dog_id`, `note`, `value` |
+
+### `pawsistant.export_data`
+Return all data as 1 document, through the service response. **Administrators only.**
+Home Keeper calls this action for its combined export.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `files_dir` | — | Set by Home Keeper for a bundle export. Pawsistant has no files and does not use it. |
+
+The response is `{format, version, data, skipped}`. `data` has these keys:
+
+| Key | Contents |
+|-----|----------|
+| `format` | The document format, now `1` |
+| `dogs` | List of `{id, name, breed, birth_date, species}` |
+| `event_types` | Your event type changes (`null` marks a deleted built-in type) |
+| `button_metrics` | Your button metric changes |
+| `shown_types` | `{dog id: [event types]}`: the buttons each pet shows |
+| `care_schedules` | List of `{id, dog_id, event_type, recurrence_type, interval, unit or freq, anchor}`, with no Home Keeper task id |
+| `events` | All events of all years, newest first: `{id, dog_id, event_type, timestamp, note, value}` |
+
+### `pawsistant.import_data`
+Add or update the records of a document from `export_data`. **Administrators only.**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `document` | ✅ | The `data` from `export_data` (you can edit it first) |
+| `dry_run` | — | `true` checks the document and returns the report, but writes nothing |
+| `files_dir` | — | Set by Home Keeper for a bundle import. Not used. |
+
+- A pet matches by id, then by name. A care schedule matches by id, then by pet and
+  event type. An event matches by id, so an import of the same file 2 times adds no
+  duplicates.
+- A record that is not in the document stays.
+- The response is `{ok, dry_run, counts, records, problems}`. Each problem is
+  `{level, path, message}`, for example `events[2].dog_id`. 1 `error` stops the full
+  import, and nothing is written.
+- After an import, Pawsistant fires the `pawsistant_data_imported` event with the
+  counts.
 
 ---
 

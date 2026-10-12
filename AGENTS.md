@@ -28,6 +28,8 @@
 - Sensor utility functions operate on `list[dict]` (not model objects)
 - Events are stored as plain dicts with keys: `id`, `event_type`, `timestamp`, `note`, `value`, `dog_id`
 - Entity unique IDs are anchored to `dog_id` (survives renames)
+- Admin-only services (`export_data`, `import_data`) call `_verify_admin` in `__init__.py` first. A call with no user (an automation, or Home Keeper) is trusted, as in HA core.
+- Pure export/import logic lives in `import_export.py` (no HA imports); `PawsistantStore.apply_import` writes a plan. Real-HA tests for it are in `tests/test_import_export_ha.py`, which runs in the first (real-HA) pytest process.
 - Use HA CSS variables in card styling (dark mode compat)
 - Escape all user content before innerHTML injection (`_escapeHTML()` helper)
 

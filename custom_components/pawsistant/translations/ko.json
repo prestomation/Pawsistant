@@ -264,6 +264,34 @@
         }
       }
     },
+    "export_data": {
+      "name": "데이터 내보내기",
+      "description": "Pawsistant의 모든 데이터를 하나의 문서로 반환합니다: 반려동물, 이벤트 유형, 버튼 지표, 표시 버튼, 관리 일정, 모든 이벤트. 이 작업은 관리자만 사용할 수 있습니다. Home Keeper는 통합 내보내기에 이 작업을 사용합니다.",
+      "fields": {
+        "files_dir": {
+          "name": "파일 폴더",
+          "description": "Home Keeper가 번들 내보내기를 위해 이 폴더를 설정합니다. Pawsistant에는 파일이 없으므로 이 폴더를 사용하지 않습니다."
+        }
+      }
+    },
+    "import_data": {
+      "name": "데이터 가져오기",
+      "description": "export_data 문서의 레코드를 추가하거나 업데이트합니다. 문서에 없는 레코드는 그대로 남습니다. 이 작업은 관리자만 사용할 수 있습니다.",
+      "fields": {
+        "document": {
+          "name": "문서",
+          "description": "export_data의 데이터입니다. 가져오기 전에 편집할 수 있습니다."
+        },
+        "dry_run": {
+          "name": "시험 실행",
+          "description": "문서를 확인하고 보고서를 반환하지만 아무것도 쓰지 않습니다."
+        },
+        "files_dir": {
+          "name": "파일 폴더",
+          "description": "Home Keeper가 번들 내보내기를 위해 이 폴더를 설정합니다. Pawsistant에는 파일이 없으므로 이 폴더를 사용하지 않습니다."
+        }
+      }
+    },
     "update_event_type": {
       "name": "이벤트 유형 업데이트",
       "description": "기존 이벤트 유형의 표시 이름, 아이콘, 색상 또는 버튼 메트릭을 업데이트합니다. 제공한 필드만 변경되며 — 생략된 필드는 그대로 유지됩니다. 기본 제공 유형과 사용자 지정 유형 모두 업데이트할 수 있습니다. 호출 후 센서에 변경 사항이 즉시 반영됩니다.",
