@@ -33,9 +33,6 @@ jobs:
       - name: Run frontend tests
         run: bash ci/test-frontend.sh
 
-      - name: Run Python unit tests
-        run: bash ci/test-python-unit.sh
-
       - name: Clean node_modules before validation
         run: rm -rf custom_components/pawsistant/frontend/node_modules
 
@@ -46,3 +43,41 @@ jobs:
 
       - name: Run hassfest
         uses: "home-assistant/actions/hassfest@master"
+
+  # The oldest supported Home Assistant is named in ci/oldest-ha.env. A change that
+  # breaks it fails here, so dropping an old version is always a choice.
+  unit-ha:
+    name: unit (HA ${{ matrix.ha }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ha: [oldest, stable]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the oldest version
+        run: cat ci/oldest-ha.env >> "$GITHUB_ENV"
+
+      # The oldest lane uses the Python of that Home Assistant. The stable lane must
+      # be at or above the Python floor of the newest Home Assistant. Below it, pip
+      # goes back to an old release, and check-ha-version.py fails the job.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.ha == 'oldest' && env.OLDEST_PYTHON || '3.14' }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-test.txt packaging
+          if [ "${{ matrix.ha }}" = "oldest" ]; then
+            pip install "pytest-homeassistant-custom-component==$OLDEST_PHCC"
+          else
+            pip install pytest-homeassistant-custom-component
+          fi
+
+      - name: Check the Home Assistant version
+        run: python ci/check-ha-version.py ${{ matrix.ha }}
+
+      - name: Run Python unit tests
+        run: bash ci/test-python-unit.sh
