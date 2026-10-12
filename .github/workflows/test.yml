@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Read the oldest version
-        run: cat ci/oldest-ha.env >> "$GITHUB_ENV"
+        run: grep -E "^[A-Z_]+=" ci/oldest-ha.env >> "$GITHUB_ENV"
 
       # The oldest lane uses the Python of that Home Assistant. The stable lane must
       # be at or above the Python floor of the newest Home Assistant. Below it, pip
