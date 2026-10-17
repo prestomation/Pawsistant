@@ -51,17 +51,16 @@ def test_read_env_skips_comments_and_blank_lines():
     assert CHECKER.read_env("# note\n\nA=1\n B = two \n") == {"A": "1", "B": "two"}
 
 
-def test_newest_stable_skips_prerelease_yanked_and_empty():
-    files = [{"yanked": False}]
-    releases = {
-        "2026.10.0": files,  # sorts below 2026.9.0 as a string
-        "2026.11.0b1": files,
-        "2026.12.0": [{"yanked": True}],
-        "2027.1.0": [],
-        "not-a-version": files,
-    }
-    assert str(CHECKER.newest_stable(releases)) == "2026.10.0"
+def test_pinned_ha_reads_the_homeassistant_pin():
+    requires = [
+        "homeassistant-stubs==2026.10.0",
+        "homeassistant==2026.10.1",
+        "pytest==9.0.3",
+    ]
+    assert str(CHECKER.pinned_ha(requires)) == "2026.10.1"
 
 
-def test_newest_stable_is_none_without_releases():
-    assert CHECKER.newest_stable({}) is None
+def test_pinned_ha_is_none_without_a_pin():
+    assert CHECKER.pinned_ha(None) is None
+    assert CHECKER.pinned_ha(["homeassistant>=2026.1"]) is None
+    assert CHECKER.pinned_ha(["homeassistant==not-a-version"]) is None
