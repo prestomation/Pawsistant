@@ -7,7 +7,12 @@ an API that nobody runs. This script fails a job that did not get the version th
 asked for.
 
     python ci/check-ha-version.py oldest   # must be exactly OLDEST_HA
-    python ci/check-ha-version.py stable   # must be the newest stable on PyPI
+    python ci/check-ha-version.py stable   # must be the version that the newest
+                                           # pytest-homeassistant-custom-component pins
+
+The newest Home Assistant on PyPI is not the target. A Home Assistant patch release
+comes out some hours before the test package that pins it, and the job cannot install
+it before then.
 
 When PyPI is not reachable, the ``stable`` check is skipped. A network error must not
 turn CI red.
@@ -23,7 +28,7 @@ from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
 
-_PYPI = "https://pypi.org/pypi/homeassistant/json"
+_PYPI = "https://pypi.org/pypi/pytest-homeassistant-custom-component/json"
 _ENV = Path(__file__).with_name("oldest-ha.env")
 
 
@@ -38,19 +43,16 @@ def read_env(text: str) -> dict[str, str]:
     return values
 
 
-def newest_stable(releases: dict[str, list[dict]]) -> Version | None:
-    """Pick the newest installable stable version from a PyPI ``releases`` mapping."""
-    found = []
-    for raw, files in releases.items():
-        if not files or all(f.get("yanked") for f in files):
-            continue
-        try:
-            version = Version(raw)
-        except InvalidVersion:
-            continue
-        if not version.is_prerelease and not version.is_devrelease:
-            found.append(version)
-    return max(found, default=None)
+def pinned_ha(requires_dist: list[str] | None) -> Version | None:
+    """Read the ``homeassistant==X`` pin from a PyPI ``requires_dist`` list."""
+    for requirement in requires_dist or []:
+        name, sep, pin = requirement.partition("==")
+        if sep and name.strip() == "homeassistant":
+            try:
+                return Version(pin.split(";")[0].strip())
+            except InvalidVersion:
+                return None
+    return None
 
 
 def main(argv: list[str]) -> int:
@@ -69,13 +71,14 @@ def main(argv: list[str]) -> int:
         return 0
     try:
         with urllib.request.urlopen(_PYPI, timeout=30) as response:
-            newest = newest_stable(json.load(response)["releases"])
+            newest = pinned_ha(json.load(response)["info"]["requires_dist"])
     except (urllib.error.URLError, TimeoutError, ValueError, KeyError):
         print("PyPI is not reachable. The check is skipped.")
         return 0
     if newest is not None and installed < newest:
         print(
-            f"FAIL: the newest stable is {newest}. Check the Python version of the job."
+            f"FAIL: the newest test package pins {newest}. "
+            "Check the Python version of the job."
         )
         return 1
     return 0
