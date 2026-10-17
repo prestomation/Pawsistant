@@ -31,12 +31,6 @@ All notable changes to Pawsistant will be documented in this file.
   so change a cadence in Pawsistant rather than in Home Keeper.
 - **Admin-only bulk actions.** Only an administrator can import events, remove a pet or
   delete an event type now. Automations and scripts still work.
-- **The release zip is now built from scratch and its contents verified before
-  publishing.** `pawsistant.zip` was a committed file and `zip -r` appends to an
-  existing archive, so a release could ship a stale copy of the integration — `v2.15.0`
-  shipped a manifest reading `2.14.0` this way. The zip is now gitignored, rebuilt from
-  nothing, and checked (manifest version, `CARD_VERSION`, the version baked into the
-  card bundle, and no stray build files) before the release is created.
 
 ### Fixed
 - **Card on Home Assistant 2025.1.** Pawsistant now adds its card to the Lovelace resources on Home Assistant 2025.1. Before, it took that version for YAML mode and did not add the card.
