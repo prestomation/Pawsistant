@@ -351,6 +351,10 @@
         "event_type": {
           "name": "Klucz typu zdarzenia",
           "description": "Klucz typu zdarzenia do usunięcia (np. my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Usuń zapisane zdarzenia",
+          "description": "Usuń także wszystkie zdarzenia zapisane z tym typem. Domyślnie: wyłączone, zdarzenia zostają."
         }
       }
     },

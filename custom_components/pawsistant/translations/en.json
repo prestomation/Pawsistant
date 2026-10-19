@@ -351,6 +351,10 @@
         "event_type": {
           "name": "Event type key",
           "description": "The event type key to delete (e.g. my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Delete logged events",
+          "description": "Also delete all events that are logged with this type. Default: off, the events stay."
         }
       }
     },

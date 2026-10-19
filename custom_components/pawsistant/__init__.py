@@ -55,6 +55,8 @@ from .const import (
     EVENT_TYPE_KEY_RE,
     DEFAULT_EVENT_TYPES,
     DEFAULT_BUTTON_METRICS,
+    CONF_SPECIES,
+    DEFAULT_SPECIES,
 )
 from . import care_link
 from .coordinator import PawsistantCoordinator
@@ -99,6 +101,7 @@ ADD_DOG_SCHEMA = vol.Schema(
         vol.Required("name"): cv.string,
         vol.Optional("breed", default=""): cv.string,
         vol.Optional("birth_date", default=""): cv.string,
+        vol.Optional(CONF_SPECIES, default=DEFAULT_SPECIES): cv.string,
     }
 )
 
@@ -202,6 +205,36 @@ def _verify_files_dir(hass: HomeAssistant, files_dir: str | None) -> None:
         target = Path(hass.config.path()) / target
     if ".." in Path(files_dir).parts or not target.resolve().is_relative_to(root):
         raise ServiceValidationError(f"files_dir must be a folder below {root}.")
+
+
+async def async_remove_pet(
+    hass: HomeAssistant, entry: ConfigEntry, store: PawsistantStore, dog_id: str
+) -> None:
+    """Remove a pet and all that belongs to it.
+
+    The remove_dog service and the options flow both use this function, so that
+    both remove the same things:
+
+    - The entity registry entries of the pet. If they stay, they are orphaned.
+      A new pet with the same name then gets different entity_ids (for example
+      sensor.buddy_daily_pee_count_2), because the old entity_ids are still taken.
+    - The care schedules of the pet and their Home Keeper tasks, so that no
+      orphaned tasks stay in Home Keeper.
+    - The pet and all its events in the store.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    ent_reg = er.async_get(hass)
+    prefix = f"pawsistant_{dog_id}_"
+    for entity_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        if entity_entry.unique_id.startswith(prefix):
+            ent_reg.async_remove(entity_entry.entity_id)
+            _LOGGER.debug("Removed entity registry entry %s", entity_entry.entity_id)
+
+    for schedule in await store.remove_care_schedules_for_dog(dog_id):
+        await care_link.delete_task(hass, schedule.get("task_id"))
+
+    await store.remove_dog(dog_id)
 
 
 SET_SHOWN_TYPES_SCHEMA = vol.Schema(
@@ -647,6 +680,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 name=name,
                 breed=call.data.get("breed", ""),
                 birth_date=call.data.get("birth_date", ""),
+                species=call.data.get(CONF_SPECIES) or DEFAULT_SPECIES,
             )
         except ValueError as err:
             _LOGGER.error("pawsistant.add_dog: %s", err)
@@ -666,7 +700,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_remove_dog(call: ServiceCall) -> None:
         """Handle pawsistant.remove_dog (admin only)."""
         await _verify_admin(hass, call)
-        from homeassistant.helpers import entity_registry as er
 
         store, coord = _get_store_and_coord()
         dog_name: str = call.data["dog"]
@@ -677,35 +710,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             return
         dog_id, _ = result
-
-        # Clean up entity registry entries for this dog *before* removing from
-        # the store.  Without this, the entity registry keeps the old entries
-        # as orphaned/unavailable forever.  If a new dog with the same name is
-        # added later, its sensors would get different entity_ids (e.g.
-        # sensor.buddy_daily_pee_count_2) because the original entity_ids are
-        # still "taken" by the orphaned entries — causing tests and automations
-        # that reference the expected entity_ids to fail.
-        ent_reg = er.async_get(hass)
-        cfg_entries = hass.config_entries.async_entries(DOMAIN)
-        if cfg_entries:
-            entry_id = cfg_entries[0].entry_id
-            entity_entries = er.async_entries_for_config_entry(ent_reg, entry_id)
-            prefix = f"pawsistant_{dog_id}_"
-            for entity_entry in entity_entries:
-                if entity_entry.unique_id.startswith(prefix):
-                    ent_reg.async_remove(entity_entry.entity_id)
-                    _LOGGER.debug(
-                        "Removed entity registry entry %s for dog '%s'",
-                        entity_entry.entity_id,
-                        dog_name,
-                    )
-
-        # Tear down any care schedules (and their Home Keeper tasks) for this dog
-        # before removing it, so no orphaned tasks linger in Home Keeper.
-        for schedule in await store.remove_care_schedules_for_dog(dog_id):
-            await care_link.delete_task(hass, schedule.get("task_id"))
-
-        await store.remove_dog(dog_id)
+        await async_remove_pet(hass, entry, store, dog_id)
         _LOGGER.info("Removed dog '%s' via service", dog_name)
         await coord.async_refresh()
 
@@ -882,38 +887,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     f"starting with # (e.g. #4CAF50)."
                 )
             update["color"] = color_val
+        metric: str | None = None
         if "metric" in call.data and call.data["metric"]:
-            metric_val = call.data["metric"].strip()
-            if metric_val not in VALID_BUTTON_METRICS:
+            metric = call.data["metric"].strip()
+            if metric not in VALID_BUTTON_METRICS:
                 raise ServiceValidationError(
-                    f"Invalid metric '{metric_val}'. Must be one of: "
+                    f"Invalid metric '{metric}'. Must be one of: "
                     f"{', '.join(VALID_BUTTON_METRICS)}."
                 )
 
-        if not update:
+        if not update and metric is None:
             raise ServiceValidationError(
                 "No fields to update. Provide at least one of: "
                 "name, icon, color, metric."
             )
 
-        # Merge update into stored event types.
-        # Work from the resolved registry (get_event_types already handles tombstones)
-        # and the existing stored overrides (which may contain tombstones for other
-        # deleted defaults that we must preserve).
-        stored = store.get_stored_event_type_overrides()
-        existing_resolved = all_types.get(event_type, {})
-        merged = {**existing_resolved, **update}
-        # Preserve all existing stored overrides (including tombstones for other keys),
-        # then set/update just this key.
-        new_overrides = dict(stored)
-        new_overrides[event_type] = merged
-        store.save_event_types(new_overrides)
-        store.sync_save_meta()
+        if update:
+            # Merge update into stored event types.
+            # Work from the resolved registry (get_event_types already handles
+            # tombstones) and the existing stored overrides (which may contain
+            # tombstones for other deleted defaults that we must preserve).
+            stored = store.get_stored_event_type_overrides()
+            existing_resolved = all_types.get(event_type, {})
+            merged = {**existing_resolved, **update}
+            # Preserve all existing stored overrides (including tombstones for
+            # other keys), then set/update just this key.
+            new_overrides = dict(stored)
+            new_overrides[event_type] = merged
+            store.save_event_types(new_overrides)
+            store.sync_save_meta()
 
         # Persist metric override separately if provided
-        if "metric" in call.data and call.data["metric"]:
+        if metric is not None:
             metrics = store.get_button_metrics()
-            metrics[event_type] = call.data["metric"].strip()
+            metrics[event_type] = metric
             # Save the full resolved metrics map (defaults + all overrides).
             # The previous filter (`k in DEFAULT_BUTTON_METRICS or k == event_type`)
             # dropped metric overrides for custom event types that weren't the
@@ -923,7 +930,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             store.sync_save_meta()
 
         _LOGGER.info(
-            "Updated event type '%s': %s", event_type, update
+            "Updated event type '%s': %s, metric=%s", event_type, update, metric
         )
         await coord.async_refresh()
 

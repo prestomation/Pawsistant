@@ -351,6 +351,10 @@
         "event_type": {
           "name": "이벤트 유형 키",
           "description": "삭제할 이벤트 유형 키 (예: my_custom_type)."
+        },
+        "delete_events": {
+          "name": "기록된 이벤트 삭제",
+          "description": "이 유형으로 기록된 모든 이벤트도 삭제합니다. 기본값: 끔, 이벤트는 유지됩니다."
         }
       }
     },

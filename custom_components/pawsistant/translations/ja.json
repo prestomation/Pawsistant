@@ -351,6 +351,10 @@
         "event_type": {
           "name": "イベントタイプキー",
           "description": "削除するイベントタイプキー（例：my_custom_type）。"
+        },
+        "delete_events": {
+          "name": "記録済みのイベントを削除",
+          "description": "このタイプで記録されたすべてのイベントも削除します。既定: オフ (イベントは残ります)。"
         }
       }
     },

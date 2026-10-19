@@ -29,7 +29,7 @@ log_event:
             - sleep
             - grooming
             - training
-            - teeth_brushing
+            - teeth
             - sick
     note:
       name: Note
@@ -177,7 +177,7 @@ list_events:
             - sleep
             - grooming
             - training
-            - teeth_brushing
+            - teeth
             - sick
     days:
       name: Days
@@ -367,6 +367,15 @@ delete_event_type:
       required: true
       selector:
         text:
+    delete_events:
+      name: Delete logged events
+      description: >
+        Also delete all events that are logged with this type. Default: off,
+        the events stay.
+      required: false
+      default: false
+      selector:
+        boolean:
 
 set_shown_types:
   name: Set Shown Types

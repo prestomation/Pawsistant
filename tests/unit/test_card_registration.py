@@ -148,6 +148,8 @@ def _inject_stubs() -> None:
     _const.EVENT_TYPE_KEY_RE = re.compile(r"^[a-z0-9_]+$")
     _const.DEFAULT_EVENT_TYPES = {}
     _const.DEFAULT_BUTTON_METRICS = {}
+    _const.CONF_SPECIES = "species"
+    _const.DEFAULT_SPECIES = "Dog"
     sys.modules["custom_components.pawsistant.const"] = _const
 
     _coord = types.ModuleType("custom_components.pawsistant.coordinator")

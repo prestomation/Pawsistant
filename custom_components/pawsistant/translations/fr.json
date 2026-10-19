@@ -351,6 +351,10 @@
         "event_type": {
           "name": "Clé du type d'événement",
           "description": "La clé du type d'événement à supprimer (p. ex. my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Supprimer les événements enregistrés",
+          "description": "Supprime aussi tous les événements enregistrés avec ce type. Par défaut : désactivé, les événements sont conservés."
         }
       }
     },

@@ -351,6 +351,10 @@
         "event_type": {
           "name": "Chiave del tipo di evento",
           "description": "La chiave del tipo di evento da eliminare (es. my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Elimina gli eventi registrati",
+          "description": "Elimina anche tutti gli eventi registrati con questo tipo. Predefinito: disattivato, gli eventi restano."
         }
       }
     },

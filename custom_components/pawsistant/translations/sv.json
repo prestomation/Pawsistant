@@ -351,6 +351,10 @@
         "event_type": {
           "name": "Händelsetyp-nyckel",
           "description": "Händelsetyp-nyckeln som ska raderas (t.ex. my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Ta bort loggade händelser",
+          "description": "Ta även bort alla händelser som är loggade med denna typ. Standard: av, händelserna finns kvar."
         }
       }
     },

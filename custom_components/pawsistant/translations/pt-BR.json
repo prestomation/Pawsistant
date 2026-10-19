@@ -351,6 +351,10 @@
         "event_type": {
           "name": "Chave do tipo de evento",
           "description": "A chave do tipo de evento a excluir (ex.: my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Excluir eventos registrados",
+          "description": "Exclui também todos os eventos registrados com este tipo. Padrão: desativado, os eventos são mantidos."
         }
       }
     },

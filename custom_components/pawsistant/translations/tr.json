@@ -351,6 +351,10 @@
         "event_type": {
           "name": "Olay türü anahtarı",
           "description": "Silinecek olay türü anahtarı (örn. my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Kaydedilen olayları sil",
+          "description": "Bu türle kaydedilen tüm olayları da sil. Varsayılan: kapalı, olaylar kalır."
         }
       }
     },
