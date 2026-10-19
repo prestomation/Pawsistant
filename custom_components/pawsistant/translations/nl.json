@@ -351,6 +351,10 @@
         "event_type": {
           "name": "Gebeurtenistype-sleutel",
           "description": "De te verwijderen gebeurtenistype-sleutel (bijv. my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Gelogde gebeurtenissen verwijderen",
+          "description": "Verwijder ook alle gebeurtenissen die met dit type zijn gelogd. Standaard: uit, de gebeurtenissen blijven."
         }
       }
     },

@@ -4,6 +4,21 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Editing an event type in the options flow.** The edit saved the changes as a new
+  event type or showed "already exists". It now changes the event type that you edit.
+  The "Add event type" form also no longer opens with errors.
+- **Removing a pet in the options flow.** It now removes the pet's entities and its care
+  schedules (and their Home Keeper tasks), the same as the `pawsistant.remove_dog` service.
+- **Diagnostics no longer block Home Assistant.** The file checks now run outside the
+  event loop.
+- **`pawsistant.add_dog` accepts `species`.** The action editor showed the field, but the
+  service refused it.
+- **`pawsistant.update_event_type` with only `metric`.** It no longer fails with
+  "No fields to update".
+- **The "Teeth" event type in the action editor.** The list showed `teeth_brushing`, which
+  is not a real event type. It now shows `teeth`.
+
 ## [2.24.0] - 2026-10-17
 
 ### Added

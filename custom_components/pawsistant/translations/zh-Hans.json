@@ -351,6 +351,10 @@
         "event_type": {
           "name": "事件类型键",
           "description": "要删除的事件类型键（例如 my_custom_type）。"
+        },
+        "delete_events": {
+          "name": "删除已记录的事件",
+          "description": "同时删除以此类型记录的所有事件。默认：关闭，事件保留。"
         }
       }
     },

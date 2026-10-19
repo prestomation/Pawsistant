@@ -351,6 +351,10 @@
         "event_type": {
           "name": "Ereignistyp-Schlüssel",
           "description": "Der zu löschende Ereignistyp-Schlüssel (z. B. my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Protokollierte Ereignisse löschen",
+          "description": "Auch alle mit diesem Typ protokollierten Ereignisse löschen. Standard: aus, die Ereignisse bleiben."
         }
       }
     },
