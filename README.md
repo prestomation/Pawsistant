@@ -48,10 +48,11 @@ A local-only dog activity tracker for Home Assistant. Log walks, bathroom breaks
 
 ### Via HACS (recommended)
 
-1. Open **HACS → Integrations → ⋮ → Custom repositories**
-2. Add `https://github.com/prestomation/Pawsistant` with category **Integration**
-3. Search for **Pawsistant** and install
-4. Restart Home Assistant
+Pawsistant is in the default HACS store.
+
+1. Open **HACS** and search for **Pawsistant**
+2. Install it
+3. Restart Home Assistant
 
 ### Manual
 
@@ -312,7 +313,7 @@ MIT
 [commits-shield]: https://img.shields.io/github/last-commit/prestomation/Pawsistant?style=for-the-badge
 [commits]: https://github.com/prestomation/Pawsistant/commits/main
 [hacs]: https://github.com/custom-components/hacs
-[hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
+[hacsbadge]: https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge
 [license-shield]: https://img.shields.io/github/license/prestomation/Pawsistant.svg?style=for-the-badge
 [maintenance-shield]: https://img.shields.io/badge/Maintainers-%40prestomation-blue.svg?style=for-the-badge
 [downloads-shield]: https://img.shields.io/github/downloads/prestomation/Pawsistant/total.svg?style=for-the-badge
