@@ -4,6 +4,8 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+## [2.24.1] - 2026-10-19
+
 ### Fixed
 - **Editing an event type in the options flow.** The edit saved the changes as a new
   event type or showed "already exists". It now changes the event type that you edit.
@@ -18,6 +20,8 @@ All notable changes to Pawsistant will be documented in this file.
   "No fields to update".
 - **The "Teeth" event type in the action editor.** The list showed `teeth_brushing`, which
   is not a real event type. It now shows `teeth`.
+- **`pawsistant.delete_event_type` shows the "Delete logged events" option.** The service
+  already accepted `delete_events`, but the action editor did not show it.
 
 ## [2.24.0] - 2026-10-17
 
