@@ -4,6 +4,12 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **The button card no longer scans all Home Assistant states on every update.** It now
+  finds the entities of the pet once and reuses them. It looks again when the pet in the
+  card config changes, or when a cached entity is removed or changes pet. This makes the
+  card lighter on large installs and on wall tablets.
+
 ## [2.24.1] - 2026-10-19
 
 ### Fixed

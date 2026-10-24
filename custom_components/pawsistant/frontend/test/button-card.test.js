@@ -111,6 +111,96 @@ describe('PawsistantButtonCard', () => {
     });
   });
 
+  describe('state enumeration cost (issue #94)', () => {
+    // Wrap hass.states in a Proxy that counts every full enumeration
+    // (Object.entries / values / keys all trigger the ownKeys trap).
+    function countingHass(hass) {
+      const counter = { n: 0 };
+      hass.states = new Proxy(hass.states, {
+        ownKeys(t) { counter.n++; return Reflect.ownKeys(t); },
+      });
+      return { hass, counter };
+    }
+    function makeCard(buttons = [{ event_type: 'poop' }, { event_type: 'pee' }]) {
+      const card = new PawsistantButtonCard();
+      card.setConfig({ type: 'custom:pawsistant-button-card', dog: 'Sharky', buttons });
+      return card;
+    }
+    function nextHass(prev, patch = {}) {
+      const states = { ...prev.states, ...patch };
+      return { ...prev, states };
+    }
+
+    it('does not enumerate hass.states in _computeHash after the first hass', () => {
+      const card = makeCard();
+      card.hass = mockHass();
+      const { hass, counter } = countingHass(nextHass(card._hass));
+      card._hass = hass;
+      counter.n = 0;
+      card._computeHash();
+      card._computeHash();
+      expect(counter.n).toBe(0);
+    });
+
+    it('does not enumerate hass.states on a hass update with no relevant change', () => {
+      const card = makeCard();
+      card.hass = mockHass();
+      const { hass, counter } = countingHass(nextHass(card._hass, {
+        'light.kitchen': { state: 'on', attributes: { friendly_name: 'Kitchen' } },
+      }));
+      card.hass = hass;
+      card.hass = hass;
+      expect(counter.n).toBe(0);
+    });
+
+    it('still picks up a changed state of a cached entity', () => {
+      const card = makeCard();
+      card.hass = mockHass();
+      const before = card._lastHash;
+      card.hass = nextHass(card._hass, {
+        'sensor.sharky_daily_pee_count': { state: '4', attributes: { dog: 'Sharky', friendly_name: 'Sharky Daily Pee Count' } },
+      });
+      expect(card._lastHash).not.toBe(before);
+    });
+
+    it('re-resolves entities after setConfig', () => {
+      const card = makeCard();
+      card.hass = mockHass(['Sharky', 'Rex']);
+      card.setConfig({ type: 'custom:pawsistant-button-card', dog: 'Rex', buttons: [{ event_type: 'poop' }] });
+      expect(card._entities().timeline).toBe('sensor.rex_recent_timeline');
+    });
+
+    it('re-resolves when a renamed entity replaces the cached one', () => {
+      const card = makeCard();
+      const first = mockHass();
+      card.hass = first;
+      const states = { ...first.states };
+      const old = states['sensor.sharky_weight'];
+      delete states['sensor.sharky_weight'];
+      states['sensor.renamed_weight'] = old;
+      card.hass = { ...first, states };
+      expect(card._entities().weight).toBe('sensor.renamed_weight');
+    });
+
+    it('re-resolves when the cached entity changes dog', () => {
+      const card = makeCard();
+      const first = mockHass(['Sharky', 'Rex']);
+      card.hass = first;
+      const states = { ...first.states };
+      states['sensor.sharky_weight'] = { state: '80', attributes: { dog: 'Rex', friendly_name: 'Rex Weight' } };
+      states['sensor.sharky_weight_2'] = { state: '81', attributes: { dog: 'Sharky', friendly_name: 'Sharky Weight' } };
+      card.hass = { ...first, states };
+      expect(card._entities().weight).toBe('sensor.sharky_weight_2');
+    });
+
+    it('finds the entities when the dog appears after the first hass', () => {
+      const card = makeCard();
+      card.hass = { states: {}, callService: vi.fn() };
+      card.hass = mockHass();
+      expect(card._entities().timeline).toBe('sensor.sharky_recent_timeline');
+    });
+  });
+
   describe('_metricText', () => {
     it('returns daily_count for pee', () => {
       const card = new PawsistantButtonCard();
