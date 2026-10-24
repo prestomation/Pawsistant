@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — Button card tests
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PawsistantButtonCard } from '../src/button-card.js';
 
 // Stub customElements.define to avoid duplicate registration errors
@@ -161,6 +161,62 @@ describe('PawsistantButtonCard', () => {
         'sensor.sharky_daily_pee_count': { state: '4', attributes: { dog: 'Sharky', friendly_name: 'Sharky Daily Pee Count' } },
       });
       expect(card._lastHash).not.toBe(before);
+    });
+
+    describe('timeline missing or dog unknown', () => {
+      afterEach(() => { vi.useRealTimers(); });
+
+      // The dog is known (its weight sensor exists) but the timeline is not there yet.
+      function hassWithoutTimeline() {
+        const h = mockHass();
+        delete h.states['sensor.sharky_recent_timeline'];
+        return h;
+      }
+      function updates(card, first, n) {
+        const { hass: counted, counter } = countingHass(nextHass(first, {}));
+        card.hass = counted;
+        counter.n = 0;
+        for (let i = 0; i < n; i++) {
+          card.hass = { ...counted, states: counted.states };
+        }
+        return counter;
+      }
+
+      it('scans once, not on every update, while the timeline is missing', () => {
+        const card = makeCard();
+        const first = hassWithoutTimeline();
+        card.hass = first;
+        expect(updates(card, first, 5).n).toBe(0);
+      });
+
+      it('scans once, not on every update, for an unknown dog', () => {
+        const card = makeCard();
+        const first = mockHass(['Rex']);
+        card.hass = first;
+        expect(updates(card, first, 5).n).toBe(0);
+      });
+
+      it('finds a timeline that appears under its default id without a scan delay', () => {
+        const card = makeCard();
+        const first = hassWithoutTimeline();
+        card.hass = first;
+        card.hass = nextHass(first, { 'sensor.sharky_recent_timeline': mockHass().states['sensor.sharky_recent_timeline'] });
+        expect(card._entities().timeline).toBe('sensor.sharky_recent_timeline');
+        expect(card._entCache.timelineFound).toBe(true);
+      });
+
+      it('scans again after the rescan delay for a timeline with a custom id', () => {
+        vi.useFakeTimers();
+        const card = makeCard();
+        const first = hassWithoutTimeline();
+        card.hass = first;
+        const tl = mockHass().states['sensor.sharky_recent_timeline'];
+        card.hass = nextHass(first, { 'sensor.my_custom_timeline': tl });
+        expect(card._entCache.timelineFound).toBe(false);
+        vi.advanceTimersByTime(60_000);
+        card.hass = nextHass(first, { 'sensor.my_custom_timeline': tl });
+        expect(card._entities().timeline).toBe('sensor.my_custom_timeline');
+      });
     });
 
     it('re-resolves entities after setConfig', () => {

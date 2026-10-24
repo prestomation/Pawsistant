@@ -30,6 +30,9 @@ window.customCards.push({
 
 /* ── Main card element ─────────────────────────────────────────────── */
 
+/** Longest wait before the card scans again for a timeline it could not find. */
+const RESCAN_MS = 30_000;
+
 export class PawsistantButtonCard extends HTMLElement {
   _config: PawsistantButtonCardConfig = { type: 'custom:pawsistant-button-card', dog: '', buttons: [] };
   _hass: HomeAssistant | null = null;
@@ -37,7 +40,7 @@ export class PawsistantButtonCard extends HTMLElement {
   _timers: (ReturnType<typeof setTimeout> | number)[] = [];
   _activeForm: boolean = false;
   _btnCleanups: (() => void)[] = [];
-  _entCache: { dog: string; ent: DogEntities; found: string[]; timelineFound: boolean; dogSeen: boolean } | null = null;
+  _entCache: { dog: string; ent: DogEntities; found: string[]; timelineFound: boolean; dogSeen: boolean; scannedAt: number } | null = null;
   _formCleanup: (() => void) | null = null;
   _eventLogHandle: EventLogHandle | null = null;
 
@@ -81,15 +84,23 @@ export class PawsistantButtonCard extends HTMLElement {
   /**
    * Entity ids for the configured dog. Resolving them scans every state in
    * hass.states, so the result is cached and reused on later hass updates.
-   * The cache is rebuilt when the dog changes (setConfig), when the timeline
-   * is unknown, or when a cached entity is gone or now belongs to another dog.
+   * The cache is rebuilt when the dog changes (setConfig), or when a cached
+   * entity is gone or now belongs to another dog.
+   *
+   * While the timeline is not found (Home Assistant is starting, or the dog
+   * name is wrong), the cache is still reused. The card looks again when the
+   * timeline appears under its default id (one direct lookup per update), and
+   * otherwise at most once every RESCAN_MS, to catch a renamed timeline.
    */
   _entities(): DogEntities {
     const hass = this._hass;
     const dog = this._config.dog;
     const cache = this._entCache;
-    if (cache && hass && cache.dog === dog && cache.timelineFound
-        && cache.found.every(id => this._belongsToDog(hass, id, dog))) {
+    if (cache && hass && cache.dog === dog
+        && cache.found.every(id => this._belongsToDog(hass, id, dog))
+        && (cache.timelineFound
+          || (!this._belongsToDog(hass, cache.ent.timeline, dog)
+            && Date.now() - cache.scannedAt < RESCAN_MS))) {
       return cache.ent;
     }
     const ent = findEntitiesByDog(hass, dog);
@@ -97,9 +108,10 @@ export class PawsistantButtonCard extends HTMLElement {
       ? Object.values(ent).filter(id => this._belongsToDog(hass, id, dog))
       : [];
     const timelineFound = found.includes(ent.timeline);
-    // An unknown dog is not cached, so the next hass update looks again.
     const dogSeen = timelineFound || found.length > 0 || (!!hass && this._hasDog(hass, dog));
-    this._entCache = hass ? { dog, ent, found, timelineFound, dogSeen } : null;
+    this._entCache = hass
+      ? { dog, ent, found, timelineFound, dogSeen, scannedAt: Date.now() }
+      : null;
     return ent;
   }
 
@@ -117,7 +129,10 @@ export class PawsistantButtonCard extends HTMLElement {
 
   /** Metric per event type for the hash, read from the dog's own timeline when it has them (older backends: scan). */
   _hashMetrics(ent: DogEntities): Record<string, string> {
-    const own = stateAttr(this._hass!, ent.timeline, 'button_metrics');
+    const hass = this._hass!;
+    // No timeline yet: nothing to read, and no reason to scan.
+    if (!hass.states[ent.timeline]) return {};
+    const own = stateAttr(hass, ent.timeline, 'button_metrics');
     if (own && typeof own === 'object') return own as Record<string, string>;
     return buildRegistry(this._hass).metrics;
   }
