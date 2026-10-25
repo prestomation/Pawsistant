@@ -94,9 +94,20 @@ class PawsistantCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]
         return result
 
     @property
-    def event_types(self) -> dict[str, dict[str, str]]:
-        """Return the current event type registry (name/icon/color per key)."""
-        return self.store.get_event_types()
+    def event_types(self) -> dict[str, dict[str, Any]]:
+        """Return the event type registry (name/icon/color per key).
+
+        A type that uses a supply also carries the entity id of Home Keeper's spares
+        number for it, so the card can read the count from ``hass.states``.
+        """
+        from . import supplies, supply_link
+
+        return supplies.with_stock_entities(
+            self.store.get_event_types(),
+            lambda asset_id, part_id: supply_link.stock_entity_id(
+                self.hass, asset_id, part_id
+            ),
+        )
 
     @property
     def button_metrics(self) -> dict[str, str]:

@@ -21,8 +21,14 @@ pytestmark = pytest.mark.real_ha
 from homeassistant.exceptions import ServiceValidationError  # noqa: E402
 from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa: E402
 
+from custom_components.pawsistant import care_link  # noqa: E402
 from custom_components.pawsistant.config_flow import VALID_BUTTON_METRICS  # noqa: E402
 from custom_components.pawsistant.const import DEFAULT_EVENT_TYPES, DOMAIN  # noqa: E402
+
+try:
+    from home_keeper import testing as hk_testing
+except ImportError:  # Home Keeper is an optional test dependency
+    hk_testing = None
 
 FRONTEND = "custom_components.pawsistant._ensure_frontend_registered"
 SERVICES_YAML = (
@@ -75,6 +81,7 @@ SAMPLES: dict[str, dict[str, Any]] = {
         "icon": "mdi:walk",
         "color": "#123456",
         "metric": "days_since",
+        "supply": {"name": "Poop bags", "amount": 1},
     },
     "add_event_type": {
         "event_type": "brush2",
@@ -82,15 +89,35 @@ SAMPLES: dict[str, dict[str, Any]] = {
         "icon": "mdi:brush",
         "color": "#336699",
         "metric": "daily_count",
+        "supply": {"name": "Brush heads", "amount": 1},
     },
     "delete_event_type": {"event_type": "brush", "delete_events": True},
     "set_shown_types": {"dog": "Buddy", "shown_types": ["walk", "pee"]},
+    "update_supply": {
+        "event_type": "roll",
+        "stock": 3,
+        "reorder_at": 1,
+        "unit": "roll",
+        "pack_size": 8,
+    },
+}
+
+# Fields that need Home Keeper (a supply is counted there). These run against its
+# test fake, and skip when Home Keeper is not installed.
+NEEDS_HOME_KEEPER = {
+    ("update_event_type", "supply"),
+    ("add_event_type", "supply"),
+    ("update_supply", None),
+    ("update_supply", "stock"),
+    ("update_supply", "reorder_at"),
+    ("update_supply", "unit"),
+    ("update_supply", "pack_size"),
 }
 
 
 # Services that correctly refuse a call with only the required fields: there is
 # nothing to change. The call with each optional field must still work.
-NEEDS_AN_OPTIONAL_FIELD = {"update_event_type"}
+NEEDS_AN_OPTIONAL_FIELD = {"update_event_type", "update_supply"}
 
 
 def _fields(service: str) -> dict[str, Any]:
@@ -120,7 +147,11 @@ def _no_frontend():
         yield
 
 
-async def _setup(hass) -> dict[str, Any]:
+async def _setup(hass, home_keeper: bool = False) -> dict[str, Any]:
+    if home_keeper:
+        await hk_testing.async_setup_fake_home_keeper(hass)
+        # care_link finds Home Keeper through the config entry registry.
+        MockConfigEntry(domain=care_link.HK_DOMAIN).add_to_hass(hass)
     entry = MockConfigEntry(domain=DOMAIN, data={"initial_dog": {"name": "Buddy"}})
     entry.add_to_hass(hass)
     hass.config.components.add("http")
@@ -137,6 +168,19 @@ async def _setup(hass) -> dict[str, Any]:
         {"event_type": "brush", "name": "Brush", "icon": "mdi:brush", "color": "#336699"},
         blocking=True,
     )
+    if home_keeper:
+        await hass.services.async_call(
+            DOMAIN,
+            "add_event_type",
+            {
+                "event_type": "roll",
+                "name": "Roll",
+                "icon": "mdi:paper-roll",
+                "color": "#8D6E63",
+                "supply": {"name": "Poop bag rolls", "amount": 1},
+            },
+            blocking=True,
+        )
     export = await hass.services.async_call(
         DOMAIN, "export_data", {}, blocking=True, return_response=True
     )
@@ -200,7 +244,10 @@ async def test_service_accepts_each_field(
 
     This is what a user does in the action editor: fill in one field and run it.
     """
-    ctx = await _setup(hass)
+    needs_hk = (service, optional) in NEEDS_HOME_KEEPER
+    if needs_hk and hk_testing is None:
+        pytest.skip("Home Keeper is not installed")
+    ctx = await _setup(hass, home_keeper=needs_hk)
     fields = _required(service) | ({optional} if optional else set())
     data = {name: _value(SAMPLES[service][name], ctx) for name in fields}
     call = hass.services.async_call(

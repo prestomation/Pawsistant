@@ -518,8 +518,12 @@ class PawsistantStore:
         note: str = "",
         value: float | None = None,
         timestamp: str | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Log a new event.
+
+        *extra* adds bookkeeping keys to the record, such as the ``supply_draw`` that
+        lets a delete give back the stock this log took.
 
         The event is written to the year file that matches its timestamp
         (defaulting to the current year when no timestamp is provided).
@@ -541,6 +545,8 @@ class PawsistantStore:
         }
         if value is not None:
             event["value"] = value
+        if extra:
+            event.update(extra)
 
         # Insert and re-sort newest-first so backdated events land in the correct position
         self._year_events.setdefault(year, []).append(event)
