@@ -9,7 +9,7 @@ All notable changes to Pawsistant will be documented in this file.
 ### Added
 - **Supplies.** An event type can use a supply that Home Keeper counts, and each log
   takes its amount off the count. The button shows what is left, and at the reorder
-  point Home Keeper adds a Buy task to your shopping list. Needs Home Keeper 0.27.0b5
+  point Home Keeper adds a Buy task to your shopping list. Needs Home Keeper 0.27.0
   or newer.
 
 ### Fixed
