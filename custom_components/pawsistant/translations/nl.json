@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Huisdier verwijderen",
-      "description": "Verwijdert een huisdier en wist permanent al zijn gebeurtenissen. Deze actie kan niet ongedaan worden gemaakt.",
+      "description": "Verwijdert een huisdier en wist permanent al zijn gebeurtenissen. Deze actie kan niet ongedaan worden gemaakt. Alleen een beheerder kan deze actie gebruiken.",
       "fields": {
         "dog": {
           "name": "Huisdier",
@@ -256,11 +256,39 @@
     },
     "import_events": {
       "name": "Gebeurtenissen importeren",
-      "description": "Importeert gebeurtenissen in bulk vanuit een extern JSON-array. Bedoeld voor eenmalige migratie vanuit de Firebase-gebaseerde versie van DogLog. Gebeurtenissen waarvan de `id` al bestaat in de lokale opslag worden overgeslagen.",
+      "description": "Importeert gebeurtenissen in bulk vanuit een extern JSON-array. Bedoeld voor eenmalige migratie vanuit de Firebase-gebaseerde versie van DogLog. Gebeurtenissen waarvan de `id` al bestaat in de lokale opslag worden overgeslagen. Alleen een beheerder kan deze actie gebruiken.",
       "fields": {
         "events": {
           "name": "Gebeurtenissen",
           "description": "Een JSON-array van gebeurtenisobjecten. Elk object moet minimaal bevatten: dog_id, event_type, timestamp. Een `id`-veld is optioneel — er wordt er een gegenereerd als het ontbreekt."
+        }
+      }
+    },
+    "export_data": {
+      "name": "Gegevens exporteren",
+      "description": "Geeft alle Pawsistant-gegevens terug als één document: huisdieren, gebeurtenistypen, knopstatistieken, getoonde knoppen, verzorgingsschema's en alle gebeurtenissen. Alleen een beheerder kan deze actie gebruiken. Home Keeper gebruikt deze voor zijn gecombineerde export.",
+      "fields": {
+        "files_dir": {
+          "name": "Bestandsmap",
+          "description": "Home Keeper stelt deze map in voor een bundelexport. Pawsistant heeft geen bestanden en gebruikt de map dus niet."
+        }
+      }
+    },
+    "import_data": {
+      "name": "Gegevens importeren",
+      "description": "Voegt de records van een document uit export_data toe of werkt ze bij. Een record dat niet in het document staat, blijft bestaan. Alleen een beheerder kan deze actie gebruiken.",
+      "fields": {
+        "document": {
+          "name": "Document",
+          "description": "De gegevens uit export_data. U kunt ze vóór de import bewerken."
+        },
+        "dry_run": {
+          "name": "Proefrun",
+          "description": "Controleert het document en geeft het rapport terug, maar schrijft niets."
+        },
+        "files_dir": {
+          "name": "Bestandsmap",
+          "description": "Home Keeper stelt deze map in voor een bundelexport. Pawsistant heeft geen bestanden en gebruikt de map dus niet."
         }
       }
     },
@@ -326,11 +354,15 @@
     },
     "delete_event_type": {
       "name": "Gebeurtenistype verwijderen",
-      "description": "Verwijdert permanent een aangepast gebeurtenistype. Ingebouwde types (food, walk, enz.) kunnen niet worden verwijderd — gebruik update_event_type om ze te wijzigen. Gebeurtenissen die al zijn geregistreerd met dit type blijven bewaard in de database.",
+      "description": "Verwijdert permanent een aangepast gebeurtenistype. Ingebouwde types (food, walk, enz.) kunnen niet worden verwijderd — gebruik update_event_type om ze te wijzigen. Gebeurtenissen die al zijn geregistreerd met dit type blijven bewaard in de database. Alleen een beheerder kan deze actie gebruiken.",
       "fields": {
         "event_type": {
           "name": "Gebeurtenistype-sleutel",
           "description": "De te verwijderen gebeurtenistype-sleutel (bijv. my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Gelogde gebeurtenissen verwijderen",
+          "description": "Verwijder ook alle gebeurtenissen die met dit type zijn gelogd. Standaard: uit, de gebeurtenissen blijven."
         }
       }
     },

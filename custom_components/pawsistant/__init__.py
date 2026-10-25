@@ -11,9 +11,11 @@ Services:
   pawsistant.log_event      — Log an activity for a named dog
   pawsistant.delete_event   — Delete an event by ID
   pawsistant.add_dog        — Register a new dog
-  pawsistant.remove_dog     — Remove a dog and all its events
+  pawsistant.remove_dog     — Remove a dog and all its events (admin only)
   pawsistant.list_events    — Fire a HA event with query results (for automations)
-  pawsistant.import_events  — Bulk-import events from a JSON array (Firebase migration)
+  pawsistant.import_events  — Bulk-import events from a JSON array (admin only)
+  pawsistant.export_data    — Return all data as 1 document (admin only)
+  pawsistant.import_data    — Upsert a document from export_data (admin only)
 """
 
 from __future__ import annotations
@@ -53,6 +55,8 @@ from .const import (
     EVENT_TYPE_KEY_RE,
     DEFAULT_EVENT_TYPES,
     DEFAULT_BUTTON_METRICS,
+    CONF_SPECIES,
+    DEFAULT_SPECIES,
 )
 from . import care_link, supplies, supply_link
 from .coordinator import PawsistantCoordinator
@@ -97,6 +101,7 @@ ADD_DOG_SCHEMA = vol.Schema(
         vol.Required("name"): cv.string,
         vol.Optional("breed", default=""): cv.string,
         vol.Optional("birth_date", default=""): cv.string,
+        vol.Optional(CONF_SPECIES, default=DEFAULT_SPECIES): cv.string,
     }
 )
 
@@ -164,6 +169,91 @@ DELETE_EVENT_TYPE_SCHEMA = vol.Schema(
     }
 )
 
+EXPORT_DATA_SCHEMA = vol.Schema(
+    {
+        # Pawsistant has no files, so it does not write to files_dir. It is
+        # validated all the same, as the Home Keeper contract tells.
+        vol.Optional("files_dir"): cv.string,
+    }
+)
+
+IMPORT_DATA_SCHEMA = vol.Schema(
+    {
+        # Any value: the import plan reports a document of the wrong shape as a
+        # problem with a path, which is more useful than a schema error.
+        vol.Required("document"): object,
+        vol.Optional("dry_run", default=False): cv.boolean,
+        vol.Optional("files_dir"): cv.string,
+    }
+)
+
+# The event that a real (not dry run) import fires after it writes.
+EVENT_DATA_IMPORTED = f"{DOMAIN}_data_imported"
+# Home Keeper gives a files_dir only below this folder in the config directory.
+HK_FILES_ROOT = (".storage", "home_keeper_import_export")
+
+
+async def _verify_admin(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Refuse a call from a user who is not an administrator.
+
+    A call without a user (an automation, or another integration such as Home
+    Keeper) has ``context.user_id`` set to None. Home Assistant trusts such a call,
+    so this function does too. This is the same rule as in Home Keeper.
+    """
+    from homeassistant.exceptions import Unauthorized
+
+    user_id = call.context.user_id
+    if user_id is None:
+        return
+    user = await hass.auth.async_get_user(user_id)
+    if user is None or not user.is_admin:
+        raise Unauthorized(context=call.context)
+
+
+def _verify_files_dir(hass: HomeAssistant, files_dir: str | None) -> None:
+    """Refuse a files_dir that is not below Home Keeper's import/export folder."""
+    from homeassistant.exceptions import ServiceValidationError
+
+    if files_dir is None:
+        return
+    root = Path(hass.config.path(*HK_FILES_ROOT)).resolve()
+    target = Path(files_dir)
+    if not target.is_absolute():
+        target = Path(hass.config.path()) / target
+    if ".." in Path(files_dir).parts or not target.resolve().is_relative_to(root):
+        raise ServiceValidationError(f"files_dir must be a folder below {root}.")
+
+
+async def async_remove_pet(
+    hass: HomeAssistant, entry: ConfigEntry, store: PawsistantStore, dog_id: str
+) -> None:
+    """Remove a pet and all that belongs to it.
+
+    The remove_dog service and the options flow both use this function, so that
+    both remove the same things:
+
+    - The entity registry entries of the pet. If they stay, they are orphaned.
+      A new pet with the same name then gets different entity_ids (for example
+      sensor.buddy_daily_pee_count_2), because the old entity_ids are still taken.
+    - The care schedules of the pet and their Home Keeper tasks, so that no
+      orphaned tasks stay in Home Keeper.
+    - The pet and all its events in the store.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    ent_reg = er.async_get(hass)
+    prefix = f"pawsistant_{dog_id}_"
+    for entity_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        if entity_entry.unique_id.startswith(prefix):
+            ent_reg.async_remove(entity_entry.entity_id)
+            _LOGGER.debug("Removed entity registry entry %s", entity_entry.entity_id)
+
+    for schedule in await store.remove_care_schedules_for_dog(dog_id):
+        await care_link.delete_task(hass, schedule.get("task_id"))
+
+    await store.remove_dog(dog_id)
+
+
 SET_SHOWN_TYPES_SCHEMA = vol.Schema(
     {
         vol.Required("dog"): cv.string,
@@ -183,28 +273,28 @@ class PawsistantCardRegistration:
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
 
-    @property
-    def _resource_mode(self) -> str:
-        """Return the Lovelace resource mode (HA 2026+ uses resource_mode)."""
-        lovelace = self.hass.data.get("lovelace")
-        if lovelace is None:
-            return "yaml"
-        # HA 2026.2+ uses resource_mode attribute
-        if hasattr(lovelace, "resource_mode"):
-            return lovelace.resource_mode
-        # HA 2025.x used mode
-        if hasattr(lovelace, "mode"):
-            return lovelace.mode
-        return "yaml"
+    def _lovelace_value(self, name: str):
+        """Read one field of Lovelace's shared data, or None when it is missing.
 
-    @property
-    def _resources(self):
+        Home Assistant 2025.1 keeps that data in a dict. From 2025.2 it is an object.
+        """
         lovelace = self.hass.data.get("lovelace")
         if lovelace is None:
             return None
-        if hasattr(lovelace, "resources"):
-            return lovelace.resources
-        return None
+        if isinstance(lovelace, dict):
+            return lovelace.get(name)
+        return getattr(lovelace, name, None)
+
+    @property
+    def _resource_mode(self) -> str:
+        """Return the Lovelace resource mode (HA 2026+ uses resource_mode)."""
+        # HA 2026.2+ uses resource_mode. Before that, the field is called mode.
+        mode = self._lovelace_value("resource_mode") or self._lovelace_value("mode")
+        return mode if isinstance(mode, str) else "yaml"
+
+    @property
+    def _resources(self):
+        return self._lovelace_value("resources")
 
     @property
     def _card_file(self) -> Path:
@@ -665,6 +755,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 name=name,
                 breed=call.data.get("breed", ""),
                 birth_date=call.data.get("birth_date", ""),
+                species=call.data.get(CONF_SPECIES) or DEFAULT_SPECIES,
             )
         except ValueError as err:
             _LOGGER.error("pawsistant.add_dog: %s", err)
@@ -682,8 +773,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def handle_remove_dog(call: ServiceCall) -> None:
-        """Handle pawsistant.remove_dog."""
-        from homeassistant.helpers import entity_registry as er
+        """Handle pawsistant.remove_dog (admin only)."""
+        await _verify_admin(hass, call)
 
         store, coord = _get_store_and_coord()
         dog_name: str = call.data["dog"]
@@ -694,35 +785,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             return
         dog_id, _ = result
-
-        # Clean up entity registry entries for this dog *before* removing from
-        # the store.  Without this, the entity registry keeps the old entries
-        # as orphaned/unavailable forever.  If a new dog with the same name is
-        # added later, its sensors would get different entity_ids (e.g.
-        # sensor.buddy_daily_pee_count_2) because the original entity_ids are
-        # still "taken" by the orphaned entries — causing tests and automations
-        # that reference the expected entity_ids to fail.
-        ent_reg = er.async_get(hass)
-        cfg_entries = hass.config_entries.async_entries(DOMAIN)
-        if cfg_entries:
-            entry_id = cfg_entries[0].entry_id
-            entity_entries = er.async_entries_for_config_entry(ent_reg, entry_id)
-            prefix = f"pawsistant_{dog_id}_"
-            for entity_entry in entity_entries:
-                if entity_entry.unique_id.startswith(prefix):
-                    ent_reg.async_remove(entity_entry.entity_id)
-                    _LOGGER.debug(
-                        "Removed entity registry entry %s for dog '%s'",
-                        entity_entry.entity_id,
-                        dog_name,
-                    )
-
-        # Tear down any care schedules (and their Home Keeper tasks) for this dog
-        # before removing it, so no orphaned tasks linger in Home Keeper.
-        for schedule in await store.remove_care_schedules_for_dog(dog_id):
-            await care_link.delete_task(hass, schedule.get("task_id"))
-
-        await store.remove_dog(dog_id)
+        await async_remove_pet(hass, entry, store, dog_id)
         _LOGGER.info("Removed dog '%s' via service", dog_name)
         await coord.async_refresh()
 
@@ -776,6 +839,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         Accepts a list of event dicts (e.g. exported from Firebase) and
         bulk-imports them into the local store.  Duplicate IDs are skipped.
         """
+        await _verify_admin(hass, call)
         store, coord = _get_store_and_coord()
         raw_events: list[Any] = call.data["events"]
         if not isinstance(raw_events, list):
@@ -788,6 +852,77 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(
         DOMAIN, "import_events", handle_import_events, schema=IMPORT_EVENTS_SCHEMA
+    )
+
+    # ── Export and import (Home Keeper's combined export) ─────────────────
+    # Admin only: the document holds all data, and an import writes all of it.
+    # See import_export.py for the document and the rules of the import.
+
+    async def handle_export_data(call: ServiceCall) -> dict[str, Any]:
+        """Handle pawsistant.export_data."""
+        from homeassistant.loader import async_get_integration
+
+        from . import import_export
+
+        await _verify_admin(hass, call)
+        _verify_files_dir(hass, call.data.get("files_dir"))
+        store, _coord = _get_store_and_coord()
+        integration = await async_get_integration(hass, DOMAIN)
+        return {
+            "format": import_export.FORMAT,
+            "version": str(integration.version),
+            "data": import_export.build_export(await store.export_snapshot()),
+            "skipped": {},
+        }
+
+    hass.services.async_register(
+        DOMAIN,
+        "export_data",
+        handle_export_data,
+        schema=EXPORT_DATA_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    async def handle_import_data(call: ServiceCall) -> dict[str, Any]:
+        """Handle pawsistant.import_data."""
+        from . import import_export
+
+        await _verify_admin(hass, call)
+        _verify_files_dir(hass, call.data.get("files_dir"))
+        store, coord = _get_store_and_coord()
+        dry_run: bool = call.data.get("dry_run", False)
+        current = await store.import_snapshot()
+        plan = import_export.plan_import(call.data["document"], current)
+        report = plan.report(dry_run=dry_run)
+        if dry_run or not plan.ok or not plan.has_changes:
+            return report
+
+        new_dogs = any(dog_id not in current["dogs"] for dog_id in plan.dogs)
+        for task_id in await store.apply_import(plan):
+            # The cadence of this schedule changed. Delete the old task; the
+            # reconcile pass below makes a new one with the new cadence.
+            await care_link.delete_task(hass, task_id)
+        _LOGGER.info("import_data: %s", report["counts"])
+        hass.bus.async_fire(EVENT_DATA_IMPORTED, {"counts": report["counts"]})
+
+        if new_dogs:
+            # Reload the entry so that the new dogs get their sensor entities,
+            # as add_dog does. The reload loads the store again from disk.
+            await hass.config_entries.async_reload(entry.entry_id)
+            store, coord = _get_store_and_coord()
+        else:
+            await coord.async_refresh()
+        # Make the Home Keeper tasks of the imported care schedules. A schedule is
+        # exported without its task id, so a new schedule has no task yet.
+        await care_link.reconcile(hass, store)
+        return report
+
+    hass.services.async_register(
+        DOMAIN,
+        "import_data",
+        handle_import_data,
+        schema=IMPORT_DATA_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
     )
 
     # ── Event type management services ────────────────────────────────────
@@ -827,11 +962,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     f"starting with # (e.g. #4CAF50)."
                 )
             update["color"] = color_val
+        metric: str | None = None
         if "metric" in call.data and call.data["metric"]:
-            metric_val = call.data["metric"].strip()
-            if metric_val not in VALID_BUTTON_METRICS:
+            metric = call.data["metric"].strip()
+            if metric not in VALID_BUTTON_METRICS:
                 raise ServiceValidationError(
-                    f"Invalid metric '{metric_val}'. Must be one of: "
+                    f"Invalid metric '{metric}'. Must be one of: "
                     f"{', '.join(VALID_BUTTON_METRICS)}."
                 )
         supply_changed = "supply" in call.data
@@ -840,32 +976,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 event_type, call.data["supply"], all_types
             )
 
-        if not update:
+        if not update and metric is None:
             raise ServiceValidationError(
                 "No fields to update. Provide at least one of: "
                 "name, icon, color, metric, supply."
             )
 
-        # Merge update into stored event types.
-        # Work from the resolved registry (get_event_types already handles tombstones)
-        # and the existing stored overrides (which may contain tombstones for other
-        # deleted defaults that we must preserve).
-        stored = store.get_stored_event_type_overrides()
-        existing_resolved = all_types.get(event_type, {})
-        merged = {**existing_resolved, **update}
-        if merged.get("supply") is None:
-            merged.pop("supply", None)
-        # Preserve all existing stored overrides (including tombstones for other keys),
-        # then set/update just this key.
-        new_overrides = dict(stored)
-        new_overrides[event_type] = merged
-        store.save_event_types(new_overrides)
-        store.sync_save_meta()
+        if update:
+            # Merge update into stored event types.
+            # Work from the resolved registry (get_event_types already handles
+            # tombstones) and the existing stored overrides (which may contain
+            # tombstones for other deleted defaults that we must preserve).
+            stored = store.get_stored_event_type_overrides()
+            existing_resolved = all_types.get(event_type, {})
+            merged = {**existing_resolved, **update}
+            if merged.get("supply") is None:
+                merged.pop("supply", None)
+            # Preserve all existing stored overrides (including tombstones for
+            # other keys), then set/update just this key.
+            new_overrides = dict(stored)
+            new_overrides[event_type] = merged
+            store.save_event_types(new_overrides)
+            store.sync_save_meta()
 
         # Persist metric override separately if provided
-        if "metric" in call.data and call.data["metric"]:
+        if metric is not None:
             metrics = store.get_button_metrics()
-            metrics[event_type] = call.data["metric"].strip()
+            metrics[event_type] = metric
             # Save the full resolved metrics map (defaults + all overrides).
             # The previous filter (`k in DEFAULT_BUTTON_METRICS or k == event_type`)
             # dropped metric overrides for custom event types that weren't the
@@ -875,7 +1012,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             store.sync_save_meta()
 
         _LOGGER.info(
-            "Updated event type '%s': %s", event_type, update
+            "Updated event type '%s': %s, metric=%s", event_type, update, metric
         )
         if supply_changed:
             await _after_supply_change()
@@ -1014,7 +1151,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def handle_delete_event_type(call: ServiceCall) -> None:
-        """Handle pawsistant.delete_event_type."""
+        """Handle pawsistant.delete_event_type (admin only)."""
+        await _verify_admin(hass, call)
         from homeassistant.exceptions import ServiceValidationError
 
         store, coord = _get_store_and_coord()
@@ -1297,6 +1435,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "remove_dog",
             "list_events",
             "import_events",
+            "export_data",
+            "import_data",
             "update_event_type",
             "add_event_type",
             "delete_event_type",

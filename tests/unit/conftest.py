@@ -42,3 +42,13 @@ def mock_get_source_ip():
 def fail_on_log_exception():
     """No-op override: HA log exception hooks not applicable in unit tests."""
     yield
+
+
+@pytest.fixture(autouse=True)
+def disable_http_server():
+    """No-op override: the http component is not loaded in unit tests.
+
+    The plugin fixture patches a function of that component. Newer Home Assistant
+    versions no longer have it, and the patch then fails every test.
+    """
+    yield

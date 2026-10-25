@@ -274,6 +274,13 @@ def _inject_stubs() -> None:
     _pkg = types.ModuleType("custom_components.pawsistant")
     _pkg.__path__ = []
     _pkg.__package__ = "custom_components.pawsistant"
+
+    async def _async_remove_pet(hass, entry, store, dog_id):
+        # The real helper also cleans the entity registry and care schedules;
+        # tests/test_options_flow_ha.py checks that with real Home Assistant.
+        await store.remove_dog(dog_id)
+
+    _pkg.async_remove_pet = _async_remove_pet
     sys.modules["custom_components.pawsistant"] = _pkg
 
     _cc = types.ModuleType("custom_components")
@@ -282,6 +289,20 @@ def _inject_stubs() -> None:
 
 
 _inject_stubs()
+_STUB_PACKAGES = {
+    name: sys.modules[name] for name in ("custom_components", "custom_components.pawsistant")
+}
+
+
+@pytest.fixture(autouse=True)
+def _stub_package(monkeypatch):
+    """Put the stub package back for each test.
+
+    Other test files replace it in sys.modules, and config_flow imports
+    async_remove_pet from it when a step runs.
+    """
+    for name, module in _STUB_PACKAGES.items():
+        monkeypatch.setitem(sys.modules, name, module)
 
 
 def _load_config_flow():
@@ -617,7 +638,7 @@ class TestEventTypeStepTitles:
         flow, store, coord, hass = _make_flow()
         store.get_event_types.return_value = {}
         store.get_button_metrics.return_value = {}
-        result = await flow.async_step_add_event_type(user_input={})
+        result = await flow.async_step_add_event_type()
         assert result["type"] == "form"
         assert result["step_id"] == "add_event_type"
         # No untranslatable {mode} word is injected.
@@ -630,12 +651,58 @@ class TestEventTypeStepTitles:
             "walk": {"name": "Walk", "icon": "mdi:walk", "color": "#66BB6A"}
         }
         store.get_button_metrics.return_value = {}
-        result = await flow.async_step_edit_event_type(
-            user_input={"event_type": "walk"}
-        )
+        flow._editing_key = "walk"
+        result = await flow.async_step_edit_event_type()
         assert result["type"] == "form"
         assert result["step_id"] == "edit_event_type"
         assert "mode" not in result["description_placeholders"]
+
+
+class TestEditEventTypeRoundTrip:
+    """Route from manage_event_types, then submit what the edit form sends back.
+
+    The submitted form does not carry the key of the type that is edited, so the
+    flow must keep it in its own state.
+    """
+
+    def _flow(self):
+        flow, store, coord, hass = _make_flow()
+        store.get_event_types.return_value = {
+            "walk": {"name": "Walk", "icon": "mdi:walk", "color": "#66BB6A"}
+        }
+        store.get_button_metrics.return_value = {}
+        store.get_stored_event_type_overrides.return_value = {}
+        store.get_stored_button_metric_overrides.return_value = {}
+        return flow, store, coord
+
+    @pytest.mark.asyncio
+    async def test_edit_saves_under_same_key(self):
+        flow, store, coord = self._flow()
+        result = await flow.async_step_manage_event_types({"action": "edit_walk"})
+        assert result["step_id"] == "edit_event_type"
+        assert not result["errors"]
+
+        result = await flow.async_step_edit_event_type(
+            {
+                "event_type_key": "walk",
+                "name": "Stroll",
+                "icon": "mdi:walk",
+                "color": "#123456",
+                "metric": "daily_count",
+            }
+        )
+
+        assert result["type"] == "create_entry"
+        saved = store.save_event_types.call_args.args[0]
+        assert set(saved) == {"walk"}
+        assert saved["walk"]["name"] == "Stroll"
+
+    @pytest.mark.asyncio
+    async def test_add_form_starts_without_errors(self):
+        flow, store, coord = self._flow()
+        result = await flow.async_step_manage_event_types({"action": "add"})
+        assert result["step_id"] == "add_event_type"
+        assert not result["errors"]
 
 
 # ---------------------------------------------------------------------------

@@ -29,7 +29,7 @@ log_event:
             - sleep
             - grooming
             - training
-            - teeth_brushing
+            - teeth
             - sick
     note:
       name: Note
@@ -137,7 +137,7 @@ remove_dog:
   name: Remove Pet
   description: >
     Remove a pet and permanently delete all of its events.
-    This action cannot be undone.
+    This action cannot be undone. Only an administrator can use this action.
   fields:
     dog:
       name: Pet
@@ -177,7 +177,7 @@ list_events:
             - sleep
             - grooming
             - training
-            - teeth_brushing
+            - teeth
             - sick
     days:
       name: Days
@@ -194,7 +194,8 @@ import_events:
   description: >
     Bulk-import events from an external JSON array. Intended for one-time
     migration from the Firebase-backed version of DogLog. Events whose `id`
-    already exists in the local store are skipped.
+    already exists in the local store are skipped. Only an administrator can
+    use this action.
   fields:
     events:
       name: Events
@@ -205,6 +206,51 @@ import_events:
       required: true
       selector:
         object:
+
+export_data:
+  name: Export data
+  description: >
+    Return all Pawsistant data as 1 document: pets, event types, button
+    metrics, shown buttons, care schedules and all events. Only an
+    administrator can use this action. Home Keeper uses it for its combined
+    export.
+  fields:
+    files_dir:
+      name: Files folder
+      description: >
+        Home Keeper sets this folder for a bundle export. Pawsistant has no
+        files, so it does not use the folder.
+      required: false
+      selector:
+        text:
+
+import_data:
+  name: Import data
+  description: >
+    Add or update the records of a document from export_data. A record that
+    is not in the document stays. Only an administrator can use this action.
+  fields:
+    document:
+      name: Document
+      description: The data from export_data. You can edit it before the import.
+      required: true
+      selector:
+        object:
+    dry_run:
+      name: Dry run
+      description: Check the document and return the report, but write nothing.
+      required: false
+      default: false
+      selector:
+        boolean:
+    files_dir:
+      name: Files folder
+      description: >
+        Home Keeper sets this folder for a bundle export. Pawsistant has no
+        files, so it does not use the folder.
+      required: false
+      selector:
+        text:
 
 update_event_type:
   name: Update Event Type
@@ -331,6 +377,7 @@ delete_event_type:
     Permanently delete a custom event type. Built-in types (food, walk, etc.)
     cannot be deleted — use update_event_type to modify them instead.
     Events already logged with this type are preserved in the database.
+    Only an administrator can use this action.
   fields:
     event_type:
       name: Event type key
@@ -338,6 +385,15 @@ delete_event_type:
       required: true
       selector:
         text:
+    delete_events:
+      name: Delete logged events
+      description: >
+        Also delete all events that are logged with this type. Default: off,
+        the events stay.
+      required: false
+      default: false
+      selector:
+        boolean:
 
 set_shown_types:
   name: Set Shown Types

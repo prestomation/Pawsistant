@@ -17,14 +17,15 @@ No sensitive data is included since Pawsistant has no cloud auth or credentials.
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import __version__ as HA_VERSION
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import async_get_integration
 
 from .const import CARD_VERSION, DOMAIN, URL_BASE
 from .coordinator import PawsistantCoordinator
@@ -35,7 +36,44 @@ _LOGGER = logging.getLogger(__name__)
 TO_REDACT: set[str] = set()
 
 
-def _card_registration(hass: HomeAssistant) -> dict[str, Any]:
+def _card_file_info() -> dict[str, Any]:
+    """Return whether the card bundle is on disk, and its size.
+
+    This does file I/O, so run it in an executor job.
+    """
+    card_file = Path(__file__).parent / "frontend" / "pawsistant-card.js"
+    # stat() can still fail after is_file() says yes — a permission error, or the
+    # file going away between the two calls. Report -1 rather than crashing the
+    # whole diagnostics dump over the least important field in it.
+    exists = card_file.is_file()
+    try:
+        size = card_file.stat().st_size if exists else 0
+    except OSError as err:
+        _LOGGER.debug("Could not stat %s: %s", card_file, err)
+        size = -1
+    return {"card_file_exists": exists, "card_file_size": size}
+
+
+def _storage_file_sizes(config_dir: str) -> dict[str, int]:
+    """Return the size of each .storage/pawsistant* file.
+
+    This does file I/O, so run it in an executor job.
+    """
+    storage_dir = Path(config_dir) / ".storage"
+    sizes: dict[str, int] = {}
+    if storage_dir.is_dir():
+        for path in sorted(storage_dir.glob("pawsistant*")):
+            try:
+                sizes[path.name] = path.stat().st_size
+            except OSError as err:
+                _LOGGER.debug("Could not stat %s: %s", path.name, err)
+                sizes[path.name] = -1
+    return sizes
+
+
+def _card_registration(
+    hass: HomeAssistant, card_file: dict[str, Any]
+) -> dict[str, Any]:
     """Report why the Lovelace card is (or isn't) reaching the browser.
 
     Nearly every "the card doesn't show up" report comes down to one of four
@@ -51,20 +89,10 @@ def _card_registration(hass: HomeAssistant) -> dict[str, Any]:
       the user is looking at HA 2026's new Overview (``home``) panel, which is
       not a Lovelace dashboard and loads no custom cards at all.
     """
-    card_file = Path(__file__).parent / "frontend" / "pawsistant-card.js"
-    # stat() can still fail after is_file() says yes — a permission error, or the
-    # file going away between the two calls. Report -1 rather than crashing the
-    # whole diagnostics dump over the least important field in it.
-    try:
-        card_size = card_file.stat().st_size if card_file.is_file() else 0
-    except OSError as err:
-        _LOGGER.debug("Could not stat %s: %s", card_file, err)
-        card_size = -1
     info: dict[str, Any] = {
         "card_version": CARD_VERSION,
         "url_base": URL_BASE,
-        "card_file_exists": card_file.is_file(),
-        "card_file_size": card_size,
+        **card_file,
     }
 
     lovelace = hass.data.get("lovelace")
@@ -146,36 +174,13 @@ async def async_get_config_entry_diagnostics(
             sensor_states_all[state.entity_id] = state.state
 
     # ------------------------------------------------------------------
-    # Storage file sizes (.storage/pawsistant*)
+    # Files and versions. File I/O runs in the executor, not in the event loop.
     # ------------------------------------------------------------------
-    storage_dir = Path(hass.config.config_dir) / ".storage"
-    storage_files: dict[str, int] = {}
-    if storage_dir.is_dir():
-        for path in sorted(storage_dir.glob("pawsistant*")):
-            try:
-                storage_files[path.name] = path.stat().st_size
-            except OSError as err:
-                _LOGGER.debug("Could not stat %s: %s", path.name, err)
-                storage_files[path.name] = -1
-
-    # ------------------------------------------------------------------
-    # HA version
-    # ------------------------------------------------------------------
-    ha_version = hass.config.version if hasattr(hass.config, "version") else "unknown"
-    # Prefer the attribute used by HA 2024+
-    if hasattr(hass, "config") and hasattr(hass.config, "version"):
-        ha_version = str(hass.config.version)
-
-    # ------------------------------------------------------------------
-    # Integration version (from manifest)
-    # ------------------------------------------------------------------
-    integration_version = "unknown"
-    manifest_path = Path(__file__).parent / "manifest.json"
-    try:
-        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-        integration_version = manifest_data.get("version", "unknown")
-    except (OSError, json.JSONDecodeError) as err:
-        _LOGGER.debug("Could not read manifest.json: %s", err)
+    storage_files = await hass.async_add_executor_job(
+        _storage_file_sizes, hass.config.config_dir
+    )
+    card_file = await hass.async_add_executor_job(_card_file_info)
+    integration = await async_get_integration(hass, DOMAIN)
 
     # ------------------------------------------------------------------
     # Known / loaded years from the store
@@ -185,8 +190,8 @@ async def async_get_config_entry_diagnostics(
 
     diagnostics: dict[str, Any] = {
         "config_entry": async_redact_data(entry.as_dict(), TO_REDACT),
-        "integration_version": integration_version,
-        "ha_version": str(ha_version),
+        "integration_version": str(integration.version),
+        "ha_version": HA_VERSION,
         "num_dogs": num_dogs,
         "dogs": {
             dog_id: {
@@ -202,7 +207,7 @@ async def async_get_config_entry_diagnostics(
         "loaded_years": loaded_years,
         "storage_files": storage_files,
         "sensor_states": sensor_states_all,
-        "card_registration": _card_registration(hass),
+        "card_registration": _card_registration(hass, card_file),
     }
 
     return diagnostics

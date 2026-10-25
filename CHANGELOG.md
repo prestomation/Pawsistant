@@ -9,6 +9,48 @@ All notable changes to Pawsistant will be documented in this file.
   takes its amount off the count. The button shows what is left, and at the reorder
   point Home Keeper adds a Buy task to your shopping list. Needs Home Keeper 0.27.0b5
   or newer.
+
+### Fixed
+- **The button card no longer scans all Home Assistant states on every update.** It now
+  finds the entities of the pet once and reuses them. It looks again when the pet in the
+  card config changes, or when a cached entity is removed or changes pet. This makes the
+  card lighter on large installs and on wall tablets.
+- **A new cadence now reaches the Home Keeper task.** Home Keeper does not let anyone
+  change the cadence of a Pawsistant task, also not Pawsistant. When a care schedule's
+  cadence changes, Pawsistant now replaces the task on the next start. The new task keeps
+  the last done date, so the next due date is correct. The old task's completion history
+  in Home Keeper is lost, but every entry stays in the pet's log. A new pet name alone
+  does not replace the task. (Fixes #85)
+- **Pawsistant can delete its own Home Keeper tasks.** Home Keeper refused the delete
+  while Pawsistant was running. So a deleted care schedule or pet kept its task, and an
+  import with a new cadence made a 2nd task.
+
+## [2.24.1] - 2026-10-19
+
+### Fixed
+- **Editing an event type in the options flow.** The edit saved the changes as a new
+  event type or showed "already exists". It now changes the event type that you edit.
+  The "Add event type" form also no longer opens with errors.
+- **Removing a pet in the options flow.** It now removes the pet's entities and its care
+  schedules (and their Home Keeper tasks), the same as the `pawsistant.remove_dog` service.
+- **Diagnostics no longer block Home Assistant.** The file checks now run outside the
+  event loop.
+- **`pawsistant.add_dog` accepts `species`.** The action editor showed the field, but the
+  service refused it.
+- **`pawsistant.update_event_type` with only `metric`.** It no longer fails with
+  "No fields to update".
+- **The "Teeth" event type in the action editor.** The list showed `teeth_brushing`, which
+  is not a real event type. It now shows `teeth`.
+- **`pawsistant.delete_event_type` shows the "Delete logged events" option.** The service
+  already accepted `delete_events`, but the action editor did not show it.
+
+## [2.24.0] - 2026-10-17
+
+### Added
+- **Pet data in Home Keeper's export.** The Home Keeper export file now holds your dogs,
+  logs and care schedules, and its import brings them back or applies your edits. Use
+  the new admin-only `pawsistant.export_data` and `pawsistant.import_data` services to
+  do the same for Pawsistant alone.
 - **Undoing a pet-care completion now syncs both ways with Home Keeper.** Completing a
   scheduled activity already travelled in both directions; correcting a mistake did not.
   Undo a completion in Home Keeper and the logged entry it created disappears from
@@ -23,11 +65,15 @@ All notable changes to Pawsistant will be documented in this file.
   own completion history still covers, so an entry you logged by hand is never touched.
 
 ### Changed
+- **Home Assistant 2025.1 or newer.** HACS now blocks the install on an older Home Assistant. Home Assistant 2025.1 is the oldest version that Pawsistant tests.
 - **Pet task fields.** Pawsistant now owns the schedule on a care task, as it already
   owned the name and the device. Home Keeper leaves those fields out of its edit form,
   so change a cadence in Pawsistant rather than in Home Keeper.
+- **Admin-only bulk actions.** Only an administrator can import events, remove a pet or
+  delete an event type now. Automations and scripts still work.
 
 ### Fixed
+- **Card on Home Assistant 2025.1.** Pawsistant now adds its card to the Lovelace resources on Home Assistant 2025.1. Before, it took that version for YAML mode and did not add the card.
 - **Preview builds no longer collide with the stable release they were built from.**
   A `X.Y.Z.dev<pr>` preview stamped its version into `manifest.json` but left
   `CARD_VERSION` at the stable value, and `CARD_VERSION` is the `?v=` cache-buster on
@@ -35,14 +81,6 @@ All notable changes to Pawsistant will be documented in this file.
   release (or going back) left the browser serving the other build's cached bundle —
   a card that wouldn't update, or wouldn't appear, until a full restart. Both values
   are now stamped from one source before the card is bundled.
-
-### Changed
-- **The release zip is now built from scratch and its contents verified before
-  publishing.** `pawsistant.zip` was a committed file and `zip -r` appends to an
-  existing archive, so a release could ship a stale copy of the integration — `v2.15.0`
-  shipped a manifest reading `2.14.0` this way. The zip is now gitignored, rebuilt from
-  nothing, and checked (manifest version, `CARD_VERSION`, the version baked into the
-  card bundle, and no stray build files) before the release is created.
 
 ## [2.23.1] - 2026-08-03
 

@@ -4,10 +4,12 @@ Storage layout in HA's .storage directory:
 
     pawsistant
         Dogs registry + metadata only.  No events.
-        Shape:  {"dogs": {dog_id: {name, breed, birth_date}},
+        Shape:  {"dogs": {dog_id: {name, breed, birth_date, species}},
                  "known_years": [2025, 2026, ...],
                  "event_types": {...user overrides...},
-                 "button_metrics": {...user overrides...}}
+                 "button_metrics": {...user overrides...},
+                 "care_schedules": {schedule_id: {...}},
+                 "shown_types_{dog name slug}": [...]}
 
     pawsistant_events_2025
     pawsistant_events_2026
@@ -883,25 +885,153 @@ class PawsistantStore:
     # Per-dog shown_types storage
     # -----------------------------------------------------------------------
 
-    def get_shown_types(self, dog_name: str) -> list[str] | None:
-        """Return the stored shown_types for a dog, or None if not set.
+    @staticmethod
+    def _shown_types_key(dog_name: str) -> str:
+        """Return the meta key that holds the shown_types of *dog_name*.
 
         The key is `shown_types_{slug}` where slug is the dog name lowercased
         with spaces replaced by underscores.
         """
         slug = dog_name.lower().replace(" ", "_")
-        key = f"shown_types_{slug}"
-        return self._meta.get(key)
+        return f"shown_types_{slug}"
+
+    def get_shown_types(self, dog_name: str) -> list[str] | None:
+        """Return the stored shown_types for a dog, or None if not set."""
+        return self._meta.get(self._shown_types_key(dog_name))
 
     async def set_shown_types(self, dog_name: str, shown_types: list[str]) -> None:
         """Store shown_types for a dog.
 
         Persists immediately to the meta store.
         """
-        slug = dog_name.lower().replace(" ", "_")
-        key = f"shown_types_{slug}"
-        self._meta[key] = list(shown_types)
+        self._meta[self._shown_types_key(dog_name)] = list(shown_types)
         await self._save_meta()
+
+    # -----------------------------------------------------------------------
+    # Export and import (Home Keeper's combined export, see import_export.py)
+    # -----------------------------------------------------------------------
+
+    async def _all_events(self) -> list[dict[str, Any]]:
+        """Load every known year file and return all events of all years."""
+        for year in self._meta.get("known_years", []):
+            await self._ensure_year_loaded(year)
+        return [
+            event
+            for year in sorted(self._loaded_years, reverse=True)
+            for event in self._year_events.get(year, [])
+        ]
+
+    async def export_snapshot(self) -> dict[str, Any]:
+        """Return a copy of all data, in the shape ``import_export`` reads.
+
+        The shown_types are keyed by dog id, not by the name slug, so that they
+        stay correct when a dog has a different name on the other install.
+        """
+        dogs = self.get_dogs()
+        shown: dict[str, list[str]] = {}
+        for dog_id, dog in dogs.items():
+            types = self.get_shown_types(str(dog.get("name", "")))
+            if types is not None:
+                shown[dog_id] = list(types)
+        return {
+            "dogs": {dog_id: dict(dog) for dog_id, dog in dogs.items()},
+            "event_types": self.get_stored_event_type_overrides(),
+            "button_metrics": self.get_stored_button_metric_overrides(),
+            "care_schedules": {
+                sid: dict(schedule) for sid, schedule in self.get_care_schedules().items()
+            },
+            "shown_types": shown,
+            "events": [dict(event) for event in await self._all_events()],
+        }
+
+    async def import_snapshot(self) -> dict[str, Any]:
+        """Return :meth:`export_snapshot` with the events keyed by id.
+
+        This is the ``current`` argument of ``import_export.plan_import``.
+        """
+        snapshot = await self.export_snapshot()
+        snapshot["events"] = {
+            event["id"]: event for event in snapshot["events"] if event.get("id")
+        }
+        return snapshot
+
+    async def apply_import(self, plan: Any) -> list[str]:
+        """Write an ``import_export.ImportPlan`` that has no error.
+
+        Every write is an upsert. Nothing that is not in the plan is removed. An
+        event that has the id of an existing event replaces it, and goes to the
+        year file of its new timestamp.
+
+        Returns the Home Keeper task ids of the care schedules whose cadence
+        changed. The caller deletes these tasks; the reconcile pass makes them
+        again with the new cadence.
+        """
+        meta = self._meta
+        dogs: dict[str, dict[str, Any]] = meta.setdefault("dogs", {})
+        for dog_id, dog in plan.dogs.items():
+            old = dogs.get(dog_id)
+            if old is not None and dog_id not in plan.shown_types:
+                # A new name gives a new shown_types key. Move the old value to it.
+                old_key = self._shown_types_key(str(old.get("name", "")))
+                new_key = self._shown_types_key(dog["name"])
+                if old_key != new_key and old_key in meta and new_key not in meta:
+                    meta[new_key] = meta.pop(old_key)
+            dogs[dog_id] = dict(dog)
+
+        if plan.event_types:
+            overrides = dict(meta.get(CONF_EVENT_TYPES, {}))
+            overrides.update(plan.event_types)
+            meta[CONF_EVENT_TYPES] = overrides
+        if plan.button_metrics:
+            metrics = dict(meta.get(CONF_BUTTON_METRICS, {}))
+            metrics.update(plan.button_metrics)
+            meta[CONF_BUTTON_METRICS] = metrics
+
+        for dog_id, types in plan.shown_types.items():
+            meta[self._shown_types_key(str(dogs[dog_id]["name"]))] = list(types)
+
+        dropped_tasks: list[str] = []
+        schedules: dict[str, dict[str, Any]] = meta.setdefault(CONF_CARE_SCHEDULES, {})
+        for schedule_id, schedule in plan.care_schedules.items():
+            existing = schedules.get(schedule_id) or {}
+            task_id = existing.get("task_id")
+            if schedule_id in plan.replaced_tasks:
+                if task_id:
+                    dropped_tasks.append(task_id)
+                task_id = None
+            schedules[schedule_id] = {**schedule, "task_id": task_id}
+
+        if plan.events:
+            await self._all_events()
+            year_of_id = {
+                event.get("id"): year
+                for year in self._loaded_years
+                for event in self._year_events.get(year, [])
+            }
+            dirty: set[int] = set()
+            for event in plan.events:
+                old_year = year_of_id.get(event["id"])
+                if old_year is not None:
+                    self._year_events[old_year] = [
+                        e
+                        for e in self._year_events[old_year]
+                        if e.get("id") != event["id"]
+                    ]
+                    dirty.add(old_year)
+                year = self._year_of_timestamp(event.get("timestamp"))
+                await self._ensure_year_loaded(year)
+                self._record_year(year)
+                self._year_events.setdefault(year, []).append(dict(event))
+                year_of_id[event["id"]] = year
+                dirty.add(year)
+            for year in sorted(dirty):
+                self._year_events[year].sort(
+                    key=lambda e: _parse_timestamp(e.get("timestamp", "")), reverse=True
+                )
+                await self._save_year(year)
+
+        await self._save_meta()
+        return dropped_tasks
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------

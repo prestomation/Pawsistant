@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Evcil Hayvanı Kaldır",
-      "description": "Bir evcil hayvanı kaldırır ve tüm olaylarını kalıcı olarak siler. Bu işlem geri alınamaz.",
+      "description": "Bir evcil hayvanı kaldırır ve tüm olaylarını kalıcı olarak siler. Bu işlem geri alınamaz. Bu eylemi yalnızca bir yönetici kullanabilir.",
       "fields": {
         "dog": {
           "name": "Evcil hayvan",
@@ -256,11 +256,39 @@
     },
     "import_events": {
       "name": "Olayları İçe Aktar",
-      "description": "Olayları harici bir JSON dizisinden toplu olarak içe aktarır. DogLog'un Firebase tabanlı sürümünden tek seferlik geçiş için tasarlanmıştır. `id` alanı yerel depoda zaten mevcut olan olaylar atlanır.",
+      "description": "Olayları harici bir JSON dizisinden toplu olarak içe aktarır. DogLog'un Firebase tabanlı sürümünden tek seferlik geçiş için tasarlanmıştır. `id` alanı yerel depoda zaten mevcut olan olaylar atlanır. Bu eylemi yalnızca bir yönetici kullanabilir.",
       "fields": {
         "events": {
           "name": "Olaylar",
           "description": "Olay nesnelerinden oluşan bir JSON dizisi. Her nesne en azından şunları içermelidir: dog_id, event_type, timestamp. `id` alanı isteğe bağlıdır — yoksa otomatik oluşturulur."
+        }
+      }
+    },
+    "export_data": {
+      "name": "Verileri dışa aktar",
+      "description": "Tüm Pawsistant verilerini tek bir belge olarak döndürür: evcil hayvanlar, olay türleri, düğme ölçümleri, gösterilen düğmeler, bakım planları ve tüm olaylar. Bu eylemi yalnızca bir yönetici kullanabilir. Home Keeper bunu birleşik dışa aktarımı için kullanır.",
+      "fields": {
+        "files_dir": {
+          "name": "Dosya klasörü",
+          "description": "Home Keeper bu klasörü paket dışa aktarımı için ayarlar. Pawsistant'ın dosyası olmadığı için klasörü kullanmaz."
+        }
+      }
+    },
+    "import_data": {
+      "name": "Verileri içe aktar",
+      "description": "export_data belgesindeki kayıtları ekler veya günceller. Belgede olmayan bir kayıt kalır. Bu eylemi yalnızca bir yönetici kullanabilir.",
+      "fields": {
+        "document": {
+          "name": "Belge",
+          "description": "export_data'dan gelen veriler. İçe aktarmadan önce düzenleyebilirsiniz."
+        },
+        "dry_run": {
+          "name": "Deneme çalıştırması",
+          "description": "Belgeyi denetler ve raporu döndürür, ancak hiçbir şey yazmaz."
+        },
+        "files_dir": {
+          "name": "Dosya klasörü",
+          "description": "Home Keeper bu klasörü paket dışa aktarımı için ayarlar. Pawsistant'ın dosyası olmadığı için klasörü kullanmaz."
         }
       }
     },
@@ -326,11 +354,15 @@
     },
     "delete_event_type": {
       "name": "Olay Türünü Sil",
-      "description": "Özel bir olay türünü kalıcı olarak siler. Yerleşik türler (food, walk vb.) silinemez — bunları değiştirmek için update_event_type kullanın. Bu türle zaten kaydedilmiş olaylar veritabanında korunur.",
+      "description": "Özel bir olay türünü kalıcı olarak siler. Yerleşik türler (food, walk vb.) silinemez — bunları değiştirmek için update_event_type kullanın. Bu türle zaten kaydedilmiş olaylar veritabanında korunur. Bu eylemi yalnızca bir yönetici kullanabilir.",
       "fields": {
         "event_type": {
           "name": "Olay türü anahtarı",
           "description": "Silinecek olay türü anahtarı (örn. my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Kaydedilen olayları sil",
+          "description": "Bu türle kaydedilen tüm olayları da sil. Varsayılan: kapalı, olaylar kalır."
         }
       }
     },

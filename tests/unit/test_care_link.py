@@ -311,6 +311,17 @@ class TestCreateTaskSeed:
         assert len(services.calls) == 1  # no retry
 
 
+class TestRegisterCompanion:
+    """The companion record we announce to Home Keeper."""
+
+    async def test_declares_the_import_export_capability(self):
+        services = _Services(lambda data: None)
+        await care_link.register_companion(_Hass(services), "entry-1")
+        payload = services.calls[0]
+        assert payload["domain"] == "pawsistant"
+        assert payload["capabilities"] == ["care_schedules", "import_export"]
+
+
 class TestManagedBy:
     """The ownership block we hand Home Keeper on every task we create."""
 
@@ -529,3 +540,226 @@ class TestHealOrphanedMirrors:
         }
         assert await care_link._heal_orphaned_mirrors(store, _HEAL_SCHEDULE, task) == 0
         assert store.deleted == []
+
+
+class TestDeleteTask:
+    async def test_sends_force_because_our_tasks_are_protected(self):
+        # Home Keeper refuses delete_task on a deletion_protected task while we are
+        # loaded, also when we are the owner. ``force`` is the owner's way through.
+        services = _Services(lambda data: None)
+        assert await care_link.delete_task(_Hass(services), "t1") is True
+        assert services.calls == [{"task_id": "t1", "force": True}]
+
+    async def test_no_call_without_a_task(self):
+        services = _Services(lambda data: None)
+        assert await care_link.delete_task(_Hass(services), None) is False
+        assert services.calls == []
+
+    async def test_home_keeper_failure_is_swallowed(self):
+        def behavior(data):
+            raise RuntimeError("home keeper exploded")
+
+        assert await care_link.delete_task(_Hass(_Services(behavior)), "t1") is False
+
+
+def _hk_task(**fields):
+    """A task as Home Keeper's list_tasks returns it (floating, 2 weeks)."""
+    return {
+        "id": "t1",
+        "name": "Buddy: Medicine",
+        "recurrence_type": "floating",
+        "interval": 2,
+        "unit": "weeks",
+        "rrule": None,
+        "anchor": None,
+        "last_completed": "2026-10-01T08:00:00+00:00",
+        "created": "2026-09-01T08:00:00+00:00",
+        "completions": [{"ts": "2026-10-01T08:00:00+00:00"}],
+        **fields,
+    }
+
+
+_FIXED_SCHEDULE = {
+    "dog_id": "d1",
+    "event_type": "medicine",
+    "recurrence_type": "fixed",
+    "interval": 2,
+    "freq": "WEEKLY",
+    "anchor": "2026-01-05T09:00:00",
+}
+
+
+def _hk_fixed_task(**fields):
+    # Home Keeper keeps a fixed cadence as an rrule, not as interval/freq, and gives a
+    # naive anchor the Home Assistant time zone.
+    return _hk_task(
+        **{
+            "recurrence_type": "fixed",
+            "interval": None,
+            "unit": None,
+            "freq": None,
+            "rrule": "FREQ=WEEKLY;INTERVAL=2",
+            "anchor": "2026-01-05T09:00:00-08:00",
+            **fields,
+        }
+    )
+
+
+class TestCadenceDiffers:
+    """Only a sure difference may cost the task its Home Keeper history."""
+
+    def test_same_floating_cadence(self):
+        assert not care_link._cadence_differs(dict(_SCHEDULE), _hk_task())
+
+    def test_floating_interval_changed(self):
+        assert care_link._cadence_differs({**_SCHEDULE, "interval": 1}, _hk_task())
+
+    def test_floating_unit_changed(self):
+        assert care_link._cadence_differs({**_SCHEDULE, "unit": "days"}, _hk_task())
+
+    def test_type_changed(self):
+        assert care_link._cadence_differs(dict(_FIXED_SCHEDULE), _hk_task())
+
+    def test_same_fixed_cadence_as_home_keeper_stores_it(self):
+        assert not care_link._cadence_differs(dict(_FIXED_SCHEDULE), _hk_fixed_task())
+
+    def test_fixed_rrule_without_interval_means_1(self):
+        schedule = {**_FIXED_SCHEDULE, "interval": 1}
+        task = _hk_fixed_task(rrule="FREQ=WEEKLY")
+        assert not care_link._cadence_differs(schedule, task)
+
+    def test_fixed_freq_changed(self):
+        schedule = {**_FIXED_SCHEDULE, "freq": "MONTHLY"}
+        assert care_link._cadence_differs(schedule, _hk_fixed_task())
+
+    def test_fixed_interval_changed(self):
+        schedule = {**_FIXED_SCHEDULE, "interval": 1}
+        assert care_link._cadence_differs(schedule, _hk_fixed_task())
+
+    def test_fixed_anchor_changed(self):
+        schedule = {**_FIXED_SCHEDULE, "anchor": "2026-01-06T09:00:00"}
+        assert care_link._cadence_differs(schedule, _hk_fixed_task())
+
+    def test_date_only_anchor_is_midnight(self):
+        schedule = {**_FIXED_SCHEDULE, "anchor": "2026-01-05"}
+        task = _hk_fixed_task(anchor="2026-01-05T00:00:00+01:00")
+        assert not care_link._cadence_differs(schedule, task)
+
+    def test_aware_anchor_compares_the_instant(self):
+        schedule = {**_FIXED_SCHEDULE, "anchor": "2026-01-05T17:00:00+00:00"}
+        assert not care_link._cadence_differs(schedule, _hk_fixed_task())
+
+    def test_a_field_it_cannot_read_is_no_difference(self):
+        assert not care_link._cadence_differs(
+            dict(_SCHEDULE), _hk_task(recurrence_type=None)
+        )
+        assert not care_link._cadence_differs(dict(_SCHEDULE), _hk_task(interval=None))
+        assert not care_link._cadence_differs(
+            dict(_FIXED_SCHEDULE), _hk_fixed_task(rrule="not an rrule", anchor="bad")
+        )
+
+    def test_name_is_not_cadence(self):
+        assert not care_link._cadence_differs(
+            dict(_SCHEDULE), _hk_task(name="Max: Medicine")
+        )
+
+
+class _ReconcileStore(_HealStore):
+    """Store double for reconcile: care schedules in, task id changes recorded."""
+
+    def __init__(self, schedules):
+        super().__init__([])
+        self._schedules = schedules
+
+    def get_care_schedules(self):
+        return self._schedules
+
+    def get_dogs(self):
+        return {"d1": {"name": "Buddy"}}
+
+    def get_event_types(self):
+        return {"medicine": {"name": "Medicine"}}
+
+    async def update_care_schedule(self, schedule_id, **changes):
+        self._schedules[schedule_id].update(changes)
+        return self._schedules[schedule_id]
+
+
+class _HKServices:
+    """A scripted Home Keeper: list_tasks returns *tasks*; other calls are recorded."""
+
+    def __init__(self, tasks, fail=()):
+        self._tasks = tasks
+        self._fail = set(fail)
+        self.calls: list[tuple[str, dict]] = []
+
+    def has_service(self, domain, service):
+        return True
+
+    async def async_call(self, domain, service, data, blocking=True, return_response=False):
+        if service == "list_tasks":
+            return {"tasks": self._tasks}
+        self.calls.append((service, dict(data)))
+        if service in self._fail:
+            raise RuntimeError(f"{service} refused")
+        if service == "add_task":
+            return {"task_id": "t2"}
+        return None
+
+
+def _reconcile_hass(services):
+    return SimpleNamespace(
+        services=services,
+        data={},
+        config_entries=SimpleNamespace(
+            async_entries=lambda domain: [object()] if domain == "home_keeper" else []
+        ),
+    )
+
+
+class TestReconcileCadence:
+    async def _run(self, schedule, task, fail=()):
+        services = _HKServices([task], fail=fail)
+        store = _ReconcileStore({"s1": {**schedule, "task_id": "t1"}})
+        await care_link.reconcile(_reconcile_hass(services), store)
+        return services.calls, store.get_care_schedules()["s1"]
+
+    async def test_unchanged_cadence_writes_nothing(self):
+        calls, schedule = await self._run(_SCHEDULE, _hk_task())
+        assert calls == []
+        assert schedule["task_id"] == "t1"
+
+    async def test_unchanged_fixed_cadence_writes_nothing(self):
+        calls, _ = await self._run(_FIXED_SCHEDULE, _hk_fixed_task())
+        assert calls == []
+
+    async def test_new_cadence_replaces_the_task(self):
+        calls, schedule = await self._run({**_SCHEDULE, "interval": 1}, _hk_task())
+        assert [service for service, _ in calls] == ["delete_task", "add_task"]
+        assert calls[0][1] == {"task_id": "t1", "force": True}
+        added = calls[1][1]
+        assert added["interval"] == 1 and added["unit"] == "weeks"
+        # The new task keeps the last done date, so the next due date stays right.
+        assert added["last_completed"] == "2026-10-01T08:00:00+00:00"
+        assert schedule["task_id"] == "t2"
+
+    async def test_a_rename_alone_keeps_the_task_and_its_history(self):
+        calls, schedule = await self._run(_SCHEDULE, _hk_task(name="Rex: Medicine"))
+        assert calls == []
+        assert schedule["task_id"] == "t1"
+
+    async def test_refused_delete_keeps_the_old_task(self):
+        # No add after a failed delete, or the pet gets 2 tasks for 1 schedule.
+        calls, schedule = await self._run(
+            {**_SCHEDULE, "interval": 1}, _hk_task(), fail={"delete_task"}
+        )
+        assert [service for service, _ in calls] == ["delete_task"]
+        assert schedule["task_id"] == "t1"
+
+    async def test_refused_add_does_not_crash(self):
+        calls, schedule = await self._run(
+            {**_SCHEDULE, "interval": 1}, _hk_task(), fail={"add_task"}
+        )
+        assert [service for service, _ in calls] == ["delete_task", "add_task"]
+        # The old task is gone; the next pass makes a new one for the missing id.
+        assert schedule["task_id"] is None

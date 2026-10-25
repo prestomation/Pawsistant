@@ -1,6 +1,8 @@
 # Notifies Discord of external interactions and releases on this repo.
 # The actual logic lives in prestomation/.github as a reusable workflow.
-# Set the DISCORD_WEBHOOK_URL repo secret to point to the right Discord channel.
+# This repo keeps its webhook in the DISCORD_WEBHOOK secret (the name from before the
+# shared workflow). The shared workflow wants the name DISCORD_WEBHOOK_URL, so the
+# job below passes the old secret under the new name.
 
 name: Discord Notify
 
@@ -22,4 +24,4 @@ jobs:
   notify:
     uses: prestomation/.github/.github/workflows/notify-discord.yml@main
     secrets:
-      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}

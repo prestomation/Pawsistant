@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Ta bort husdjur",
-      "description": "Tar bort ett husdjur och raderar permanent alla dess händelser. Denna åtgärd kan inte ångras.",
+      "description": "Tar bort ett husdjur och raderar permanent alla dess händelser. Denna åtgärd kan inte ångras. Endast en administratör kan använda den här åtgärden.",
       "fields": {
         "dog": {
           "name": "Husdjur",
@@ -256,11 +256,39 @@
     },
     "import_events": {
       "name": "Importera händelser",
-      "description": "Massimporterar händelser från en extern JSON-array. Avsett för engångsmigration från den Firebase-baserade versionen av DogLog. Händelser vars `id` redan finns i det lokala lagret hoppas över.",
+      "description": "Massimporterar händelser från en extern JSON-array. Avsett för engångsmigration från den Firebase-baserade versionen av DogLog. Händelser vars `id` redan finns i det lokala lagret hoppas över. Endast en administratör kan använda den här åtgärden.",
       "fields": {
         "events": {
           "name": "Händelser",
           "description": "En JSON-array av händelseobjekt. Varje objekt bör minst ha: dog_id, event_type, timestamp. Ett `id`-fält är valfritt – ett genereras om det saknas."
+        }
+      }
+    },
+    "export_data": {
+      "name": "Exportera data",
+      "description": "Returnerar all Pawsistant-data som ett dokument: husdjur, händelsetyper, knappmått, visade knappar, skötselscheman och alla händelser. Bara en administratör kan använda den här åtgärden. Home Keeper använder den för sin samlade export.",
+      "fields": {
+        "files_dir": {
+          "name": "Filmapp",
+          "description": "Home Keeper anger den här mappen för en paketexport. Pawsistant har inga filer och använder därför inte mappen."
+        }
+      }
+    },
+    "import_data": {
+      "name": "Importera data",
+      "description": "Lägger till eller uppdaterar posterna i ett dokument från export_data. En post som inte finns i dokumentet behålls. Bara en administratör kan använda den här åtgärden.",
+      "fields": {
+        "document": {
+          "name": "Dokument",
+          "description": "Datan från export_data. Du kan redigera den före importen."
+        },
+        "dry_run": {
+          "name": "Testkörning",
+          "description": "Kontrollerar dokumentet och returnerar rapporten, men skriver ingenting."
+        },
+        "files_dir": {
+          "name": "Filmapp",
+          "description": "Home Keeper anger den här mappen för en paketexport. Pawsistant har inga filer och använder därför inte mappen."
         }
       }
     },
@@ -326,11 +354,15 @@
     },
     "delete_event_type": {
       "name": "Radera händelsetyp",
-      "description": "Raderar permanent en anpassad händelsetyp. Inbyggda typer (food, walk osv.) kan inte raderas – använd update_event_type för att ändra dem istället. Händelser som redan loggats med denna typ bevaras i databasen.",
+      "description": "Raderar permanent en anpassad händelsetyp. Inbyggda typer (food, walk osv.) kan inte raderas – använd update_event_type för att ändra dem istället. Händelser som redan loggats med denna typ bevaras i databasen. Endast en administratör kan använda den här åtgärden.",
       "fields": {
         "event_type": {
           "name": "Händelsetyp-nyckel",
           "description": "Händelsetyp-nyckeln som ska raderas (t.ex. my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Ta bort loggade händelser",
+          "description": "Ta även bort alla händelser som är loggade med denna typ. Standard: av, händelserna finns kvar."
         }
       }
     },

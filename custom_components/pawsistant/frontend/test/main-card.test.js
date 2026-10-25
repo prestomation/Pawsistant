@@ -69,3 +69,38 @@ describe('PawsistantCard.getStubConfig', () => {
     expect(() => PawsistantCard.getStubConfig({ states: {} })).not.toThrow();
   });
 });
+
+describe('PawsistantCard event types panel delete button', () => {
+  // The delete_event_type service is admin-only. The card must show the
+  // delete button only to an admin user.
+  function openPanel(user) {
+    const card = new PawsistantCard();
+    card.setConfig({ type: 'custom:pawsistant-card', dog: 'Sharky' });
+    const hass = mockHass(['Sharky']);
+    if (user !== undefined) hass.user = user;
+    card.hass = hass;
+    card._openEventTypesPanel();
+    return card.shadowRoot;
+  }
+
+  it('does not render the delete button for a non-admin user', () => {
+    const root = openPanel({ is_admin: false });
+    expect(root.querySelectorAll('.event-type-row').length).toBeGreaterThan(0);
+    expect(root.querySelectorAll('.et-btn.edit').length).toBeGreaterThan(0);
+    expect(root.querySelectorAll('.et-btn.delete').length).toBe(0);
+  });
+
+  it('renders 1 delete button for each row for an admin user', () => {
+    const root = openPanel({ is_admin: true });
+    const rows = root.querySelectorAll('.event-type-row').length;
+    expect(rows).toBeGreaterThan(0);
+    expect(root.querySelectorAll('.et-btn.delete').length).toBe(rows);
+    expect(root.querySelectorAll('.et-btn.edit').length).toBe(rows);
+  });
+
+  it('does not render the delete button when hass.user is missing', () => {
+    const root = openPanel(undefined);
+    expect(root.querySelectorAll('.event-type-row').length).toBeGreaterThan(0);
+    expect(root.querySelectorAll('.et-btn.delete').length).toBe(0);
+  });
+});

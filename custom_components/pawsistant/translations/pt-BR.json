@@ -228,7 +228,7 @@
     },
     "remove_dog": {
       "name": "Remover pet",
-      "description": "Remove um pet e exclui permanentemente todos os seus eventos. Esta ação não pode ser desfeita.",
+      "description": "Remove um pet e exclui permanentemente todos os seus eventos. Esta ação não pode ser desfeita. Somente um administrador pode usar esta ação.",
       "fields": {
         "dog": {
           "name": "Pet",
@@ -256,11 +256,39 @@
     },
     "import_events": {
       "name": "Importar eventos",
-      "description": "Importa eventos em massa a partir de um array JSON externo. Destinado a uma migração única da versão do DogLog baseada no Firebase. Eventos cujo `id` já existe no armazenamento local são ignorados.",
+      "description": "Importa eventos em massa a partir de um array JSON externo. Destinado a uma migração única da versão do DogLog baseada no Firebase. Eventos cujo `id` já existe no armazenamento local são ignorados. Somente um administrador pode usar esta ação.",
       "fields": {
         "events": {
           "name": "Eventos",
           "description": "Um array JSON de objetos de evento. Cada objeto deve ter no mínimo: dog_id, event_type, timestamp. Um campo `id` é opcional — um será gerado se ausente."
+        }
+      }
+    },
+    "export_data": {
+      "name": "Exportar dados",
+      "description": "Retorna todos os dados do Pawsistant como um documento: pets, tipos de evento, métricas dos botões, botões exibidos, agendas de cuidados e todos os eventos. Apenas um administrador pode usar esta ação. O Home Keeper a usa para sua exportação combinada.",
+      "fields": {
+        "files_dir": {
+          "name": "Pasta de arquivos",
+          "description": "O Home Keeper define esta pasta para uma exportação em pacote. O Pawsistant não tem arquivos, então não usa a pasta."
+        }
+      }
+    },
+    "import_data": {
+      "name": "Importar dados",
+      "description": "Adiciona ou atualiza os registros de um documento do export_data. Um registro que não está no documento permanece. Apenas um administrador pode usar esta ação.",
+      "fields": {
+        "document": {
+          "name": "Documento",
+          "description": "Os dados do export_data. Você pode editá-los antes da importação."
+        },
+        "dry_run": {
+          "name": "Simulação",
+          "description": "Verifica o documento e retorna o relatório, mas não grava nada."
+        },
+        "files_dir": {
+          "name": "Pasta de arquivos",
+          "description": "O Home Keeper define esta pasta para uma exportação em pacote. O Pawsistant não tem arquivos, então não usa a pasta."
         }
       }
     },
@@ -326,11 +354,15 @@
     },
     "delete_event_type": {
       "name": "Excluir tipo de evento",
-      "description": "Exclui permanentemente um tipo de evento personalizado. Tipos integrados (food, walk, etc.) não podem ser excluídos — use update_event_type para modificá-los. Eventos já registrados com este tipo são preservados no banco de dados.",
+      "description": "Exclui permanentemente um tipo de evento personalizado. Tipos integrados (food, walk, etc.) não podem ser excluídos — use update_event_type para modificá-los. Eventos já registrados com este tipo são preservados no banco de dados. Somente um administrador pode usar esta ação.",
       "fields": {
         "event_type": {
           "name": "Chave do tipo de evento",
           "description": "A chave do tipo de evento a excluir (ex.: my_custom_type)."
+        },
+        "delete_events": {
+          "name": "Excluir eventos registrados",
+          "description": "Exclui também todos os eventos registrados com este tipo. Padrão: desativado, os eventos são mantidos."
         }
       }
     },
