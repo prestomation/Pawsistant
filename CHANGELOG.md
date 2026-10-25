@@ -4,6 +4,8 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+## [2.25.0] - 2026-10-25
+
 ### Added
 - **Supplies.** An event type can use a supply that Home Keeper counts, and each log
   takes its amount off the count. The button shows what is left, and at the reorder
