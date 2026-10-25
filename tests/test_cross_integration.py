@@ -852,3 +852,35 @@ async def test_draw_ignores_a_supply_with_no_part(hass, enable_custom_integratio
     await testing.async_setup_fake_home_keeper(hass)
     assert await supply_link.draw(hass, {"amount": 1}, 1) is None
     assert await supply_link.draw(hass, {"asset_id": "a1", "part_id": ""}, 1) is None
+
+
+@requires_hk_supplies
+@pytest.mark.asyncio
+async def test_a_replaced_task_keeps_its_supply_link(hass, enable_custom_integrations):
+    """A new cadence replaces the task (issue #85). The new task must use the supply."""
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    old_task_id = await _make_linked_schedule(hass, store, dog_id)
+    await hass.services.async_call(
+        DOMAIN,
+        "update_event_type",
+        {"event_type": "medicine", "supply": {"name": "Carprofen 75 mg", "amount": 2}},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    _asset, part = _our_part(hk, "Carprofen 75 mg")
+    assert hk.tasks[old_task_id]["source"]["part"]["part_id"] == part["id"]
+
+    data = await _export_data(hass)
+    data["care_schedules"][0]["interval"] = 3
+    report = await _import(hass, data)
+
+    assert report["ok"] is True
+    [task] = _our_tasks(hk)
+    assert task["id"] != old_task_id
+    link = task["source"]["part"]
+    assert link["part_id"] == part["id"]
+    assert link["quantity"] == 2

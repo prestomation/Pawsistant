@@ -171,9 +171,11 @@ export class PawsistantButtonCard extends HTMLElement {
       JSON.stringify(stateAttr(hass, ent.timeline, 'last_event_ts') || {}),
     ];
     // The badge follows Home Keeper's spares number of each supply.
-    const { registry } = buildRegistry(hass);
+    // Read from the pet's own timeline, so the hash never scans hass.states.
+    const types = (stateAttr(hass, ent.timeline, 'event_types') || {}) as
+      Record<string, { supply?: { entity_id?: string } }>;
     for (const btn of cfg.buttons) {
-      const entityId = registry[btn.event_type]?.supply?.entity_id;
+      const entityId = types[btn.event_type]?.supply?.entity_id;
       if (entityId) {
         const st = hass.states[entityId];
         parts.push(`${entityId}=${st?.state ?? ''}/${st?.attributes?.status ?? ''}`);

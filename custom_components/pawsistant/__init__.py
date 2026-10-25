@@ -915,6 +915,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Make the Home Keeper tasks of the imported care schedules. A schedule is
         # exported without its task id, so a new schedule has no task yet.
         await care_link.reconcile(hass, store)
+        # After reconcile, so a replaced or new task is linked to its supply too.
+        await supply_link.sync_links(hass, store)
         return report
 
     hass.services.async_register(
