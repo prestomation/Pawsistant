@@ -5,6 +5,10 @@ All notable changes to Pawsistant will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **The button card no longer scans all Home Assistant states on every update.** It now
+  finds the entities of the pet once and reuses them. It looks again when the pet in the
+  card config changes, or when a cached entity is removed or changes pet. This makes the
+  card lighter on large installs and on wall tablets.
 - **A new cadence now reaches the Home Keeper task.** Home Keeper does not let anyone
   change the cadence of a Pawsistant task, also not Pawsistant. When a care schedule's
   cadence changes, Pawsistant now replaces the task on the next start. The new task keeps
