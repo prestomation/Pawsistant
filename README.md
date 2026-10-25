@@ -88,6 +88,12 @@ time moves the completion to match. If the two ever drift apart — an undo whil
 Assistant was restarting, say — Pawsistant tidies up on the next start, and only ever
 touches entries it logged on Home Keeper's behalf, never one you logged yourself.
 
+**A new cadence replaces the task.** Home Keeper locks the cadence of the task, also
+against Pawsistant. When a care schedule's cadence changes, Pawsistant replaces the task
+on the next start. The new task keeps the last done date. The old task's completion
+history in Home Keeper is lost, but every entry stays in the pet's log. A new pet or
+activity name alone does not replace the task, because a name is not worth that history.
+
 **One export for both.** Pawsistant joins Home Keeper's export and import. Home
 Keeper's export file then also holds your pets, event types, button settings, care
 schedules and all logged events. Import that file on a new install and Pawsistant adds
