@@ -322,6 +322,167 @@ async def test_completion_for_unknown_source_is_ignored(hass, enable_custom_inte
 
 
 # ---------------------------------------------------------------------------
+# A changed care schedule reaches its task (issue #85)
+# ---------------------------------------------------------------------------
+
+
+async def _setup_with_task(hass, schedule):
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    schedule = {"dog_id": dog_id, "event_type": "medicine", **schedule}
+    task_id = await care_link.create_task(hass, store, "sched-1", schedule)
+    await store.add_care_schedule("sched-1", {**schedule, "task_id": task_id})
+    return hk, store, task_id
+
+
+def _enforce_deletion_protection(hass, hk) -> None:
+    """Make the fake refuse a protected delete, as Home Keeper's store does.
+
+    The fake deletes every task. The real store refuses ``delete_task`` on a
+    ``deletion_protected`` task while its owner is loaded, unless the call sends
+    ``force``. The rule is Home Keeper's own ``models.deletion_blocked``.
+    """
+    from home_keeper import models
+
+    delete = hk._delete_task
+
+    async def _delete_task(call):
+        task = hk.tasks.get(call.data["task_id"])
+        if task is not None and models.deletion_blocked(
+            task, orphaned=False, force=call.data.get("force", False)
+        ):
+            raise models.TaskValidationError("This task is managed by Pawsistant.")
+        await delete(call)
+
+    hass.services.async_register(care_link.HK_DOMAIN, "delete_task", _delete_task)
+
+
+@pytest.mark.parametrize(
+    "schedule",
+    [
+        {"recurrence_type": "floating", "interval": 2, "unit": "weeks"},
+        # Home Keeper keeps this as an rrule and puts a time zone on the anchor.
+        {
+            "recurrence_type": "fixed",
+            "interval": 2,
+            "freq": "WEEKLY",
+            "anchor": "2026-01-05T09:00:00",
+        },
+        {"recurrence_type": "fixed", "interval": 1, "freq": "MONTHLY", "anchor": "2026-01-05"},
+    ],
+)
+@pytest.mark.asyncio
+async def test_reconcile_keeps_a_task_whose_cadence_is_unchanged(
+    hass, enable_custom_integrations, schedule
+):
+    """No false difference: a task that matches must keep its id and history."""
+    hk, store, task_id = await _setup_with_task(hass, schedule)
+    hk.fire_user_completion(task_id)
+    await hass.async_block_till_done()
+    before = dict(hk.tasks[task_id])
+
+    await care_link.reconcile(hass, store)
+    await hass.async_block_till_done()
+
+    assert [t["id"] for t in _our_tasks(hk)] == [task_id]
+    assert hk.tasks[task_id] == before
+    assert store.get_care_schedule("sched-1")["task_id"] == task_id
+
+
+@pytest.mark.asyncio
+async def test_reconcile_gives_the_task_a_changed_cadence(
+    hass, enable_custom_integrations
+):
+    hk, store, old_task_id = await _setup_with_task(
+        hass, {"recurrence_type": "floating", "interval": 2, "unit": "weeks"}
+    )
+    _enforce_deletion_protection(hass, hk)
+    hk.fire_user_completion(old_task_id)
+    await hass.async_block_till_done()
+    last_done = hk.tasks[old_task_id]["last_completed"]
+    events_before = await _medicine_count(store, store_dog(store))
+
+    # Home Keeper drops a locked field from every update_task, ours too.
+    await hass.services.async_call(
+        care_link.HK_DOMAIN,
+        "update_task",
+        {"task_id": old_task_id, "interval": 1},
+        blocking=True,
+    )
+    assert hk.tasks[old_task_id]["interval"] == 2
+
+    await store.update_care_schedule("sched-1", interval=1)
+    await care_link.reconcile(hass, store)
+    await hass.async_block_till_done()
+
+    tasks = _our_tasks(hk)
+    assert len(tasks) == 1
+    new_task = tasks[0]
+    assert new_task["id"] != old_task_id
+    assert new_task["interval"] == 1 and new_task["unit"] == "weeks"
+    # The last done date carries over, so the task is not due now.
+    assert new_task["last_completed"] == last_done
+    assert store.get_care_schedule("sched-1")["task_id"] == new_task["id"]
+    # The pet's own log keeps every entry.
+    assert await _medicine_count(store, store_dog(store)) == events_before
+
+    # A 2nd pass sees no difference.
+    await care_link.reconcile(hass, store)
+    await hass.async_block_till_done()
+    assert [t["id"] for t in _our_tasks(hk)] == [new_task["id"]]
+
+
+@pytest.mark.asyncio
+async def test_reconcile_gives_a_fixed_task_its_new_day(hass, enable_custom_integrations):
+    hk, store, old_task_id = await _setup_with_task(
+        hass,
+        {
+            "recurrence_type": "fixed",
+            "interval": 1,
+            "freq": "MONTHLY",
+            "anchor": "2026-01-05T09:00:00",
+        },
+    )
+    _enforce_deletion_protection(hass, hk)
+
+    await store.update_care_schedule(
+        "sched-1", freq="WEEKLY", anchor="2026-01-07T09:00:00"
+    )
+    await care_link.reconcile(hass, store)
+    await hass.async_block_till_done()
+
+    tasks = _our_tasks(hk)
+    assert len(tasks) == 1 and tasks[0]["id"] != old_task_id
+    assert tasks[0]["rrule"] == "FREQ=WEEKLY;INTERVAL=1"
+    assert tasks[0]["anchor"].startswith("2026-01-07T09:00:00")
+
+
+@pytest.mark.asyncio
+async def test_reconcile_keeps_the_task_of_a_renamed_pet(
+    hass, enable_custom_integrations
+):
+    """A new name alone is not worth the task's completion history."""
+    hk, store, task_id = await _setup_with_task(
+        hass, {"recurrence_type": "floating", "interval": 2, "unit": "weeks"}
+    )
+    store.get_dogs()[store_dog(store)]["name"] = "Max"
+    assert care_link._task_name(store, store_dog(store), "medicine") == "Max: Medicine"
+
+    await care_link.reconcile(hass, store)
+    await hass.async_block_till_done()
+
+    assert [t["id"] for t in _our_tasks(hk)] == [task_id]
+    assert hk.tasks[task_id]["name"] == "Buddy: Medicine"
+
+
+def store_dog(store) -> str:
+    return next(iter(store.get_dogs()))
+
+
+# ---------------------------------------------------------------------------
 # Combined export and import (pawsistant.export_data / pawsistant.import_data)
 # ---------------------------------------------------------------------------
 
