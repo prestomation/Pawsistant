@@ -4,6 +4,17 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **A new cadence now reaches the Home Keeper task.** Home Keeper does not let anyone
+  change the cadence of a Pawsistant task, also not Pawsistant. When a care schedule's
+  cadence changes, Pawsistant now replaces the task on the next start. The new task keeps
+  the last done date, so the next due date is correct. The old task's completion history
+  in Home Keeper is lost, but every entry stays in the pet's log. A new pet name alone
+  does not replace the task. (Fixes #85)
+- **Pawsistant can delete its own Home Keeper tasks.** Home Keeper refused the delete
+  while Pawsistant was running. So a deleted care schedule or pet kept its task, and an
+  import with a new cadence made a 2nd task.
+
 ## [2.24.1] - 2026-10-19
 
 ### Fixed

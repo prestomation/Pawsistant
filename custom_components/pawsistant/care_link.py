@@ -60,8 +60,10 @@ SOURCE_NS = "pawsistant"
 MIRROR_NOTE = "via Home Keeper"
 # The task fields we own, declared to Home Keeper as ``managed_by.locked_fields``. Home
 # Keeper drops them from its edit form and strips them from every ``update_task``, so a
-# user edit to one of these can never survive. We write all 7 in ``create_task``: the
-# name and the device come from the dog, and the cadence comes from the care schedule.
+# user edit to one of these can never survive. Our own ``update_task`` loses them too,
+# so a new cadence needs a new task (see ``_replace_task``). We write all 7 in
+# ``create_task``: the name and the device come from the dog, and the cadence comes from
+# the care schedule.
 #
 # ``notes`` is deliberately absent — we never send it, so it is not ours to claim, and a
 # user is free to write their own on the task.
@@ -296,16 +298,27 @@ async def delete_completion(
         )
 
 
-async def delete_task(hass: HomeAssistant, task_id: str | None) -> None:
-    """Delete a linked Home Keeper task (no-op if absent)."""
+async def delete_task(hass: HomeAssistant, task_id: str | None) -> bool:
+    """Delete a linked Home Keeper task. Return True when Home Keeper took the call.
+
+    We send ``force``. Our tasks are ``deletion_protected``, and Home Keeper refuses
+    ``delete_task`` on such a task while our config entry is loaded, also when the
+    call comes from us. The protection stops a user who deletes the task in Home
+    Keeper; it must not stop the owner.
+    """
     if not task_id or not _has(hass, "delete_task"):
-        return
+        return False
     try:
         await hass.services.async_call(
-            HK_DOMAIN, "delete_task", {"task_id": task_id}, blocking=True
+            HK_DOMAIN,
+            "delete_task",
+            {"task_id": task_id, "force": True},
+            blocking=True,
         )
     except Exception as err:  # noqa: BLE001
         _LOGGER.warning("Home Keeper delete_task failed for %s: %s", task_id, err)
+        return False
+    return True
 
 
 def _parse_our_task_event(event) -> dict[str, Any] | None:
@@ -431,6 +444,91 @@ async def _heal_orphaned_mirrors(store, schedule: dict[str, Any], task: dict) ->
     return removed
 
 
+def _parse_rrule(value: Any) -> tuple[str, int] | None:
+    """Read ``(freq, interval)`` from the rrule Home Keeper keeps for a fixed task."""
+    if not isinstance(value, str):
+        return None
+    parts = dict(
+        part.split("=", 1) for part in value.upper().split(";") if "=" in part
+    )
+    if "FREQ" not in parts:
+        return None
+    try:
+        return parts["FREQ"], int(parts.get("INTERVAL", 1))
+    except ValueError:
+        return None
+
+
+def _same_anchor(ours: Any, theirs: Any) -> bool | None:
+    """Compare 2 anchors, or return None when one of them cannot be read.
+
+    Home Keeper gives a naive anchor the Home Assistant time zone and keeps the wall
+    clock time. So a naive anchor of ours compares as wall clock time, and an aware one
+    compares as an instant. A date alone is midnight.
+    """
+    if not isinstance(ours, str) or not isinstance(theirs, str):
+        return None
+    try:
+        mine = datetime.fromisoformat(ours)
+        stored = datetime.fromisoformat(theirs)
+    except ValueError:
+        return None
+    if mine.tzinfo is None:
+        return mine == stored.replace(tzinfo=None)
+    if stored.tzinfo is None:
+        return None
+    return mine == stored
+
+
+def _cadence_differs(schedule: dict[str, Any], task: dict) -> bool:
+    """Return True only when the task's cadence is surely not the schedule's.
+
+    A True replaces the task, which costs its completion history in Home Keeper. So a
+    field that cannot be read is never a difference. Home Keeper keeps a fixed cadence
+    as an rrule (``FREQ=WEEKLY;INTERVAL=2``), not as the ``interval`` and ``freq`` that
+    we send.
+    """
+    want = _recurrence_payload(schedule)
+    kind = task.get("recurrence_type")
+    if kind is None:
+        return False
+    if kind != want["recurrence_type"]:
+        return True
+    if kind == "floating":
+        have = (task.get("interval"), task.get("unit"))
+        return None not in have and have != (want["interval"], want["unit"])
+    rule = _parse_rrule(task.get("rrule"))
+    if rule is not None and rule != (str(want["freq"]).upper(), want["interval"]):
+        return True
+    return _same_anchor(want.get("anchor"), task.get("anchor")) is False
+
+
+async def _replace_task(
+    hass: HomeAssistant, store, schedule_id: str, schedule: dict[str, Any], task: dict
+) -> None:
+    """Give a schedule a new task with its new cadence, in place of *task*.
+
+    Home Keeper drops our locked fields from every ``update_task``, ours too, so a
+    new task is the only way to change the cadence. The completion history of the old
+    task in Home Keeper goes with it. The pet's own log keeps every entry, and the
+    new task keeps the last done date, so the next due date stays correct.
+
+    Delete first: when the delete fails, the old task stays and the next pass tries
+    again. An add first would leave 2 tasks for 1 schedule when the delete fails.
+    """
+    if not await delete_task(hass, task.get("id")):
+        return
+    new_task_id = await create_task(
+        hass, store, schedule_id, schedule, last_completed=task.get("last_completed")
+    )
+    # None when the add failed: the next pass makes the task for the missing id.
+    await store.update_care_schedule(schedule_id, task_id=new_task_id)
+    _LOGGER.info(
+        "Replaced the Home Keeper task of care schedule %s to apply its new cadence",
+        schedule_id,
+    )
+
+
 # The key in ``hass.data`` of the lock that lets only 1 reconcile pass run at a time.
 _RECONCILE_LOCK = f"{DOMAIN}_reconcile_lock"
 
@@ -454,7 +552,12 @@ async def _reconcile(hass: HomeAssistant, store) -> None:
     user deleted directly in Home Keeper, or schedules created while Home Keeper was
     absent), and for schedules whose task is still there, drops mirrored events left
     behind by completions that were undone while we weren't listening (see
-    :func:`_heal_orphaned_mirrors`).
+    :func:`_heal_orphaned_mirrors`). A task whose cadence is not the schedule's gets
+    replaced (see :func:`_replace_task`).
+
+    A new pet or event type name alone does not replace the task. The name is locked
+    like the cadence, but a name is not worth the task's completion history. The task
+    gets the new name when it is made again.
 
     Best-effort and guarded — does nothing if Home Keeper or ``list_tasks`` is
     unavailable.
@@ -473,7 +576,10 @@ async def _reconcile(hass: HomeAssistant, store) -> None:
     for schedule_id, schedule in schedules.items():
         task = live.get(schedule.get("task_id"))
         if task is not None:
+            # Heal first: the old task's history is the record until it is gone.
             await _heal_orphaned_mirrors(store, schedule, task)
+            if _cadence_differs(schedule, task):
+                await _replace_task(hass, store, schedule_id, schedule, task)
             continue
         new_task_id = await create_task(hass, store, schedule_id, schedule)
         if new_task_id and new_task_id != schedule.get("task_id"):
