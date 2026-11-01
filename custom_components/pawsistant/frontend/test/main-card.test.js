@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { PawsistantCard } from '../src/index.js';
+import { openBackdateForm, openWeightForm } from '../src/forms.js';
 
 function mockHass(dogs = ['Sharky']) {
   const states = {};
@@ -102,5 +103,81 @@ describe('PawsistantCard event types panel delete button', () => {
     const root = openPanel(undefined);
     expect(root.querySelectorAll('.event-type-row').length).toBeGreaterThan(0);
     expect(root.querySelectorAll('.et-btn.delete').length).toBe(0);
+  });
+});
+
+describe('PawsistantCard storage button with an open care item form', () => {
+  const SUPPLY = { entity_id: 'number.rolls_spares', amount: 1, name: 'Poop bag rolls' };
+
+  function mount() {
+    const hass = mockHass(['Sharky']);
+    hass.states['sensor.sharky_recent_timeline'].attributes.event_types = {
+      poop_bag: { name: 'Poop bag', icon: 'mdi:paper-roll', supply: SUPPLY },
+      poop: { name: 'Poop', icon: 'mdi:emoticon-poop' },
+      weight: { name: 'Weight', icon: 'mdi:scale-bathroom' },
+    };
+    hass.states['number.rolls_spares'] = {
+      state: '3',
+      attributes: { unit_of_measurement: 'roll', status: 'ok', reorder_at: 1, restock_quantity: 8 },
+    };
+    const card = new PawsistantCard();
+    card.setConfig({
+      type: 'custom:pawsistant-card',
+      dog: 'Sharky',
+      shown_types: ['poop_bag', 'poop', 'weight'],
+    });
+    card.hass = hass;
+    return card;
+  }
+
+  function openCareItem(card, type) {
+    const btn = card.shadowRoot.querySelector(`.log-btn[data-type="${type}"]`);
+    expect(btn).not.toBeNull();
+    openBackdateForm(card, btn, type);
+  }
+
+  it('closes the care item form and opens the supplies dialog', () => {
+    const card = mount();
+    openCareItem(card, 'poop');
+    expect(card._activeForm).toBe('backdate');
+    expect(card.shadowRoot.getElementById('inline-form-wrap').classList.contains('open')).toBe(true);
+
+    card.shadowRoot.getElementById('supplies-btn').click();
+
+    expect(card.shadowRoot.querySelector('.pw-sup-dialog')).not.toBeNull();
+    expect(card._activeForm).toBe('supplies');
+    expect(card._activeType).toBeNull();
+    expect(card.shadowRoot.getElementById('inline-form-wrap').classList.contains('open')).toBe(false);
+  });
+
+  it('also works from the weight form', () => {
+    const card = mount();
+    const btn = card.shadowRoot.querySelector('.log-btn[data-weight="true"]');
+    expect(btn).not.toBeNull();
+    openWeightForm(card, btn);
+    expect(card._activeForm).toBe('weight');
+    card.shadowRoot.getElementById('supplies-btn').click();
+    expect(card.shadowRoot.querySelector('.pw-sup-dialog')).not.toBeNull();
+    expect(card._activeForm).toBe('supplies');
+  });
+
+  it('lets a care item open again after the supplies dialog closes', () => {
+    const card = mount();
+    openCareItem(card, 'poop');
+    card.shadowRoot.getElementById('supplies-btn').click();
+    card.shadowRoot.querySelector('.pw-sup-close').click();
+    expect(card._activeForm).toBeNull();
+    openCareItem(card, 'poop');
+    expect(card._activeForm).toBe('backdate');
+  });
+
+  it('clears the open form when the settings panel opens', () => {
+    const card = mount();
+    openCareItem(card, 'poop');
+    card._openEventTypesPanel();
+    card._closeEventTypesPanel();
+    expect(card._activeForm).toBeNull();
+    card.shadowRoot.getElementById('supplies-btn').click();
+    expect(card.shadowRoot.querySelector('.pw-sup-dialog')).not.toBeNull();
   });
 });

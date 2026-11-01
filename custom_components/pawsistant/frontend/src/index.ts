@@ -1328,6 +1328,7 @@ export class PawsistantCard extends HTMLElement {
 
   /* ── Open Event Types Manager Panel ──────────────────────────────── */
   _openEventTypesPanel() {
+    this._dismissForm();
     this._eventTypesPanel = true;
     this._editingEventType = null;
     this._eventTypeFormError = null;
@@ -1536,6 +1537,14 @@ export class PawsistantCard extends HTMLElement {
       });
   }, 500);
 
+  /** Close an open care item form (backdate, weight or edit) so that another view can open.
+   *  It does not move focus back to the care item button, because the next view takes focus. */
+  _dismissForm() {
+    if (!this._activeForm || this._activeForm === 'supplies') return;
+    this._activeTriggerBtn = null;
+    closeForm(this);
+  }
+
   /* ── Supplies ──────────────────────────────────────────────────────── */
   /** The toast after a log, kept here so a re-render can draw it again. */
   _toast: { text: string; sub: string; eventId: string | null; until: number } | null = null;
@@ -1552,9 +1561,11 @@ export class PawsistantCard extends HTMLElement {
   }
 
   _openSupplies() {
-    if (this._activeForm || !this._hass) return;
+    if (this._activeForm === 'supplies' || !this._hass) return;
     const rows = this._supplyRows();
     if (!rows.length) return;
+    // A care item form is open: close it, then show the supplies dialog.
+    this._dismissForm();
     this._activeForm = 'supplies';
     openSuppliesDialog(this.shadowRoot!, this._hass, rows, () => {
       this._activeForm = null;
