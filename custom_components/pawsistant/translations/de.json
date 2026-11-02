@@ -115,6 +115,25 @@
         "data": {
           "when": "Date"
         }
+      },
+      "select_analytics_dog": {
+        "title": "Analyse-Einstellungen",
+        "description": "Wähle aus, für welches Tier du die Analyse-Einstellungen ändern möchtest.",
+        "data": {
+          "dog": "Tier"
+        }
+      },
+      "edit_analytics": {
+        "title": "Einstellungen für Gewichtsverlauf",
+        "description": "Einstellungen für {dog_name}. Der Gewichtsverlauf vergleicht die älteste mit der neuesten Messung innerhalb eines aktuellen Zeitfensters – wähle also ein Fenster, das dazu passt, wie oft du dieses Tier wiegst. Die Werte über den gesamten Verlauf bleiben als Sensor-Attribute verfügbar.",
+        "data": {
+          "weight_window_days": "Aktuelles Zeitfenster",
+          "weight_threshold_pct": "Änderungsschwelle (%)"
+        },
+        "data_description": {
+          "weight_window_days": "Ältere Messungen werden ignoriert. Enthält das Zeitfenster weniger als drei Messungen, wird der Verlauf als unbekannt angezeigt.",
+          "weight_threshold_pct": "Wie stark sich das Gewicht ändern muss, um als Zunahme oder Abnahme zu gelten. Bei 0 wird der Wert automatisch an das Zeitfenster angepasst."
+        }
       }
     },
     "error": {
@@ -141,7 +160,20 @@
         "remove_dog": "Haustier entfernen",
         "edit_event_types": "Ereignistypen bearbeiten",
         "done": "Fertig",
-        "manage_care_schedules": "Manage care schedules"
+        "manage_care_schedules": "Manage care schedules",
+        "edit_analytics": "Analyse-Einstellungen"
+      }
+    },
+    "weight_window_days": {
+      "options": {
+        "7": "Letzte 7 Tage",
+        "14": "Letzte 14 Tage",
+        "30": "Letzte 30 Tage",
+        "60": "Letzte 60 Tage",
+        "90": "Letzte 90 Tage",
+        "180": "Letzte 180 Tage",
+        "365": "Letztes Jahr",
+        "0": "Gesamter Verlauf"
       }
     }
   },

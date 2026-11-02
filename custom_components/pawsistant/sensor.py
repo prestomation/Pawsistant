@@ -14,8 +14,9 @@ automations continue to work:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -31,8 +32,25 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DEFAULT_SPECIES, DOMAIN
+from .const import (
+    CONF_WEIGHT_THRESHOLD_PCT,
+    CONF_WEIGHT_WINDOW_DAYS,
+    DEFAULT_SPECIES,
+    DEFAULT_WEIGHT_WINDOW_DAYS,
+    DOMAIN,
+)
 from .coordinator import PawsistantCoordinator
+from .sensor_analytics import (
+    ROUTINE_EVENT_TYPES,
+    compute_routine_peaks,
+    compute_sick_frequency,
+    compute_weight_trend,
+    # The canonical event-timestamp parser. It lives in sensor_analytics --
+    # which has no HA imports, so it stays unit-testable standalone -- and is
+    # aliased to the name this module has always used rather than kept as a
+    # second copy: the two had already drifted apart on timezone handling once.
+    parse_event_timestamp as _to_datetime,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -92,30 +110,6 @@ def _slug(name: str) -> str:
     return name.lower().replace(" ", "_")
 
 
-def _to_datetime(ts: Any) -> datetime:
-    """Parse an event timestamp to a timezone-aware datetime.
-
-    Accepts:
-    - ISO 8601 string (from local store)
-    - datetime object (already parsed)
-    - numeric: milliseconds if > 1e12, else seconds (legacy Firebase format)
-    """
-    if isinstance(ts, datetime):
-        return ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
-    if isinstance(ts, str):
-        try:
-            dt = datetime.fromisoformat(ts)
-            return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
-        except (ValueError, TypeError):
-            pass
-    # Numeric fallback
-    try:
-        numeric = float(ts)
-        if numeric > 1e12:
-            numeric /= 1000
-        return datetime.fromtimestamp(numeric, tz=timezone.utc)
-    except (TypeError, ValueError, OSError):
-        return datetime.min.replace(tzinfo=timezone.utc)
 
 
 def _get_most_recent_event(
@@ -299,6 +293,24 @@ async def async_setup_entry(
         # ------------------------------------------------------------------
         entities.append(PawsistantRecentTimelineSensor(coordinator, dog_id, dog_name, species))
 
+        # ------------------------------------------------------------------
+        # Weight trend sensor
+        # ------------------------------------------------------------------
+        entities.append(PawsistantWeightTrendSensor(coordinator, dog_id, dog_name, species))
+
+        # ------------------------------------------------------------------
+        # Sickness frequency sensor
+        # ------------------------------------------------------------------
+        entities.append(PawsistantSicknessFrequencySensor(coordinator, dog_id, dog_name, species))
+
+        # ------------------------------------------------------------------
+        # Routine sensors (one per tracked event type)
+        # ------------------------------------------------------------------
+        for event_type in ROUTINE_EVENT_TYPES:
+            entities.append(
+                PawsistantRoutineSensor(coordinator, dog_id, dog_name, event_type, species)
+            )
+
     async_add_entities(entities)
 
 
@@ -325,12 +337,32 @@ class _PawsistantSensorBase(CoordinatorEntity[PawsistantCoordinator], SensorEnti
         self._dog_name = dog_name
         self._species = species or DEFAULT_SPECIES
         self._attr_device_info = coordinator.get_device_info(dog_id, dog_name, self._species)
+        # Fresh sentinel per entity, so the first _cached() call always misses.
+        self._cache_key: Any = object()
+        self._cache: dict[str, Any] = {}
 
     def _dog_events(self) -> list[dict[str, Any]]:
         """Shortcut to this dog's event list from coordinator data."""
         if self.coordinator.data is None:
             return []
         return self.coordinator.data.get(self._dog_id, [])
+
+    def _cached(
+        self, key: Any, compute: Callable[[], dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Memoise *compute* for as long as *key* holds steady.
+
+        HA asks each analytics sensor for its value at least twice per refresh --
+        once for ``native_value``, once for ``extra_state_attributes`` -- and the
+        analytics functions walk the dog's entire event list each time. *key*
+        must capture everything the result depends on: the coordinator's refresh
+        timestamp, plus any user setting that should take effect on the next
+        refresh rather than waiting for a reload.
+        """
+        if key != self._cache_key:
+            self._cache_key = key
+            self._cache = compute()
+        return self._cache
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -576,3 +608,185 @@ class PawsistantRecentTimelineSensor(_PawsistantSensorBase):
             "days_since": days_since,
             "last_event_ts": last_event_ts,
         }
+
+
+class PawsistantWeightTrendSensor(_PawsistantSensorBase):
+    """Sensor: weight trend analysis (gaining/losing/stable)."""
+
+    _attr_icon = "mdi:trending-up"
+
+    def __init__(
+        self,
+        coordinator: PawsistantCoordinator,
+        dog_id: str,
+        dog_name: str,
+        species: str = DEFAULT_SPECIES,
+    ) -> None:
+        """Initialise the sensor."""
+        super().__init__(coordinator, dog_id, dog_name, species)
+        self._attr_unique_id = f"pawsistant_{dog_id}_weight_trend"
+        self._attr_name = "Weight Trend"
+
+    def _settings(self) -> tuple[int | None, float | None]:
+        """Return this dog's (window_days, threshold_pct) from the store."""
+        settings = self.coordinator.store.get_analytics_settings(self._dog_id)
+        return (
+            settings.get(CONF_WEIGHT_WINDOW_DAYS, DEFAULT_WEIGHT_WINDOW_DAYS),
+            settings.get(CONF_WEIGHT_THRESHOLD_PCT),
+        )
+
+    def _compute(self) -> dict[str, Any]:
+        """Run the weight-trend analytics function (cached per refresh).
+
+        The window and threshold are part of the cache key rather than read once
+        at construction, so a change made in the options flow takes effect on
+        the next refresh instead of requiring a reload.
+        """
+        window_days, threshold_pct = self._settings()
+        return self._cached(
+            (self.coordinator.last_update_success_time, window_days, threshold_pct),
+            lambda: compute_weight_trend(
+                self._dog_events(),
+                window_days=window_days,
+                threshold_pct=threshold_pct,
+                now=dt_util.now(),
+            ),
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the recent trend: gaining, losing, or stable.
+
+        Returns ``None`` -- which HA renders as *Unknown* -- when there aren't
+        enough readings in the window to call it, rather than the literal string
+        "unknown", which would collide with HA's own unknown state.
+        """
+        trend = self._compute()["trend"]
+        return None if trend == "unknown" else trend
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the windowed figures, the window itself, and lifetime totals.
+
+        The state covers the configured recent window; ``lifetime_*`` keeps the
+        full-history view available so nothing is lost by windowing.
+        """
+        attrs: dict[str, Any] = {**super().extra_state_attributes}
+        result = self._compute()
+        attrs["change_pct"] = result["change_pct"]
+        attrs["sample_count"] = result["sample_count"]
+        attrs["oldest_value"] = result["oldest_value"]
+        attrs["newest_value"] = result["newest_value"]
+        attrs["over_days"] = result["over_days"]
+        attrs["window_days"] = result["window_days"]
+        attrs["threshold_pct"] = result["threshold_pct"]
+        attrs["min_samples"] = result["min_samples"]
+        attrs["lifetime_trend"] = result["lifetime_trend"]
+        attrs["lifetime_change_pct"] = result["lifetime_change_pct"]
+        attrs["lifetime_sample_count"] = result["lifetime_sample_count"]
+        attrs["lifetime_oldest_value"] = result["lifetime_oldest_value"]
+        attrs["lifetime_newest_value"] = result["lifetime_newest_value"]
+        attrs["lifetime_over_days"] = result["lifetime_over_days"]
+        return attrs
+
+
+class PawsistantSicknessFrequencySensor(_PawsistantSensorBase):
+    """Sensor: count of sick events in the last 30 days."""
+
+    _attr_icon = "mdi:emoticon-sick"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: PawsistantCoordinator,
+        dog_id: str,
+        dog_name: str,
+        species: str = DEFAULT_SPECIES,
+    ) -> None:
+        """Initialise the sensor."""
+        super().__init__(coordinator, dog_id, dog_name, species)
+        self._attr_unique_id = f"pawsistant_{dog_id}_sickness_frequency"
+        self._attr_name = "Sickness Frequency"
+
+    def _compute(self) -> dict[str, Any]:
+        """Run the sick-frequency analytics function (cached per refresh)."""
+        return self._cached(
+            self.coordinator.last_update_success_time,
+            lambda: compute_sick_frequency(self._dog_events(), now=dt_util.now()),
+        )
+
+    @property
+    def native_value(self) -> int:
+        """Return the count of sick events in the current 30-day window."""
+        return self._compute()["count_current"]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose previous-window count, cluster size, and days since last."""
+        attrs: dict[str, Any] = {**super().extra_state_attributes}
+        result = self._compute()
+        attrs["count_previous_30d"] = result["count_previous"]
+        attrs["cluster_size"] = result["cluster_size"]
+        attrs["cluster_active"] = result["cluster_active"]
+        attrs["days_since_last"] = result["days_since_last"]
+        return attrs
+
+
+class PawsistantRoutineSensor(_PawsistantSensorBase):
+    """Sensor: routine detection for a specific event type."""
+
+    def __init__(
+        self,
+        coordinator: PawsistantCoordinator,
+        dog_id: str,
+        dog_name: str,
+        event_type: str,
+        species: str = DEFAULT_SPECIES,
+    ) -> None:
+        """Initialise the sensor."""
+        super().__init__(coordinator, dog_id, dog_name, species)
+        self._event_type = event_type
+        display = event_type.replace("_", " ").title()
+        self._attr_unique_id = f"pawsistant_{dog_id}_{event_type}_routine"
+        self._attr_name = f"{display} Routine"
+        self._attr_icon = EVENT_TYPE_ICONS.get(event_type, "mdi:clock-outline")
+
+    def _compute(self) -> dict[str, Any]:
+        """Run the routine-peaks analytics function (cached per refresh).
+
+        ``now`` is passed as local time so the detected peak hours, and the
+        judgement of what is due today, are in the user's timezone rather than
+        UTC. See the module docstring in sensor_analytics.
+        """
+        return self._cached(
+            self.coordinator.last_update_success_time,
+            lambda: compute_routine_peaks(
+                self._dog_events(), self._event_type, now=dt_util.now()
+            ),
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        """Return schedule status: on_schedule or late.
+
+        Returns ``None`` -- rendered by HA as *Unknown* -- when there isn't
+        enough history to establish a routine at all.
+        """
+        status = self._compute()["status"]
+        return None if status == "unknown" else status
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose event_type, routine times, histogram, recency, and sample count."""
+        attrs: dict[str, Any] = {**super().extra_state_attributes}
+        result = self._compute()
+        attrs["event_type"] = self._event_type
+        attrs["peak_minutes"] = result["peak_minutes"]
+        attrs["histogram"] = result["histogram"]
+        attrs["last_event_ago_hours"] = result["last_event_ago_hours"]
+        attrs["sample_count"] = result["sample_count"]
+        attrs["days_observed"] = result["days_observed"]
+        attrs["min_days_required"] = result["min_days_required"]
+        attrs["overdue_peak_minute"] = result["overdue_peak_minute"]
+        attrs["minutes_overdue"] = result["minutes_overdue"]
+        return attrs

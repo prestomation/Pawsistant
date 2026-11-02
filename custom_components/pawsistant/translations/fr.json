@@ -115,6 +115,25 @@
         "data": {
           "when": "Date"
         }
+      },
+      "select_analytics_dog": {
+        "title": "Paramètres d'analyse",
+        "description": "Choisissez l'animal dont vous voulez modifier les paramètres d'analyse.",
+        "data": {
+          "dog": "Animal"
+        }
+      },
+      "edit_analytics": {
+        "title": "Paramètres de tendance du poids",
+        "description": "Paramètres de {dog_name}. La tendance du poids compare la mesure la plus ancienne à la plus récente dans une période récente : choisissez une période adaptée à la fréquence à laquelle vous pesez cet animal. Les données sur tout l'historique restent disponibles comme attributs du capteur.",
+        "data": {
+          "weight_window_days": "Période récente",
+          "weight_threshold_pct": "Seuil de variation (%)"
+        },
+        "data_description": {
+          "weight_window_days": "Les mesures plus anciennes sont ignorées. Si la période contient moins de trois mesures, la tendance est indiquée comme inconnue.",
+          "weight_threshold_pct": "Variation de poids nécessaire pour être considérée comme une prise ou une perte. Laissez 0 pour l'adapter automatiquement à la période."
+        }
       }
     },
     "error": {
@@ -141,7 +160,20 @@
         "remove_dog": "Supprimer un animal",
         "edit_event_types": "Modifier les types d'événement",
         "done": "Terminé",
-        "manage_care_schedules": "Manage care schedules"
+        "manage_care_schedules": "Manage care schedules",
+        "edit_analytics": "Paramètres d'analyse"
+      }
+    },
+    "weight_window_days": {
+      "options": {
+        "7": "7 derniers jours",
+        "14": "14 derniers jours",
+        "30": "30 derniers jours",
+        "60": "60 derniers jours",
+        "90": "90 derniers jours",
+        "180": "180 derniers jours",
+        "365": "Dernière année",
+        "0": "Tout l'historique"
       }
     }
   },

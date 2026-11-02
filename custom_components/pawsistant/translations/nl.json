@@ -115,6 +115,25 @@
         "data": {
           "when": "Date"
         }
+      },
+      "select_analytics_dog": {
+        "title": "Analyse-instellingen",
+        "description": "Kies van welk huisdier je de analyse-instellingen wilt wijzigen.",
+        "data": {
+          "dog": "Huisdier"
+        }
+      },
+      "edit_analytics": {
+        "title": "Instellingen voor gewichtstrend",
+        "description": "Instellingen voor {dog_name}. De gewichtstrend vergelijkt de oudste met de nieuwste meting binnen een recente periode, dus kies een periode die past bij hoe vaak je dit huisdier weegt. De cijfers over de volledige geschiedenis blijven beschikbaar als sensorattributen.",
+        "data": {
+          "weight_window_days": "Recente periode",
+          "weight_threshold_pct": "Drempel voor verandering (%)"
+        },
+        "data_description": {
+          "weight_window_days": "Oudere metingen worden genegeerd. Bevat de periode minder dan drie metingen, dan wordt de trend als onbekend weergegeven.",
+          "weight_threshold_pct": "Hoeveel het gewicht moet veranderen om als toename of afname te gelden. Laat op 0 staan om dit automatisch met de periode mee te laten schalen."
+        }
       }
     },
     "error": {
@@ -141,7 +160,20 @@
         "remove_dog": "Huisdier verwijderen",
         "edit_event_types": "Gebeurtenistypes bewerken",
         "done": "Klaar",
-        "manage_care_schedules": "Manage care schedules"
+        "manage_care_schedules": "Manage care schedules",
+        "edit_analytics": "Analyse-instellingen"
+      }
+    },
+    "weight_window_days": {
+      "options": {
+        "7": "Laatste 7 dagen",
+        "14": "Laatste 14 dagen",
+        "30": "Laatste 30 dagen",
+        "60": "Laatste 60 dagen",
+        "90": "Laatste 90 dagen",
+        "180": "Laatste 180 dagen",
+        "365": "Afgelopen jaar",
+        "0": "Volledige geschiedenis"
       }
     }
   },

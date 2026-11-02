@@ -115,6 +115,25 @@
         "data": {
           "when": "Date"
         }
+      },
+      "select_analytics_dog": {
+        "title": "Analysinställningar",
+        "description": "Välj vilket djur du vill ändra analysinställningarna för.",
+        "data": {
+          "dog": "Djur"
+        }
+      },
+      "edit_analytics": {
+        "title": "Inställningar för vikttrend",
+        "description": "Inställningar för {dog_name}. Vikttrenden jämför den äldsta och den senaste mätningen inom en aktuell period, så välj en period som matchar hur ofta du väger det här djuret. Siffrorna för hela historiken finns kvar som sensorattribut.",
+        "data": {
+          "weight_window_days": "Aktuell period",
+          "weight_threshold_pct": "Tröskel för förändring (%)"
+        },
+        "data_description": {
+          "weight_window_days": "Mätningar äldre än detta ignoreras. Om perioden innehåller färre än tre mätningar visas trenden som okänd.",
+          "weight_threshold_pct": "Hur mycket vikten måste ändras för att räknas som ökning eller minskning. Lämna 0 för att anpassa den automatiskt efter perioden."
+        }
       }
     },
     "error": {
@@ -141,7 +160,20 @@
         "remove_dog": "Ta bort ett husdjur",
         "edit_event_types": "Redigera händelsetyper",
         "done": "Klar",
-        "manage_care_schedules": "Manage care schedules"
+        "manage_care_schedules": "Manage care schedules",
+        "edit_analytics": "Analysinställningar"
+      }
+    },
+    "weight_window_days": {
+      "options": {
+        "7": "Senaste 7 dagarna",
+        "14": "Senaste 14 dagarna",
+        "30": "Senaste 30 dagarna",
+        "60": "Senaste 60 dagarna",
+        "90": "Senaste 90 dagarna",
+        "180": "Senaste 180 dagarna",
+        "365": "Senaste året",
+        "0": "Hela historiken"
       }
     }
   },
