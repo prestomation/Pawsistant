@@ -319,3 +319,568 @@ async def test_completion_for_unknown_source_is_ignored(hass, enable_custom_inte
     await hass.async_block_till_done()
 
     assert await _medicine_count(store, dog_id) == before
+
+
+# ---------------------------------------------------------------------------
+# A changed care schedule reaches its task (issue #85)
+# ---------------------------------------------------------------------------
+
+
+async def _setup_with_task(hass, schedule):
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    schedule = {"dog_id": dog_id, "event_type": "medicine", **schedule}
+    task_id = await care_link.create_task(hass, store, "sched-1", schedule)
+    await store.add_care_schedule("sched-1", {**schedule, "task_id": task_id})
+    return hk, store, task_id
+
+
+def _enforce_deletion_protection(hass, hk) -> None:
+    """Make the fake refuse a protected delete, as Home Keeper's store does.
+
+    The fake deletes every task. The real store refuses ``delete_task`` on a
+    ``deletion_protected`` task while its owner is loaded, unless the call sends
+    ``force``. The rule is Home Keeper's own ``models.deletion_blocked``.
+    """
+    from home_keeper import models
+
+    delete = hk._delete_task
+
+    async def _delete_task(call):
+        task = hk.tasks.get(call.data["task_id"])
+        if task is not None and models.deletion_blocked(
+            task, orphaned=False, force=call.data.get("force", False)
+        ):
+            raise models.TaskValidationError("This task is managed by Pawsistant.")
+        await delete(call)
+
+    hass.services.async_register(care_link.HK_DOMAIN, "delete_task", _delete_task)
+
+
+@pytest.mark.parametrize(
+    "schedule",
+    [
+        {"recurrence_type": "floating", "interval": 2, "unit": "weeks"},
+        # Home Keeper keeps this as an rrule and puts a time zone on the anchor.
+        {
+            "recurrence_type": "fixed",
+            "interval": 2,
+            "freq": "WEEKLY",
+            "anchor": "2026-01-05T09:00:00",
+        },
+        {"recurrence_type": "fixed", "interval": 1, "freq": "MONTHLY", "anchor": "2026-01-05"},
+    ],
+)
+@pytest.mark.asyncio
+async def test_reconcile_keeps_a_task_whose_cadence_is_unchanged(
+    hass, enable_custom_integrations, schedule
+):
+    """No false difference: a task that matches must keep its id and history."""
+    hk, store, task_id = await _setup_with_task(hass, schedule)
+    hk.fire_user_completion(task_id)
+    await hass.async_block_till_done()
+    before = dict(hk.tasks[task_id])
+
+    await care_link.reconcile(hass, store)
+    await hass.async_block_till_done()
+
+    assert [t["id"] for t in _our_tasks(hk)] == [task_id]
+    assert hk.tasks[task_id] == before
+    assert store.get_care_schedule("sched-1")["task_id"] == task_id
+
+
+@pytest.mark.asyncio
+async def test_reconcile_gives_the_task_a_changed_cadence(
+    hass, enable_custom_integrations
+):
+    hk, store, old_task_id = await _setup_with_task(
+        hass, {"recurrence_type": "floating", "interval": 2, "unit": "weeks"}
+    )
+    _enforce_deletion_protection(hass, hk)
+    hk.fire_user_completion(old_task_id)
+    await hass.async_block_till_done()
+    last_done = hk.tasks[old_task_id]["last_completed"]
+    events_before = await _medicine_count(store, store_dog(store))
+
+    # Home Keeper drops a locked field from every update_task, ours too.
+    await hass.services.async_call(
+        care_link.HK_DOMAIN,
+        "update_task",
+        {"task_id": old_task_id, "interval": 1},
+        blocking=True,
+    )
+    assert hk.tasks[old_task_id]["interval"] == 2
+
+    await store.update_care_schedule("sched-1", interval=1)
+    await care_link.reconcile(hass, store)
+    await hass.async_block_till_done()
+
+    tasks = _our_tasks(hk)
+    assert len(tasks) == 1
+    new_task = tasks[0]
+    assert new_task["id"] != old_task_id
+    assert new_task["interval"] == 1 and new_task["unit"] == "weeks"
+    # The last done date carries over, so the task is not due now.
+    assert new_task["last_completed"] == last_done
+    assert store.get_care_schedule("sched-1")["task_id"] == new_task["id"]
+    # The pet's own log keeps every entry.
+    assert await _medicine_count(store, store_dog(store)) == events_before
+
+    # A 2nd pass sees no difference.
+    await care_link.reconcile(hass, store)
+    await hass.async_block_till_done()
+    assert [t["id"] for t in _our_tasks(hk)] == [new_task["id"]]
+
+
+@pytest.mark.asyncio
+async def test_reconcile_gives_a_fixed_task_its_new_day(hass, enable_custom_integrations):
+    hk, store, old_task_id = await _setup_with_task(
+        hass,
+        {
+            "recurrence_type": "fixed",
+            "interval": 1,
+            "freq": "MONTHLY",
+            "anchor": "2026-01-05T09:00:00",
+        },
+    )
+    _enforce_deletion_protection(hass, hk)
+
+    await store.update_care_schedule(
+        "sched-1", freq="WEEKLY", anchor="2026-01-07T09:00:00"
+    )
+    await care_link.reconcile(hass, store)
+    await hass.async_block_till_done()
+
+    tasks = _our_tasks(hk)
+    assert len(tasks) == 1 and tasks[0]["id"] != old_task_id
+    assert tasks[0]["rrule"] == "FREQ=WEEKLY;INTERVAL=1"
+    assert tasks[0]["anchor"].startswith("2026-01-07T09:00:00")
+
+
+@pytest.mark.asyncio
+async def test_reconcile_keeps_the_task_of_a_renamed_pet(
+    hass, enable_custom_integrations
+):
+    """A new name alone is not worth the task's completion history."""
+    hk, store, task_id = await _setup_with_task(
+        hass, {"recurrence_type": "floating", "interval": 2, "unit": "weeks"}
+    )
+    store.get_dogs()[store_dog(store)]["name"] = "Max"
+    assert care_link._task_name(store, store_dog(store), "medicine") == "Max: Medicine"
+
+    await care_link.reconcile(hass, store)
+    await hass.async_block_till_done()
+
+    assert [t["id"] for t in _our_tasks(hk)] == [task_id]
+    assert hk.tasks[task_id]["name"] == "Buddy: Medicine"
+
+
+def store_dog(store) -> str:
+    return next(iter(store.get_dogs()))
+
+
+# ---------------------------------------------------------------------------
+# Combined export and import (pawsistant.export_data / pawsistant.import_data)
+# ---------------------------------------------------------------------------
+
+
+def _our_tasks(hk) -> list[dict]:
+    return [t for t in hk.tasks.values() if "pawsistant" in (t.get("source") or {})]
+
+
+async def _import(hass, document) -> dict:
+    with patch(
+        "custom_components.pawsistant._ensure_frontend_registered", new=AsyncMock()
+    ):
+        report = await hass.services.async_call(
+            DOMAIN,
+            "import_data",
+            {"document": document},
+            blocking=True,
+            return_response=True,
+        )
+        await hass.async_block_till_done()
+    return report
+
+
+async def _export_data(hass) -> dict:
+    response = await hass.services.async_call(
+        DOMAIN, "export_data", {}, blocking=True, return_response=True
+    )
+    return response["data"]
+
+
+@pytest.mark.asyncio
+async def test_import_of_own_export_keeps_the_one_task(hass, enable_custom_integrations):
+    """The export has no task id, but an import back must not make a 2nd task."""
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    task_id = await _make_linked_schedule(hass, store, dog_id)
+
+    data = await _export_data(hass)
+    assert "task_id" not in data["care_schedules"][0]
+
+    report = await _import(hass, data)
+
+    assert report["ok"] is True
+    assert [t["id"] for t in _our_tasks(hk)] == [task_id]
+    assert entry.runtime_data.store.get_care_schedule("sched-1")["task_id"] == task_id
+
+
+@pytest.mark.asyncio
+async def test_import_makes_the_task_of_a_new_schedule_once(
+    hass, enable_custom_integrations
+):
+    """A schedule from another install gets its Home Keeper task from reconcile.
+
+    The new dog makes the import reload the entry, and the reload starts its own
+    reconcile pass. The 2 passes must not make the task 2 times.
+    """
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+
+    data = await _export_data(hass)
+    data["dogs"].append({"id": "dog-far", "name": "Luna"})
+    data["care_schedules"].append(
+        {
+            "id": "sched-far",
+            "dog_id": "dog-far",
+            "event_type": "grooming",
+            "recurrence_type": "floating",
+            "interval": 6,
+            "unit": "weeks",
+            "task_id": "a-task-id-from-the-other-install",
+        }
+    )
+
+    report = await _import(hass, data)
+
+    assert report["ok"] is True
+    tasks = _our_tasks(hk)
+    assert len(tasks) == 1
+    assert tasks[0]["source"]["pawsistant"] == {
+        "dog_id": "dog-far",
+        "event_type": "grooming",
+        "schedule_id": "sched-far",
+    }
+    store = entry.runtime_data.store
+    assert store.get_care_schedule("sched-far")["task_id"] == tasks[0]["id"]
+
+
+@pytest.mark.asyncio
+async def test_import_of_a_new_cadence_replaces_the_task(
+    hass, enable_custom_integrations
+):
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    old_task_id = await _make_linked_schedule(hass, store, dog_id)
+
+    data = await _export_data(hass)
+    data["care_schedules"][0]["interval"] = 3
+
+    report = await _import(hass, data)
+
+    assert report["ok"] is True
+    tasks = _our_tasks(hk)
+    assert len(tasks) == 1
+    assert tasks[0]["id"] != old_task_id
+    assert tasks[0]["interval"] == 3
+    assert entry.runtime_data.store.get_care_schedule("sched-1")["task_id"] == tasks[0]["id"]
+
+
+# ── supplies ─────────────────────────────────────────────────────────────────
+#
+# An event type can use a supply that Home Keeper counts. These need a Home Keeper
+# whose adjust_part_stock reports what it applied and whose completion undo gives
+# stock back, and a fake that does the same.
+
+requires_hk_supplies = pytest.mark.skipif(
+    not hasattr(testing.FakeHomeKeeper, "_return_stock_drawn"),
+    reason="installed Home Keeper predates the stock report and the stock undo",
+)
+
+
+def _our_part(hk, name):
+    from custom_components.pawsistant import supplies
+
+    asset = supplies.find_appliance(list(hk.assets.values()))
+    assert asset is not None, "the Pet supplies appliance was not created"
+    part = supplies.find_part_by_name(asset, name)
+    assert part is not None, f"no part called {name}"
+    return asset, part
+
+
+async def _add_roll_type(hass):
+    await hass.services.async_call(
+        DOMAIN,
+        "add_event_type",
+        {
+            "event_type": "roll",
+            "name": "Roll",
+            "icon": "mdi:paper-roll",
+            "color": "#8D6E63",
+            "supply": {"name": "Poop bag rolls", "amount": 1},
+        },
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        "update_supply",
+        {"event_type": "roll", "stock": 3, "reorder_at": 1, "pack_size": 8, "unit": "roll"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+
+@requires_hk_supplies
+@pytest.mark.asyncio
+async def test_a_supply_makes_a_managed_part(hass, enable_custom_integrations):
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    await _add_roll_type(hass)
+
+    asset, part = _our_part(hk, "Poop bag rolls")
+    assert asset["name"] == "Pet supplies"
+    assert asset["managed_by"]["integration"] == "pawsistant"
+    assert asset["managed_by"]["locked_fields"] == ["name", "parts"]
+    assert part["notes"] == "Used by Roll"
+    # The user's numbers went on the part, and a reorder point turned on the Buy task.
+    assert (part["stock"], part["reorder_at"], part["restock_quantity"]) == (3, 1, 8)
+    assert part["stock_unit"] == "roll"
+    assert part["create_buy_task"] is True
+    stored = entry.runtime_data.store.get_event_types()["roll"]["supply"]
+    assert stored == {
+        "asset_id": asset["id"],
+        "part_id": part["id"],
+        "name": "Poop bag rolls",
+        "amount": 1.0,
+    }
+
+
+@requires_hk_supplies
+@pytest.mark.asyncio
+async def test_a_log_takes_its_supply_and_a_delete_gives_it_back(
+    hass, enable_custom_integrations
+):
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    await _add_roll_type(hass)
+    _, part = _our_part(hk, "Poop bag rolls")
+
+    await hass.services.async_call(
+        DOMAIN, "log_event", {"dog": "Buddy", "event_type": "roll"}, blocking=True
+    )
+    await hass.async_block_till_done()
+    assert part["stock"] == 2
+    [event] = await store.get_events(dog_id, "roll")
+    assert event["supply_draw"]["applied_delta"] == -1
+
+    # A poop log does not touch the rolls.
+    await hass.services.async_call(
+        DOMAIN, "log_event", {"dog": "Buddy", "event_type": "poop"}, blocking=True
+    )
+    assert part["stock"] == 2
+
+    await hass.services.async_call(
+        DOMAIN, "delete_event", {"event_id": event["id"]}, blocking=True
+    )
+    await hass.async_block_till_done()
+    assert part["stock"] == 3
+
+
+@requires_hk_supplies
+@pytest.mark.asyncio
+async def test_an_empty_supply_gives_back_only_what_it_gave(
+    hass, enable_custom_integrations
+):
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    await _add_roll_type(hass)
+    await hass.services.async_call(
+        DOMAIN, "update_supply", {"event_type": "roll", "stock": 0}, blocking=True
+    )
+    _, part = _our_part(hk, "Poop bag rolls")
+
+    await hass.services.async_call(
+        DOMAIN, "log_event", {"dog": "Buddy", "event_type": "roll"}, blocking=True
+    )
+    [event] = await store.get_events(dog_id, "roll")
+    assert event["supply_draw"]["applied_delta"] == 0
+    await hass.services.async_call(
+        DOMAIN, "delete_event", {"event_id": event["id"]}, blocking=True
+    )
+    assert part["stock"] == 0, "a delete must not make up a roll that never left"
+
+
+@requires_hk_supplies
+@pytest.mark.asyncio
+async def test_a_scheduled_dose_is_drawn_once_from_either_side(
+    hass, enable_custom_integrations
+):
+    from custom_components.pawsistant import supply_link
+
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    task_id = await _make_linked_schedule(hass, store, dog_id)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "update_event_type",
+        {"event_type": "medicine", "supply": {"name": "Carprofen 75 mg", "amount": 1}},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN, "update_supply", {"event_type": "medicine", "stock": 9}, blocking=True
+    )
+    await hass.async_block_till_done()
+    asset, part = _our_part(hk, "Carprofen 75 mg")
+    assert hk.tasks[task_id]["source"]["part"]["part_id"] == part["id"]
+    assert hk.tasks[task_id]["source"]["part"]["quantity"] == 1
+
+    # Logged here: Home Keeper draws it through the task, and we draw nothing.
+    await hass.services.async_call(
+        DOMAIN, "log_event", {"dog": "Buddy", "event_type": "medicine"}, blocking=True
+    )
+    await hass.async_block_till_done()
+    assert part["stock"] == 8
+    [logged] = await store.get_events(dog_id, "medicine")
+    assert "supply_draw" not in logged
+
+    # Ticked in Home Keeper: one more dose, and the mirror draws nothing extra.
+    hk.fire_user_completion(task_id)
+    await hass.async_block_till_done()
+    assert part["stock"] == 7
+
+    # Deleting the dose logged here undoes its completion, which gives the tablet back.
+    await hass.services.async_call(
+        DOMAIN, "delete_event", {"event_id": logged["id"]}, blocking=True
+    )
+    await hass.async_block_till_done()
+    assert part["stock"] == 8
+
+    # A second sync changes nothing.
+    await supply_link.sync_links(hass, store)
+    assert hk.tasks[task_id]["source"]["part"]["asset_id"] == asset["id"]
+
+
+@requires_hk_supplies
+@pytest.mark.asyncio
+async def test_clearing_a_supply_unlinks_the_task_and_drops_an_uncounted_part(
+    hass, enable_custom_integrations
+):
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    task_id = await _make_linked_schedule(hass, store, dog_id)
+    await hass.services.async_call(
+        DOMAIN,
+        "update_event_type",
+        {"event_type": "medicine", "supply": {"name": "Carprofen 75 mg"}},
+        blocking=True,
+    )
+    assert "part" in hk.tasks[task_id]["source"]
+
+    await hass.services.async_call(
+        DOMAIN, "update_event_type", {"event_type": "medicine", "supply": None},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    assert "part" not in hk.tasks[task_id]["source"]
+    assert "pawsistant" in hk.tasks[task_id]["source"], "our own namespace stays"
+    assert "supply" not in store.get_event_types()["medicine"]
+    from custom_components.pawsistant import supplies
+
+    asset = supplies.find_appliance(list(hk.assets.values()))
+    assert asset["parts"] == [], "a part nobody counted leaves with its last user"
+
+
+@requires_hk_supplies
+@pytest.mark.asyncio
+async def test_update_supply_needs_a_supply(hass, enable_custom_integrations):
+    from homeassistant.exceptions import ServiceValidationError
+
+    await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    await _setup_pawsistant(hass)
+    with pytest.raises(ServiceValidationError, match="does not use a supply"):
+        await hass.services.async_call(
+            DOMAIN, "update_supply", {"event_type": "poop", "stock": 2}, blocking=True
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_supply_without_home_keeper_is_refused(hass, enable_custom_integrations):
+    from homeassistant.exceptions import ServiceValidationError
+
+    await _setup_pawsistant(hass)
+    with pytest.raises(ServiceValidationError, match="needs Home Keeper"):
+        await hass.services.async_call(
+            DOMAIN,
+            "update_event_type",
+            {"event_type": "poop", "supply": {"name": "Rolls"}},
+            blocking=True,
+        )
+
+
+@requires_hk_supplies
+@pytest.mark.asyncio
+async def test_draw_ignores_a_supply_with_no_part(hass, enable_custom_integrations):
+    from custom_components.pawsistant import supply_link
+
+    await testing.async_setup_fake_home_keeper(hass)
+    assert await supply_link.draw(hass, {"amount": 1}, 1) is None
+    assert await supply_link.draw(hass, {"asset_id": "a1", "part_id": ""}, 1) is None
+
+
+@requires_hk_supplies
+@pytest.mark.asyncio
+async def test_a_replaced_task_keeps_its_supply_link(hass, enable_custom_integrations):
+    """A new cadence replaces the task (issue #85). The new task must use the supply."""
+    hk = await testing.async_setup_fake_home_keeper(hass)
+    _add_home_keeper_entry(hass)
+    entry = await _setup_pawsistant(hass)
+    store = entry.runtime_data.store
+    dog_id = next(iter(store.get_dogs()))
+    old_task_id = await _make_linked_schedule(hass, store, dog_id)
+    await hass.services.async_call(
+        DOMAIN,
+        "update_event_type",
+        {"event_type": "medicine", "supply": {"name": "Carprofen 75 mg", "amount": 2}},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    _asset, part = _our_part(hk, "Carprofen 75 mg")
+    assert hk.tasks[old_task_id]["source"]["part"]["part_id"] == part["id"]
+
+    data = await _export_data(hass)
+    data["care_schedules"][0]["interval"] = 3
+    report = await _import(hass, data)
+
+    assert report["ok"] is True
+    [task] = _our_tasks(hk)
+    assert task["id"] != old_task_id
+    link = task["source"]["part"]
+    assert link["part_id"] == part["id"]
+    assert link["quantity"] == 2

@@ -48,10 +48,11 @@ A local-only dog activity tracker for Home Assistant. Log walks, bathroom breaks
 
 ### Via HACS (recommended)
 
-1. Open **HACS → Integrations → ⋮ → Custom repositories**
-2. Add `https://github.com/prestomation/Pawsistant` with category **Integration**
-3. Search for **Pawsistant** and install
-4. Restart Home Assistant
+Pawsistant is in the default HACS store.
+
+1. Open **HACS** and search for **Pawsistant**
+2. Install it
+3. Restart Home Assistant
 
 ### Manual
 
@@ -87,10 +88,54 @@ time moves the completion to match. If the two ever drift apart — an undo whil
 Assistant was restarting, say — Pawsistant tidies up on the next start, and only ever
 touches entries it logged on Home Keeper's behalf, never one you logged yourself.
 
+**A new cadence replaces the task.** Home Keeper locks the cadence of the task, also
+against Pawsistant. When a care schedule's cadence changes, Pawsistant replaces the task
+on the next start. The new task keeps the last done date. The old task's completion
+history in Home Keeper is lost, but every entry stays in the pet's log. A new pet or
+activity name alone does not replace the task, because a name is not worth that history.
+
+**One export for both.** Pawsistant joins Home Keeper's export and import. Home
+Keeper's export file then also holds your pets, event types, button settings, care
+schedules and all logged events. Import that file on a new install and Pawsistant adds
+or updates its records; it never deletes a record that is not in the file. Pawsistant
+then makes the Home Keeper tasks of the care schedules again. See
+[`pawsistant.export_data`](#pawsistantexport_data) and
+[`pawsistant.import_data`](#pawsistantimport_data).
+
 Pawsistant also **announces itself to Home Keeper** so it appears under Home Keeper's
 **Settings → Companions** section, with a *Configure* link to Pawsistant's settings
 page (where the care schedules above live) — so if you have both, you'll discover they
 pair up from either side.
+
+### Supplies (Home Keeper integration)
+
+An event type can **use a supply** that Home Keeper counts, such as poop bag rolls or
+medicine tablets. Each log of that type takes a set amount off the count. When the
+count reaches its reorder point, Home Keeper adds a Buy task to your shopping list.
+Tick that task at the store and Home Keeper adds the pack size back.
+
+Two common setups:
+
+- **Poop bag rolls.** Add a custom event type **Roll** with the supply *Poop bag rolls*,
+  1 per log. Tap Roll when you put a new roll on the leash. Poop logs do not change the
+  count, so it stays correct when you use someone else's bag.
+- **Medicine.** Add a custom event type for each medicine, such as **Carprofen**, with
+  the supply *Carprofen 75 mg* and 1 tablet (or 0.5) per log. It can keep its care
+  schedule and its *Days since* number. Home Keeper takes the dose when the task is
+  completed, from Pawsistant or from Home Keeper, and gives it back on an undo.
+
+Set a supply in the card: open ⚙️, edit the event type, and fill in **Uses a supply**
+(the supply name, the amount per log, the count now, the reorder point, the unit and the
+pack size). Each supply is a part of one **Pet supplies** appliance in Home Keeper. You
+own the counts; Pawsistant owns the appliance name and its list of parts.
+
+On the card, a button that uses a supply shows the count in its corner. The badge is
+amber at the reorder point and red at 0. The log form shows what the log takes, and a
+toast after a log shows what is left, with **Undo**. The 📦 button in the card header
+opens **Supplies**, where anyone can correct a count or add a pack.
+
+Supplies need Home Keeper 0.27.0b5 or newer. If you remove Pawsistant, it hands a
+counted **Pet supplies** appliance over to you in Home Keeper, with your counts.
 
 ---
 
@@ -122,6 +167,42 @@ dog: Sharky
 | `medicine_days_entity` | auto-detected | Override days-since-medicine sensor entity ID |
 | `weight_entity` | auto-detected | Override weight sensor entity ID |
 
+### The card doesn't show up
+
+Almost always this is the **new Overview dashboard**, not a broken install.
+
+Home Assistant 2026.x boots you into a redesigned Overview (the `home` panel, at
+`/home/overview`). It is *not* a Lovelace dashboard — it builds itself from your
+areas and summaries, and it never loads Lovelace resources. **No custom card from
+any integration can appear there**, so `pawsistant-card` is invisible on it and
+absent from its editor. A fresh 2026.x install may also ship with no classic
+dashboard at all, leaving nowhere obvious to put the card.
+
+The fix is to use a Lovelace dashboard:
+
+1. **Settings → Dashboards → + Add dashboard** → *New dashboard from scratch*.
+2. Open it, click ✏️ (edit) → **+ Add card**, and search for *Pawsistant*.
+
+If it's still missing on a real Lovelace dashboard, check the registration —
+**Settings → Devices & services → Pawsistant → ⋮ → Download diagnostics** and
+look at the `card_registration` block:
+
+- `resource_registered: true` and `card_file_exists: true` means the card is
+  installed and served correctly; you're on a non-Lovelace dashboard.
+- `lovelace_dashboards: []` means you have no classic dashboard yet — create one
+  as above.
+- `resource_mode: "yaml"` means your Lovelace runs in YAML mode, so the
+  integration can't self-register. Add the resource yourself:
+
+  ```yaml
+  lovelace:
+    resources:
+      - url: /pawsistant/pawsistant-card.js
+        type: module
+  ```
+
+Then hard-refresh the browser (Ctrl/Cmd-Shift-R) to clear the cached bundle.
+
 ---
 
 ## Services
@@ -136,6 +217,23 @@ Log an activity for a dog.
 | `note` | — | Optional note |
 | `value` | — | Numeric value (required for `weight` events; lbs) |
 | `timestamp` | — | ISO 8601 timestamp for backdating; defaults to now |
+
+`log_event` returns `{event_id}` when you ask for a response.
+
+### `pawsistant.update_supply`
+Set the count, reorder point, unit or pack size of the supply an event type uses.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `event_type` | ✅ | The event type that uses the supply |
+| `stock` | — | How many you have now |
+| `reorder_at` | — | The count at which Home Keeper adds a Buy task |
+| `unit` | — | What the count is in, e.g. `roll` or `tablet` |
+| `pack_size` | — | How many to add when you tick the Buy task |
+
+Set the supply itself with the `supply` field of `pawsistant.add_event_type` or
+`pawsistant.update_event_type`: `{"name": "Poop bag rolls", "amount": 1}`, or `null` to
+stop using one.
 
 ### `pawsistant.delete_event`
 Delete an event by ID.
@@ -154,7 +252,7 @@ Register a new dog (triggers integration reload to create sensors).
 | `birth_date` | — | Birth date (YYYY-MM-DD) |
 
 ### `pawsistant.remove_dog`
-Remove a dog and all associated events.
+Remove a dog and all associated events. **Administrators only.**
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -181,11 +279,50 @@ action:
 ```
 
 ### `pawsistant.import_events`
-Bulk-import events from a JSON array (for migrating from other systems).
+Bulk-import events from a JSON array (for migrating from other systems). **Administrators only.**
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `events` | ✅ | List of event dicts with keys: `event_type`, `timestamp`, `dog_id`, `note`, `value` |
+
+### `pawsistant.export_data`
+Return all data as 1 document, through the service response. **Administrators only.**
+Home Keeper calls this action for its combined export.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `files_dir` | — | Set by Home Keeper for a bundle export. Pawsistant has no files and does not use it. |
+
+The response is `{format, version, data, skipped}`. `data` has these keys:
+
+| Key | Contents |
+|-----|----------|
+| `format` | The document format, now `1` |
+| `dogs` | List of `{id, name, breed, birth_date, species}` |
+| `event_types` | Your event type changes (`null` marks a deleted built-in type) |
+| `button_metrics` | Your button metric changes |
+| `shown_types` | `{dog id: [event types]}`: the buttons each pet shows |
+| `care_schedules` | List of `{id, dog_id, event_type, recurrence_type, interval, unit or freq, anchor}`, with no Home Keeper task id |
+| `events` | All events of all years, newest first: `{id, dog_id, event_type, timestamp, note, value}` |
+
+### `pawsistant.import_data`
+Add or update the records of a document from `export_data`. **Administrators only.**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `document` | ✅ | The `data` from `export_data` (you can edit it first) |
+| `dry_run` | — | `true` checks the document and returns the report, but writes nothing |
+| `files_dir` | — | Set by Home Keeper for a bundle import. Not used. |
+
+- A pet matches by id, then by name. A care schedule matches by id, then by pet and
+  event type. An event matches by id, so an import of the same file 2 times adds no
+  duplicates.
+- A record that is not in the document stays.
+- The response is `{ok, dry_run, counts, records, problems}`. Each problem is
+  `{level, path, message}`, for example `events[2].dog_id`. 1 `error` stops the full
+  import, and nothing is written.
+- After an import, Pawsistant fires the `pawsistant_data_imported` event with the
+  counts.
 
 ---
 
@@ -279,7 +416,7 @@ MIT
 [commits-shield]: https://img.shields.io/github/last-commit/prestomation/Pawsistant?style=for-the-badge
 [commits]: https://github.com/prestomation/Pawsistant/commits/main
 [hacs]: https://github.com/custom-components/hacs
-[hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
+[hacsbadge]: https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge
 [license-shield]: https://img.shields.io/github/license/prestomation/Pawsistant.svg?style=for-the-badge
 [maintenance-shield]: https://img.shields.io/badge/Maintainers-%40prestomation-blue.svg?style=for-the-badge
 [downloads-shield]: https://img.shields.io/github/downloads/prestomation/Pawsistant/total.svg?style=for-the-badge
@@ -291,7 +428,7 @@ MIT
 [coverage-shield]: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/prestomation/Pawsistant/python-coverage-comment-action-data/endpoint.json&style=for-the-badge
 [hacs-validation-shield]: https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml/badge.svg
 [hacs-validation]: https://github.com/prestomation/Pawsistant/actions/workflows/hacs.yml
-[ha-version-shield]: https://img.shields.io/badge/Home%20Assistant-2024.4%2B-blue.svg?style=for-the-badge
+[ha-version-shield]: https://img.shields.io/badge/Home%20Assistant-2025.1%2B-blue.svg?style=for-the-badge
 [ha-version]: https://www.home-assistant.io/
 [kofi-shield]: https://img.shields.io/badge/Ko--fi-donate-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white
 [kofi]: https://ko-fi.com/prestomation

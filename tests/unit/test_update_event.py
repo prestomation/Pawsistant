@@ -30,6 +30,7 @@ def _inject_stubs() -> None:
         dt_mod = types.ModuleType("homeassistant.util.dt")
         # Provide a now() that returns UTC-aware datetime
         dt_mod.now = lambda tz=None: datetime.now(tz or timezone.utc)
+        dt_mod.as_local = lambda d: d.astimezone()
         dt_util_mod = dt_mod
         sys.modules["homeassistant.util.dt"] = dt_mod
 

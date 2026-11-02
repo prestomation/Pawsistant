@@ -134,6 +134,29 @@ export const en = {
   'time.now': 'Now',
   'time.min_ago.one': '{n} min ago',
   'time.min_ago.other': '{n} min ago',
+
+  /* ── Supplies ──────────────────────────────────────────────────── */
+  'supply.line': 'Takes {amount} · {before} → {after} left',
+  'supply.badge_aria': '{n} left in stock',
+  'supply.toast_left': '{label} logged · {n} left',
+  'supply.toast_low': 'Low stock: Home Keeper added a Buy task',
+  'supply.undo': 'Undo',
+  'supply.open': 'Open supplies',
+  'supply.title': 'Supplies',
+  'supply.close': 'Close',
+  'supply.reorder_at': 'Reorder at {n}',
+  'supply.add_pack': '+ pack of {n}',
+  'supply.remove_one': 'Remove one',
+  'supply.add_one': 'Add one',
+  'panel.form.supply_section': 'Uses a supply',
+  'panel.form.supply_name': 'Supply',
+  'panel.form.supply_name_placeholder': 'e.g. Poop bag rolls',
+  'panel.form.supply_amount': 'Amount per log',
+  'panel.form.supply_stock': 'In stock now',
+  'panel.form.supply_reorder': 'Reorder at',
+  'panel.form.supply_unit': 'Unit',
+  'panel.form.supply_pack': 'Pack size',
+  'panel.form.supply_hint': 'Counted in Home Keeper. Leave Supply empty to stop using one.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

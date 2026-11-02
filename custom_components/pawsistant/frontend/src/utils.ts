@@ -93,6 +93,15 @@ export function buildHash(hass: HomeAssistant, cfg: PawsistantCardConfig): strin
     JSON.stringify(stateAttr(hass, tEnt, 'days_since') || {}),
     JSON.stringify(stateAttr(hass, tEnt, 'last_event_ts') || {}),
   ];
+  // The stock badges follow Home Keeper's spares number of each supply.
+  const types = (stateAttr(hass, tEnt, 'event_types') || {}) as Record<string, { supply?: { entity_id?: string } }>;
+  for (const meta of Object.values(types)) {
+    const entityId = meta?.supply?.entity_id;
+    if (entityId) {
+      const st = hass.states[entityId];
+      parts.push(`${entityId}=${st?.state ?? ''}/${st?.attributes?.status ?? ''}`);
+    }
+  }
   return parts.join('|');
 }
 

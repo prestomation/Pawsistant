@@ -6,7 +6,8 @@
  */
 
 import type { HomeAssistant, EventMeta, BackdateFormResult, WeightFormResult, EditFormResult } from './types';
-import { logEvent, updateEvent } from './services';
+import { logEvent, logEventWithId, updateEvent } from './services';
+import { addStockLine, stockOf } from './supply';
 import { mountTimeChooser } from './time-chooser';
 import { _escapeHTML, toDisplayWeight } from './utils';
 import { T } from './i18n';
@@ -185,6 +186,7 @@ export function openBackdateForm(opts: BackdateFormOptions): Promise<BackdateFor
     </div>
   `;
   root.appendChild(formWrap);
+  addStockLine(formWrap, stockOf(hass, meta.supply), meta.supply?.amount);
 
   const chooser = mountTimeChooser(formWrap.querySelector<HTMLElement>('#pbc-time-chooser-slot')!, {
     idPrefix: 'pbc-bd',
@@ -207,9 +209,9 @@ export function openBackdateForm(opts: BackdateFormOptions): Promise<BackdateFor
       const extra: Record<string, unknown> = { timestamp };
       if (note) extra['note'] = note;
 
-      logEvent(hass, dog, eventType, extra)
-        .then(() => {
-          resolve({ timestamp, note: note || undefined, cleanup });
+      logEventWithId(hass, dog, eventType, extra)
+        .then((eventId) => {
+          resolve({ timestamp, note: note || undefined, cleanup, eventId });
         })
         .catch((err) => {
           const errEl = formWrap.querySelector<HTMLElement>('#pbc-form-error');

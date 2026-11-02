@@ -37,7 +37,7 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.util import dt as dt_util
 
-from . import care_link
+from . import care_link, supply_link
 from .const import (
     CONF_SPECIES,
     DEFAULT_SPECIES,
@@ -166,6 +166,9 @@ class PawsistantOptionsFlow(OptionsFlow):
       add_dog    — Form to add a new dog
       remove_dog — Selector to remove an existing dog
     """
+
+    # Key of the event type that edit_event_type edits; None when it adds one.
+    _editing_key: str | None = None
 
     def _get_store_and_coord(self):
         """Return (store, coordinator) from the config entry's runtime_data."""
@@ -367,8 +370,10 @@ class PawsistantOptionsFlow(OptionsFlow):
                 if result is None:
                     errors["dog_name"] = "dog_not_found"
                 else:
+                    from . import async_remove_pet
+
                     dog_id, _ = result
-                    await store.remove_dog(dog_id)
+                    await async_remove_pet(self.hass, self.config_entry, store, dog_id)
                     _LOGGER.info(
                         "Options flow: removed dog '%s'", selected_name
                     )
@@ -527,14 +532,14 @@ class PawsistantOptionsFlow(OptionsFlow):
         if user_input is not None:
             action = user_input.get("action", "")
             if action == "add":
-                return await self.async_step_edit_event_type(user_input={})
+                return await self.async_step_add_event_type()
             if action == "done":
                 return self.async_create_entry(title="", data={})
             if action.startswith("edit_"):
-                key = action[5:]
-                return await self.async_step_edit_event_type(
-                    user_input={"event_type": key}
-                )
+                # Keep the key in flow state: the submitted edit form does not
+                # carry it, so it cannot come from user_input.
+                self._editing_key = action[5:]
+                return await self.async_step_edit_event_type()
             if action.startswith("delete_"):
                 key = action[7:]
                 # Perform deletion — only touch stored overrides, not merged defaults
@@ -802,6 +807,9 @@ class PawsistantOptionsFlow(OptionsFlow):
                     self.hass, store, schedule_id, schedule, last_completed=last_completed
                 )
                 await store.add_care_schedule(schedule_id, schedule)
+                # A dose that uses a supply takes it off the count when the new task
+                # is completed, from here or from Home Keeper.
+                await supply_link.sync_links(self.hass, store)
                 self._pending_care = None
                 if coord is not None:
                     await coord.async_refresh()
@@ -847,16 +855,14 @@ class PawsistantOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Add or edit a single event type.
 
-        user_input carries "event_type" key when editing existing type.
-        When adding, "event_type" is absent or empty.
+        The key of the event type to edit is in ``self._editing_key``, which
+        manage_event_types sets. When it is None, the step adds a new type.
         """
         store, _ = self._get_store_and_coord()
         if store is None:
             return self.async_create_entry(title="", data={})
 
-        existing_key = (
-            user_input.get("event_type", "") if user_input else ""
-        )
+        existing_key = self._editing_key or ""
         is_edit = bool(existing_key) and existing_key in store.get_event_types()
         errors: dict[str, str] = {}
 
@@ -909,6 +915,10 @@ class PawsistantOptionsFlow(OptionsFlow):
                     "color": color.upper(),
                 }
                 stored = store.get_stored_event_type_overrides()
+                # This form does not edit the supply, so keep the one the type has.
+                supply = (store.get_event_types().get(key) or {}).get("supply")
+                if supply:
+                    entry["supply"] = supply
                 stored[key] = entry
                 store.save_event_types(stored)
 
@@ -923,6 +933,7 @@ class PawsistantOptionsFlow(OptionsFlow):
                     store.save_button_metrics(stored_bm)
 
                 store.sync_save_meta()
+                self._editing_key = None
 
                 if is_edit:
                     _, coord = self._get_store_and_coord()
@@ -977,7 +988,8 @@ class PawsistantOptionsFlow(OptionsFlow):
 
         Shares the implementation of async_step_edit_event_type but is exposed as
         its own step so Home Assistant renders the translated "Add Event Type"
-        title. Submissions route here (no "event_type" key) and are handled as an
-        add by the shared logic.
+        title. Submissions route here and are handled as an add by the shared
+        logic.
         """
+        self._editing_key = None
         return await self.async_step_edit_event_type(user_input)

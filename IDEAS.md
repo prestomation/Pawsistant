@@ -8,6 +8,7 @@
 
 ## Data
 
+- **Sync mode for `import_data`** — an opt-in flag that also deletes the dogs, care schedules and events that are not in the document, so that 2 installs can be made equal. The import today is upsert only and never deletes. A sync must show the deletions in its dry-run report, and must delete the Home Keeper tasks of the removed care schedules.
 - **Track who created events** — add `created_by` field storing the HA user ID, so multi-person households can see who logged what.
 
 ## Architecture

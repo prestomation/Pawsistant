@@ -55,25 +55,22 @@ jobs:
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "Preview version: $VERSION"
 
-      - name: Stamp the preview version into the manifest (zip only; never committed)
-        env:
-          VERSION: ${{ steps.ver.outputs.version }}
-        run: |
-          python3 - <<'PY'
-          import json, os
-          path = "custom_components/pawsistant/manifest.json"
-          data = json.load(open(path))
-          data["version"] = os.environ["VERSION"]
-          json.dump(data, open(path, "w"), indent=2)
-          open(path, "a").write("\n")
-          PY
-
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install frontend deps
         run: npm ci --prefix custom_components/pawsistant/frontend
+
+      # Stamps manifest.json *and* const.py's CARD_VERSION (zip only; never
+      # committed). Both matter: CARD_VERSION is the ?v= cache-buster on the
+      # Lovelace resource URL, so a preview that reused the stable release's
+      # CARD_VERSION would leave a user's browser serving the cached stable
+      # bundle after installing the preview (and vice versa on the way back).
+      # Must run before the card is built — rollup bakes const.py's value into
+      # the bundle.
+      - name: Stamp the preview version (zip only; never committed)
+        run: bash ci/stamp-version.sh "${{ steps.ver.outputs.version }}"
 
       - name: Build card JS
         run: bash ci/build-card.sh
@@ -82,12 +79,7 @@ jobs:
         run: bash ci/build-zip.sh
 
       - name: Verify release zip
-        run: |
-          if [ ! -f pawsistant.zip ]; then
-            echo "::error::pawsistant.zip not found"
-            exit 1
-          fi
-          echo "pawsistant.zip exists ($(du -h pawsistant.zip | cut -f1))"
+        run: bash ci/verify-zip.sh "${{ steps.ver.outputs.version }}"
 
       - name: Replace any previous preview release for this PR
         uses: actions/github-script@v7

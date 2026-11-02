@@ -6,12 +6,14 @@
  */
 
 import './button-card-editor';
-import type { HomeAssistant, PawsistantButtonCardConfig, ButtonConfig, EventMeta } from './types';
+import type { HomeAssistant, DogEntities, PawsistantButtonCardConfig, ButtonConfig, EventMeta } from './types';
 import { buildRegistry, getMeta } from './registry';
 import { resolveMetricValue } from './metrics';
 import { setLang, T } from './i18n';
-import { logEvent } from './services';
-import { findEntitiesByDog, stateNum, stateAttr, toDisplayWeight, _escapeHTML, getDogId } from './utils';
+import { logEventWithId, deleteEvent } from './services';
+import { badgeHTML, showToast, stockOf, supplyRows, openSuppliesDialog, toastText, SUPPLY_CSS } from './supply';
+import type { Stock } from './supply';
+import { findEntitiesByDog, stateNum, stateAttr, toDisplayWeight, _escapeHTML, getDogId, dogNamesFromHass } from './utils';
 import { renderPawsistantButton } from './button';
 import { openBackdateForm, openWeightForm } from './standalone-forms';
 import { displayLabel, ensureTimelineStyles } from './timeline-render';
@@ -30,6 +32,9 @@ window.customCards.push({
 
 /* ── Main card element ─────────────────────────────────────────────── */
 
+/** Longest wait before the card scans again for a timeline it could not find. */
+const RESCAN_MS = 30_000;
+
 export class PawsistantButtonCard extends HTMLElement {
   _config: PawsistantButtonCardConfig = { type: 'custom:pawsistant-button-card', dog: '', buttons: [] };
   _hass: HomeAssistant | null = null;
@@ -37,8 +42,12 @@ export class PawsistantButtonCard extends HTMLElement {
   _timers: (ReturnType<typeof setTimeout> | number)[] = [];
   _activeForm: boolean = false;
   _btnCleanups: (() => void)[] = [];
+  _entCache: { dog: string; ent: DogEntities; found: string[]; timelineFound: boolean; dogSeen: boolean; scannedAt: number } | null = null;
   _formCleanup: (() => void) | null = null;
   _eventLogHandle: EventLogHandle | null = null;
+  /** The toast after a log, kept here so a re-render can draw it again. */
+  _toast: { text: string; sub: string; eventId: string | null; until: number } | null = null;
+  _closeSupplies: (() => void) | null = null;
 
   constructor() {
     super();
@@ -50,14 +59,12 @@ export class PawsistantButtonCard extends HTMLElement {
   }
 
   static getStubConfig(hass: HomeAssistant): PawsistantButtonCardConfig {
-    let dog = 'MyDog';
-    for (const state of Object.values(hass.states || {})) {
-      if (state.attributes?.dog) {
-        dog = state.attributes.dog as string;
-        break;
-      }
-    }
-    return { type: 'custom:pawsistant-button-card', dog, buttons: [{ event_type: 'poop' }] };
+    const [found] = dogNamesFromHass(hass);
+    return {
+      type: 'custom:pawsistant-button-card',
+      dog: found || 'MyDog',
+      buttons: [{ event_type: 'poop' }],
+    };
   }
 
   setConfig(config: PawsistantButtonCardConfig): void {
@@ -76,6 +83,63 @@ export class PawsistantButtonCard extends HTMLElement {
 
     this._config = migrated;
     this._lastHash = null;
+    this._entCache = null;
+  }
+
+  /**
+   * Entity ids for the configured dog. Resolving them scans every state in
+   * hass.states, so the result is cached and reused on later hass updates.
+   * The cache is rebuilt when the dog changes (setConfig), or when a cached
+   * entity is gone or now belongs to another dog.
+   *
+   * While the timeline is not found (Home Assistant is starting, or the dog
+   * name is wrong), the cache is still reused. The card looks again when the
+   * timeline appears under its default id (one direct lookup per update), and
+   * otherwise at most once every RESCAN_MS, to catch a renamed timeline.
+   */
+  _entities(): DogEntities {
+    const hass = this._hass;
+    const dog = this._config.dog;
+    const cache = this._entCache;
+    if (cache && hass && cache.dog === dog
+        && cache.found.every(id => this._belongsToDog(hass, id, dog))
+        && (cache.timelineFound
+          || (!this._belongsToDog(hass, cache.ent.timeline, dog)
+            && Date.now() - cache.scannedAt < RESCAN_MS))) {
+      return cache.ent;
+    }
+    const ent = findEntitiesByDog(hass, dog);
+    const found = hass
+      ? Object.values(ent).filter(id => this._belongsToDog(hass, id, dog))
+      : [];
+    const timelineFound = found.includes(ent.timeline);
+    const dogSeen = timelineFound || found.length > 0 || (!!hass && this._hasDog(hass, dog));
+    this._entCache = hass
+      ? { dog, ent, found, timelineFound, dogSeen, scannedAt: Date.now() }
+      : null;
+    return ent;
+  }
+
+  _belongsToDog(hass: HomeAssistant, entityId: string, dog: string): boolean {
+    return hass.states[entityId]?.attributes?.dog?.toLowerCase() === dog.toLowerCase();
+  }
+
+  _hasDog(hass: HomeAssistant, dog: string): boolean {
+    const nameLower = dog.toLowerCase();
+    for (const state of Object.values(hass.states)) {
+      if (state.attributes?.dog?.toLowerCase() === nameLower) return true;
+    }
+    return false;
+  }
+
+  /** Metric per event type for the hash, read from the dog's own timeline when it has them (older backends: scan). */
+  _hashMetrics(ent: DogEntities): Record<string, string> {
+    const hass = this._hass!;
+    // No timeline yet: nothing to read, and no reason to scan.
+    if (!hass.states[ent.timeline]) return {};
+    const own = stateAttr(hass, ent.timeline, 'button_metrics');
+    if (own && typeof own === 'object') return own as Record<string, string>;
+    return buildRegistry(this._hass).metrics;
   }
 
   set hass(hass: HomeAssistant) {
@@ -94,7 +158,8 @@ export class PawsistantButtonCard extends HTMLElement {
     const hass = this._hass;
     if (!hass) return '';
     const cfg = this._config;
-    const ent = findEntitiesByDog(hass, cfg.dog);
+    const ent = this._entities();
+    const metrics = this._hashMetrics(ent);
     const parts: string[] = [
       cfg.dog,
       JSON.stringify(cfg.buttons.map(b => b.event_type)),
@@ -105,9 +170,20 @@ export class PawsistantButtonCard extends HTMLElement {
       JSON.stringify(stateAttr(hass, ent.timeline, 'days_since') || {}),
       JSON.stringify(stateAttr(hass, ent.timeline, 'last_event_ts') || {}),
     ];
+    // The badge follows Home Keeper's spares number of each supply.
+    // Read from the pet's own timeline, so the hash never scans hass.states.
+    const types = (stateAttr(hass, ent.timeline, 'event_types') || {}) as
+      Record<string, { supply?: { entity_id?: string } }>;
+    for (const btn of cfg.buttons) {
+      const entityId = types[btn.event_type]?.supply?.entity_id;
+      if (entityId) {
+        const st = hass.states[entityId];
+        parts.push(`${entityId}=${st?.state ?? ''}/${st?.attributes?.status ?? ''}`);
+      }
+    }
     // Include relevant entity states for metric computation per button.
     for (const btn of cfg.buttons) {
-      const metric = this._getMetric(btn.event_type);
+      const metric = metrics[btn.event_type] || 'daily_count';
       if (metric === 'daily_count') {
         // Backward-compat sensors (covered by daily_counts map on newer backends).
         if (btn.event_type === 'pee') parts.push(String(stateNum(hass, ent.pee_count) ?? ''));
@@ -132,7 +208,7 @@ export class PawsistantButtonCard extends HTMLElement {
     const hass = this._hass;
     if (!hass) return '';
     const cfg = this._config;
-    const ent = findEntitiesByDog(hass, cfg.dog);
+    const ent = this._entities();
     const weightUnit = cfg.weight_unit === 'kg' ? 'kg' : 'lbs';
     const metric = this._getMetric(eventType);
     const { registry } = buildRegistry(hass);
@@ -164,15 +240,8 @@ export class PawsistantButtonCard extends HTMLElement {
     const buttonsPerRow = Math.max(2, Math.min(6, cfg.buttons_per_row || 3));
 
     // Validate dog
-    const dogNameLower = cfg.dog.toLowerCase();
-    let dogFound = false;
-    for (const state of Object.values(hass.states)) {
-      if (state.attributes?.dog?.toLowerCase() === dogNameLower) {
-        dogFound = true;
-        break;
-      }
-    }
-    if (!dogFound) {
+    this._entities();
+    if (!this._entCache?.dogSeen) {
       this._renderError(`Unknown dog: "${_escapeHTML(cfg.dog)}"`);
       return;
     }
@@ -331,6 +400,13 @@ export class PawsistantButtonCard extends HTMLElement {
         .log-btn.success-flash {
           animation: success-anim 0.6s ease forwards;
         }
+        .pbc-supplies-btn {
+          position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+          background: none; border: none; cursor: pointer; font-size: 15px;
+          padding: 6px; border-radius: 6px; min-width: 36px; min-height: 36px;
+        }
+        .pbc-supplies-btn:hover { background: var(--secondary-background-color, #f5f5f5); }
+        ${SUPPLY_CSS}
         @keyframes success-anim {
           0%   { background: var(--success-color, #4caf50); transform: scale(1); }
           40%  { transform: scale(0.93); }
@@ -348,6 +424,7 @@ export class PawsistantButtonCard extends HTMLElement {
     if (logBtn) {
       logBtn.addEventListener('click', () => this._openEventLog());
     }
+    root.getElementById('pbc-supplies-btn')?.addEventListener('click', () => this._openSupplies());
 
     const grid = root.getElementById('pbc-grid')!;
 
@@ -360,6 +437,7 @@ export class PawsistantButtonCard extends HTMLElement {
         container: grid,
         meta: { ...meta, label: this._displayLabel(btnCfg.event_type, meta) },
         metricText,
+        badge: badgeHTML(stockOf(hass, meta.supply)),
         onTap: () => {
           if (isWeight) {
             this._openWeight(btn, meta, btnCfg.event_type);
@@ -379,17 +457,89 @@ export class PawsistantButtonCard extends HTMLElement {
       grid.appendChild(btn);
       this._btnCleanups.push(btnCleanup);
     }
+    this._drawToast();
+  }
+
+  /* ── Supplies ──────────────────────────────────────────────────────── */
+
+  _supplyRows() {
+    const hass = this._hass;
+    if (!hass) return [];
+    const { registry } = buildRegistry(hass);
+    return supplyRows(
+      hass,
+      this._config.buttons.map(b => {
+        const meta = getMeta(b.event_type, registry);
+        return { meta, label: this._displayLabel(b.event_type, meta) };
+      }),
+    );
+  }
+
+  _openSupplies(): void {
+    if (this._activeForm || !this._hass) return;
+    const rows = this._supplyRows();
+    if (!rows.length) return;
+    this._activeForm = true;
+    this._closeSupplies = openSuppliesDialog(this.shadowRoot!, this._hass, rows, () => {
+      this._closeSupplies = null;
+      this._activeForm = false;
+      this._lastHash = null;
+      if (this._hass) this.hass = this._hass;
+    });
+  }
+
+  /** Note what a log took, for the toast. *before* is the count at the tap. */
+  _supplyToast(meta: EventMeta, eventType: string, before: Stock | null, eventId: string | null): void {
+    const amount = meta.supply?.amount;
+    if (!before || !amount) return;
+    const { text, sub } = toastText(this._displayLabel(eventType, meta), before, amount);
+    this._toast = { text, sub, eventId, until: Date.now() + 6000 };
+    this._drawToast();
+  }
+
+  _drawToast(): void {
+    const t = this._toast;
+    const card = this.shadowRoot?.querySelector<HTMLElement>('.pbc-card');
+    if (!t || !card) return;
+    const left = t.until - Date.now();
+    if (left <= 0) {
+      this._toast = null;
+      return;
+    }
+    const hass = this._hass;
+    showToast(card, {
+      text: t.text,
+      sub: t.sub,
+      timeoutMs: left,
+      onUndo: t.eventId && hass
+        ? () => {
+          this._toast = null;
+          return deleteEvent(hass, t.eventId!).catch((err) => {
+            console.error('[pawsistant-button-card] undo failed:', err);
+          });
+        }
+        : undefined,
+    });
   }
 
   _headerHTML(showTitle: boolean): string {
     const cfg = this._config;
     const titleHTML = showTitle ? `<div class="pbc-title">${_escapeHTML(cfg.dog)}</div>` : '';
-    if (cfg.show_event_log !== true) return titleHTML;
+    const hasSupplies = this._supplyRows().length > 0;
+    if (cfg.show_event_log !== true && !hasSupplies) return titleHTML;
     const label = T('button_card.open_event_log');
+    const suppliesLabel = T('supply.open');
+    const logBtn = cfg.show_event_log === true
+      ? `<button class="pbc-log-btn" id="pbc-log-btn" aria-label="${label}" title="${label}" aria-haspopup="dialog">📋</button>`
+      : '';
+    const suppliesBtn = hasSupplies
+      ? `<button class="pbc-supplies-btn" id="pbc-supplies-btn" aria-label="${suppliesLabel}" title="${suppliesLabel}" aria-haspopup="dialog">📦</button>`
+      : '';
     return `
       <div class="pbc-header">
+        ${suppliesBtn}
         ${titleHTML}
-        <button class="pbc-log-btn" id="pbc-log-btn" aria-label="${label}" title="${label}" aria-haspopup="dialog">📋</button>
+        ${logBtn}
       </div>
     `;
   }
@@ -469,6 +619,10 @@ export class PawsistantButtonCard extends HTMLElement {
   }
 
   _closeEventLog(): void {
+    if (this._closeSupplies) {
+      this._closeSupplies();
+      this._closeSupplies = null;
+    }
     if (this._eventLogHandle) {
       this._eventLogHandle.cleanup();
       this._eventLogHandle = null;
@@ -507,6 +661,7 @@ export class PawsistantButtonCard extends HTMLElement {
     if (this._activeForm) return;
     this._activeForm = true;
     const formSlot = this.shadowRoot!.getElementById('pbc-form-slot')!;
+    const before = stockOf(this._hass, meta.supply);
 
     const result = await openBackdateForm({
       container: formSlot,
@@ -518,10 +673,12 @@ export class PawsistantButtonCard extends HTMLElement {
 
     if (result) {
       this._showSuccessFlash(btn);
+      this._supplyToast(meta, eventType, before, result.eventId ?? null);
       setTimeout(() => {
         result.cleanup();
         this._activeForm = false;
         this._lastHash = null;
+        if (this._hass) this.hass = this._hass;
       }, 600);
     } else {
       this._activeForm = false;
@@ -532,7 +689,7 @@ export class PawsistantButtonCard extends HTMLElement {
     if (this._activeForm) return;
     this._activeForm = true;
     const formSlot = this.shadowRoot!.getElementById('pbc-form-slot')!;
-    const ent = findEntitiesByDog(this._hass!, this._config.dog);
+    const ent = this._entities();
     const weightUnit = this._config.weight_unit === 'kg' ? 'kg' : 'lbs';
     const currentWeight = toDisplayWeight(stateNum(this._hass!, ent.weight), weightUnit);
 
@@ -558,9 +715,12 @@ export class PawsistantButtonCard extends HTMLElement {
   }
 
   _instantLog(btn: HTMLButtonElement, eventType: string): void {
-    logEvent(this._hass!, this._config.dog, eventType)
-      .then(() => {
+    const meta = getMeta(eventType, buildRegistry(this._hass).registry);
+    const before = stockOf(this._hass, meta.supply);
+    logEventWithId(this._hass!, this._config.dog, eventType)
+      .then((eventId) => {
         this._showSuccessFlash(btn);
+        this._supplyToast(meta, eventType, before, eventId);
       })
       .catch((err) => {
         console.error('[pawsistant-button-card] instant log failed:', err);
@@ -585,6 +745,16 @@ export class PawsistantButtonCard extends HTMLElement {
       cleanup();
     }
     this._btnCleanups = [];
+  }
+
+  connectedCallback(): void {
+    // Home Assistant can take a card out of the page and put it back, for example
+    // while a dashboard lays out its columns. disconnectedCallback drops the button
+    // listeners, so draw the card again, or its buttons stay dead to a tap.
+    if (this._hass && !this._activeForm) {
+      this._lastHash = null;
+      this.hass = this._hass;
+    }
   }
 
   disconnectedCallback(): void {

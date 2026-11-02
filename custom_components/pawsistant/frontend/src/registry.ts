@@ -35,7 +35,7 @@ const ICON_EMOJI_MAP: Record<string, string> = {
   'mdi:emoticon-poop': '💩', 'mdi:pill': '💊', 'mdi:scale-bathroom': '⚖️',
   'mdi:needle': '💉', 'mdi:sleep': '😴', 'mdi:content-cut': '✂️',
   'mdi:hand-pointing-up': '🎯', 'mdi:toothbrush': '🦷', 'mdi:emoticon-sick': '🤒',
-  'mdi:tag': '🏷️', 'mdi:school': '🎓',
+  'mdi:tag': '🏷️', 'mdi:school': '🎓', 'mdi:paper-roll': '🧻',
 };
 
 /** Map an MDI icon name (e.g. "mdi:walk") to a fallback emoji. */
@@ -79,6 +79,7 @@ export function buildRegistry(hass: HomeAssistant | null): RegistryResult {
               color: v.color || fallbackEntry.color || '#888',
               icon: v.icon || '',
             };
+            if (v.supply && typeof v.supply === 'object') liveRegistry[k].supply = v.supply;
           }
         }
       }
@@ -98,12 +99,14 @@ export function getMeta(type: string, registry: Registry | null): EventMeta {
     const resolvedEmoji = (entry.emoji && entry.emoji !== '📝')
       ? entry.emoji
       : (entry.icon ? iconToEmoji(entry.icon)! : (entry.emoji || '📝'));
-    return {
+    const meta: EventMeta = {
       emoji: resolvedEmoji,
       label: entry.label || type,
       color: entry.color || 'var(--secondary-text-color, #888)',
       icon: entry.icon || '',
     };
+    if (entry.supply) meta.supply = entry.supply;
+    return meta;
   }
   const fallback = FALLBACK_EVENT_META[type];
   if (fallback) return { ...fallback, icon: '' };

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "lovelace.pawsistant_e2e",
+  "data": {
+    "config": {
+      "views": [
+        {
+          "title": "Card",
+          "path": "card",
+          "cards": [
+            {
+              "type": "custom:pawsistant-card",
+              "dog": "Testdog"
+            },
+            {
+              "type": "custom:pawsistant-button-card",
+              "dog": "Testdog",
+              "show_event_log": true,
+              "buttons": [
+                { "event_type": "poop" },
+                { "event_type": "pee" },
+                { "event_type": "weight" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,7 +1,7 @@
 /**
  * Pawsistant Card — Button card tests
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PawsistantButtonCard } from '../src/button-card.js';
 
 // Stub customElements.define to avoid duplicate registration errors
@@ -108,6 +108,152 @@ describe('PawsistantButtonCard', () => {
       const hash2 = card._computeHash();
 
       expect(hash1).not.toBe(hash2);
+    });
+  });
+
+  describe('state enumeration cost (issue #94)', () => {
+    // Wrap hass.states in a Proxy that counts every full enumeration
+    // (Object.entries / values / keys all trigger the ownKeys trap).
+    function countingHass(hass) {
+      const counter = { n: 0 };
+      hass.states = new Proxy(hass.states, {
+        ownKeys(t) { counter.n++; return Reflect.ownKeys(t); },
+      });
+      return { hass, counter };
+    }
+    function makeCard(buttons = [{ event_type: 'poop' }, { event_type: 'pee' }]) {
+      const card = new PawsistantButtonCard();
+      card.setConfig({ type: 'custom:pawsistant-button-card', dog: 'Sharky', buttons });
+      return card;
+    }
+    function nextHass(prev, patch = {}) {
+      const states = { ...prev.states, ...patch };
+      return { ...prev, states };
+    }
+
+    it('does not enumerate hass.states in _computeHash after the first hass', () => {
+      const card = makeCard();
+      card.hass = mockHass();
+      const { hass, counter } = countingHass(nextHass(card._hass));
+      card._hass = hass;
+      counter.n = 0;
+      card._computeHash();
+      card._computeHash();
+      expect(counter.n).toBe(0);
+    });
+
+    it('does not enumerate hass.states on a hass update with no relevant change', () => {
+      const card = makeCard();
+      card.hass = mockHass();
+      const { hass, counter } = countingHass(nextHass(card._hass, {
+        'light.kitchen': { state: 'on', attributes: { friendly_name: 'Kitchen' } },
+      }));
+      card.hass = hass;
+      card.hass = hass;
+      expect(counter.n).toBe(0);
+    });
+
+    it('still picks up a changed state of a cached entity', () => {
+      const card = makeCard();
+      card.hass = mockHass();
+      const before = card._lastHash;
+      card.hass = nextHass(card._hass, {
+        'sensor.sharky_daily_pee_count': { state: '4', attributes: { dog: 'Sharky', friendly_name: 'Sharky Daily Pee Count' } },
+      });
+      expect(card._lastHash).not.toBe(before);
+    });
+
+    describe('timeline missing or dog unknown', () => {
+      afterEach(() => { vi.useRealTimers(); });
+
+      // The dog is known (its weight sensor exists) but the timeline is not there yet.
+      function hassWithoutTimeline() {
+        const h = mockHass();
+        delete h.states['sensor.sharky_recent_timeline'];
+        return h;
+      }
+      function updates(card, first, n) {
+        const { hass: counted, counter } = countingHass(nextHass(first, {}));
+        card.hass = counted;
+        counter.n = 0;
+        for (let i = 0; i < n; i++) {
+          card.hass = { ...counted, states: counted.states };
+        }
+        return counter;
+      }
+
+      it('scans once, not on every update, while the timeline is missing', () => {
+        const card = makeCard();
+        const first = hassWithoutTimeline();
+        card.hass = first;
+        expect(updates(card, first, 5).n).toBe(0);
+      });
+
+      it('scans once, not on every update, for an unknown dog', () => {
+        const card = makeCard();
+        const first = mockHass(['Rex']);
+        card.hass = first;
+        expect(updates(card, first, 5).n).toBe(0);
+      });
+
+      it('finds a timeline that appears under its default id without a scan delay', () => {
+        const card = makeCard();
+        const first = hassWithoutTimeline();
+        card.hass = first;
+        card.hass = nextHass(first, { 'sensor.sharky_recent_timeline': mockHass().states['sensor.sharky_recent_timeline'] });
+        expect(card._entities().timeline).toBe('sensor.sharky_recent_timeline');
+        expect(card._entCache.timelineFound).toBe(true);
+      });
+
+      it('scans again after the rescan delay for a timeline with a custom id', () => {
+        vi.useFakeTimers();
+        const card = makeCard();
+        const first = hassWithoutTimeline();
+        card.hass = first;
+        const tl = mockHass().states['sensor.sharky_recent_timeline'];
+        card.hass = nextHass(first, { 'sensor.my_custom_timeline': tl });
+        expect(card._entCache.timelineFound).toBe(false);
+        vi.advanceTimersByTime(60_000);
+        card.hass = nextHass(first, { 'sensor.my_custom_timeline': tl });
+        expect(card._entities().timeline).toBe('sensor.my_custom_timeline');
+      });
+    });
+
+    it('re-resolves entities after setConfig', () => {
+      const card = makeCard();
+      card.hass = mockHass(['Sharky', 'Rex']);
+      card.setConfig({ type: 'custom:pawsistant-button-card', dog: 'Rex', buttons: [{ event_type: 'poop' }] });
+      expect(card._entities().timeline).toBe('sensor.rex_recent_timeline');
+    });
+
+    it('re-resolves when a renamed entity replaces the cached one', () => {
+      const card = makeCard();
+      const first = mockHass();
+      card.hass = first;
+      const states = { ...first.states };
+      const old = states['sensor.sharky_weight'];
+      delete states['sensor.sharky_weight'];
+      states['sensor.renamed_weight'] = old;
+      card.hass = { ...first, states };
+      expect(card._entities().weight).toBe('sensor.renamed_weight');
+    });
+
+    it('re-resolves when the cached entity changes dog', () => {
+      const card = makeCard();
+      const first = mockHass(['Sharky', 'Rex']);
+      card.hass = first;
+      const states = { ...first.states };
+      states['sensor.sharky_weight'] = { state: '80', attributes: { dog: 'Rex', friendly_name: 'Rex Weight' } };
+      states['sensor.sharky_weight_2'] = { state: '81', attributes: { dog: 'Sharky', friendly_name: 'Sharky Weight' } };
+      card.hass = { ...first, states };
+      expect(card._entities().weight).toBe('sensor.sharky_weight_2');
+    });
+
+    it('finds the entities when the dog appears after the first hass', () => {
+      const card = makeCard();
+      card.hass = { states: {}, callService: vi.fn() };
+      card.hass = mockHass();
+      expect(card._entities().timeline).toBe('sensor.sharky_recent_timeline');
     });
   });
 
@@ -402,5 +548,110 @@ describe('PawsistantButtonCard event log popup', () => {
     expect(card.shadowRoot.querySelector('[role="dialog"]')).not.toBeNull();
     expect(card.shadowRoot.querySelector('#pbc-log-body .empty')).not.toBeNull();
     expect(card._hass.connection.sendMessagePromise).not.toHaveBeenCalled();
+  });
+});
+
+describe('PawsistantButtonCard supplies', () => {
+  const SUPPLY = { entity_id: 'number.rolls_spares', amount: 1, name: 'Poop bag rolls' };
+
+  function supplyHass(count = '3', status = 'ok') {
+    const hass = mockHass(['Sharky'], {
+      roll: { name: 'Roll', icon: 'mdi:paper-roll', color: '#888', supply: SUPPLY },
+      poop: { name: 'Poop', icon: 'mdi:emoticon-poop', color: '#888' },
+    });
+    hass.states['number.rolls_spares'] = {
+      state: count,
+      attributes: { unit_of_measurement: 'roll', status, reorder_at: 1, restock_quantity: 8 },
+    };
+    return hass;
+  }
+
+  function mount(hass) {
+    const card = new PawsistantButtonCard();
+    card.setConfig({
+      type: 'custom:pawsistant-button-card',
+      dog: 'Sharky',
+      buttons: [{ event_type: 'roll' }, { event_type: 'poop' }],
+    });
+    card.hass = hass;
+    return card;
+  }
+
+  it('shows a stock badge only on the button that uses a supply', () => {
+    const card = mount(supplyHass('1', 'low'));
+    const buttons = card.shadowRoot.querySelectorAll('.log-btn');
+    expect(buttons[0].querySelector('.stock-badge.low').textContent).toBe('1');
+    expect(buttons[1].querySelector('.stock-badge')).toBeNull();
+  });
+
+  it('redraws the badge when the count changes', () => {
+    const card = mount(supplyHass('3'));
+    card.hass = supplyHass('2');
+    expect(card.shadowRoot.querySelector('.stock-badge').textContent).toBe('2');
+  });
+
+  it('offers the Supplies popup from the header', () => {
+    const card = mount(supplyHass('3'));
+    const btn = card.shadowRoot.getElementById('pbc-supplies-btn');
+    expect(btn).not.toBeNull();
+    btn.click();
+    expect(card.shadowRoot.querySelector('.pw-sup-dialog')).not.toBeNull();
+    expect(card._activeForm).toBe(true);
+    card.shadowRoot.querySelector('.pw-sup-close').click();
+    expect(card._activeForm).toBe(false);
+  });
+
+  it('has no Supplies button when no button uses a supply', () => {
+    const card = new PawsistantButtonCard();
+    card.setConfig({ type: 'custom:pawsistant-button-card', dog: 'Sharky', buttons: [{ event_type: 'poop' }] });
+    card.hass = supplyHass('3');
+    expect(card.shadowRoot.getElementById('pbc-supplies-btn')).toBeNull();
+  });
+
+  it('shows what is left after a log, with an Undo that deletes the event', async () => {
+    const hass = supplyHass('2');
+    hass.callService.mockResolvedValue({ response: { event_id: 'ev-7' } });
+    const card = mount(hass);
+    const btn = card.shadowRoot.querySelector('.log-btn');
+    card._instantLog(btn, 'roll');
+    await Promise.resolve();
+    await Promise.resolve();
+    const toast = card.shadowRoot.querySelector('.pw-toast');
+    expect(toast.textContent).toContain('Roll logged · 1 left');
+    expect(toast.textContent).toContain('Low stock: Home Keeper added a Buy task');
+    // The count arrives from Home Keeper: the card redraws, and the toast stays.
+    const next = supplyHass('1', 'low');
+    next.callService = hass.callService;
+    card.hass = next;
+    const again = card.shadowRoot.querySelector('.pw-toast');
+    expect(again).not.toBeNull();
+    again.querySelector('button').click();
+    expect(hass.callService).toHaveBeenLastCalledWith('pawsistant', 'delete_event', { event_id: 'ev-7' });
+  });
+
+  it('shows no toast for a log that uses no supply', async () => {
+    const hass = supplyHass('3');
+    const card = mount(hass);
+    const poop = card.shadowRoot.querySelectorAll('.log-btn')[1];
+    card._instantLog(poop, 'poop');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(card.shadowRoot.querySelector('.pw-toast')).toBeNull();
+  });
+});
+
+describe('PawsistantButtonCard after a move in the page', () => {
+  it('still answers a tap after it is taken out and put back', () => {
+    const card = new PawsistantButtonCard();
+    card.setConfig({ type: 'custom:pawsistant-button-card', dog: 'Sharky', buttons: [{ event_type: 'poop' }] });
+    const hass = mockHass();
+    card.hass = hass;
+    document.body.appendChild(card);
+    card.remove();
+    document.body.appendChild(card);
+    card.shadowRoot.querySelector('.log-btn').click();
+    expect(card._activeForm).toBe(true);
+    expect(card.shadowRoot.querySelector('#pbc-form-submit')).not.toBeNull();
+    card.remove();
   });
 });

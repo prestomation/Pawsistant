@@ -18,6 +18,7 @@ def _inject_stubs() -> None:
         vol_mod.Schema = lambda s, **kw: s
         vol_mod.Required = lambda k, **kw: k
         vol_mod.Optional = lambda k, **kw: k
+        vol_mod.Any = lambda *a: a[-1]
         vol_mod.In = lambda v: v
         sys.modules["voluptuous"] = vol_mod
 

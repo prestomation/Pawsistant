@@ -8,7 +8,8 @@
 import type { PawsistantCard } from './index';
 import { T } from './i18n';
 import { getMeta } from './registry';
-import { logEvent, updateEvent } from './services';
+import { logEvent, logEventWithId, updateEvent } from './services';
+import { addStockLine, stockOf } from './supply';
 import { mountTimeChooser } from './time-chooser';
 import { stateNum, _escapeHTML, toDisplayWeight } from './utils';
 
@@ -39,6 +40,8 @@ export function openBackdateForm(
         <button class="btn-submit" id="form-submit">${T('form.log_event')}</button>
       </div>
     `;
+
+  addStockLine(formEl, stockOf(card._hass, meta.supply), meta.supply?.amount);
 
   const chooser = mountTimeChooser(formEl.querySelector<HTMLElement>('#time-chooser-slot')!, {
     idPrefix: 'bd',
@@ -198,10 +201,13 @@ export function submitBackdate(
 ): void {
   const extra: Record<string, unknown> = { timestamp };
   if (note) extra['note'] = note;
+  const meta = getMeta(type, card._registry().registry);
+  const before = stockOf(card._hass, meta.supply);
 
-  logEvent(card._hass!, card._config.dog, type, extra)
-    .then(() => {
+  logEventWithId(card._hass!, card._config.dog, type, extra)
+    .then((eventId) => {
       if (btn) card._showSuccessFlash(btn);
+      card._supplyToast(meta, type, before, eventId);
       card._setTimeout(() => {
         closeForm(card);
         card._fetchTimeline();

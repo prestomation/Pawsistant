@@ -49,10 +49,16 @@ jobs:
         run: |
           # Run real-HA tests first (before any mock contamination)
           python -m pytest tests/test_sensor_utils.py tests/test_cross_integration.py \
+            tests/test_import_export_ha.py tests/test_admin_gates_ha.py \
+            tests/test_options_flow_ha.py tests/test_services_contract_ha.py \
+            tests/test_diagnostics_ha.py \
             --cov=custom_components/pawsistant --cov-report=term-missing
           # Run all remaining unit tests (use HA mocks), appending coverage
           python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_sensor_utils.py \
-            --ignore=tests/test_cross_integration.py \
+            --ignore=tests/test_cross_integration.py --ignore=tests/test_import_export_ha.py \
+            --ignore=tests/test_admin_gates_ha.py \
+            --ignore=tests/test_options_flow_ha.py --ignore=tests/test_services_contract_ha.py \
+            --ignore=tests/test_diagnostics_ha.py \
             --cov=custom_components/pawsistant --cov-append --cov-report=term-missing
 
       - name: "Generate coverage Comment (and possibly Post to PR)"

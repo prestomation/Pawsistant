@@ -1,6 +1,6 @@
 services:
   homeassistant:
-    image: ghcr.io/home-assistant/home-assistant:stable
+    image: ghcr.io/home-assistant/home-assistant:${HA_TAG:-stable}
     ports:
       - "8123:8123"
     volumes:

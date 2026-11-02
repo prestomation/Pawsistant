@@ -28,6 +28,8 @@
 - Sensor utility functions operate on `list[dict]` (not model objects)
 - Events are stored as plain dicts with keys: `id`, `event_type`, `timestamp`, `note`, `value`, `dog_id`
 - Entity unique IDs are anchored to `dog_id` (survives renames)
+- Admin-only services (`export_data`, `import_data`) call `_verify_admin` in `__init__.py` first. A call with no user (an automation, or Home Keeper) is trusted, as in HA core.
+- Pure export/import logic lives in `import_export.py` (no HA imports); `PawsistantStore.apply_import` writes a plan. Real-HA tests for it are in `tests/test_import_export_ha.py`, which runs in the first (real-HA) pytest process.
 - Use HA CSS variables in card styling (dark mode compat)
 - Escape all user content before innerHTML injection (`_escapeHTML()` helper)
 
@@ -59,11 +61,18 @@ When adding new sensors: always include `"dog": self._dog_name` in `extra_state_
 
 ## CI
 
-- `.github/workflows/test.yml` — lint, pytest, HACS validation, hassfest, frontend tests
-- `.github/workflows/integration.yml` — Docker-based integration tests (CI only, not local)
+- `.github/workflows/test.yml` — frontend tests, HACS validation, hassfest, and the Python unit tests on the oldest and the stable Home Assistant (`unit-ha`)
+- `.github/workflows/integration.yml` — Docker-based integration tests (CI only, not local), on stable and on the oldest Home Assistant
 - `.github/workflows/e2e.yml` — Docker + Playwright browser smoke tests; uploads the Playwright report on failure
 - `.github/workflows/release.yml` — tag-triggered release: tests, version bump via PR, build zip, create GitHub release
 - Uses `pytest-homeassistant-custom-component` (not raw `homeassistant` package)
+
+## Oldest supported Home Assistant
+
+- `ci/oldest-ha.env` is the only place that names the oldest supported Home Assistant. The unit tests and the Docker integration tests run on it for every PR. `tests/unit/test_oldest_ha.py` fails if `hacs.json` or the README badge disagree.
+- A change that breaks the oldest version fails CI. Then choose: fix the code, or drop the old version. To drop it, change `ci/oldest-ha.env`, `hacs.json` and the README badge, and add a CHANGELOG entry. Never skip the failing lane.
+- `ci/check-ha-version.py` fails a job that did not get the Home Assistant version it asked for. Without it, pip goes back to an old release when the Python is too old, and the job tests nothing useful.
+- Test packages older than Home Assistant 2025.1 do not install (they pin packages that PyPI removed). That is why 2025.1 is the floor.
 
 ## Release Process
 

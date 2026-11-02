@@ -85,6 +85,14 @@ jobs:
         if: steps.check.outputs.release == 'true'
         run: npm ci --prefix custom_components/pawsistant/frontend
 
+      # A no-op when the release PR bumped both files (the check above already
+      # refuses to ship if they disagree) — it exists so the version that ends
+      # up in the zip is written by the workflow, from one value, rather than
+      # trusted to be whatever the checkout happened to contain.
+      - name: Stamp release version
+        if: steps.check.outputs.release == 'true'
+        run: bash ci/stamp-version.sh "${{ steps.check.outputs.version }}"
+
       - name: Build card JS
         if: steps.check.outputs.release == 'true'
         run: bash ci/build-card.sh
@@ -95,12 +103,7 @@ jobs:
 
       - name: Verify release zip
         if: steps.check.outputs.release == 'true'
-        run: |
-          if [ ! -f pawsistant.zip ]; then
-            echo "::error::pawsistant.zip not found"
-            exit 1
-          fi
-          echo "pawsistant.zip exists ($(du -h pawsistant.zip | cut -f1))"
+        run: bash ci/verify-zip.sh "${{ steps.check.outputs.version }}"
 
       - name: Create and push tag
         if: steps.check.outputs.release == 'true' && github.event_name != 'pull_request'
