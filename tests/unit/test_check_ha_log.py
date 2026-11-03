@@ -456,3 +456,13 @@ def test_cli_prints_the_final_line_last_in_one_stream(tmp_path):
     assert lines.index("Details:") < len(lines) - 1
     assert lines[-1].endswith("Fix them, or add a reason and a pattern to the allowlist.")
     assert "problem(s) found for 'pawsistant'" in lines[-1]
+
+
+def test_shipped_allowlist_hides_only_the_seeded_duplicate_pet():
+    shipped = check_ha_log.load_allowlist(SCRIPT.with_name("ha_log_allowlist.txt"))
+    line = (
+        "2026-11-02 10:00:07.000 ERROR (MainThread) [custom_components.pawsistant] "
+        "pawsistant.add_dog: Pawsistant: a dog named '{}' already exists"
+    )
+    assert run(line.format("Buddy"), allowlist=shipped) == []
+    assert len(run(line.format("Rex"), allowlist=shipped)) == 1
