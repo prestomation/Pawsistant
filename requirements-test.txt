@@ -3,6 +3,10 @@ pytest-cov
 pytest-timeout
 requests
 websockets
+# Fails a real-HA test when code blocks the event loop (tests/conftest.py)
+blockbuster>=1.5
+# Async lint rules (blocking calls inside async def), run in CI
+ruff==0.16.9
 
 # For unit tests only (mocks HA internals; pulls in pytest-socket which
 # blocks real network access — do NOT install for integration tests)

@@ -30,6 +30,12 @@ jobs:
       - name: Build card JS
         run: bash ci/build-card.sh
 
+      # Only the async rules run. They find blocking calls (file reads,
+      # time.sleep, requests) inside "async def". Other ruff rules are not
+      # enforced yet.
+      - name: Ruff async rules
+        run: ruff check --select ASYNC .
+
       - name: Run frontend tests
         run: bash ci/test-frontend.sh
 

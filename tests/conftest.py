@@ -39,7 +39,21 @@ def mock_homeassistant(request):
             del sys.modules[name]
 
 
+@pytest.fixture(autouse=True)
+def blockbuster(request):
+    """Fail a real-HA test when code blocks the event loop thread.
 
+    Blockbuster patches file, socket, sleep and similar calls. When such a call
+    runs while an event loop runs in the same thread, it raises BlockingError with
+    the file and line. Home Assistant gives the same warning at run time
+    ("Detected blocking call"). This fixture finds the problem in the tests
+    instead. Only tests with the ``real_ha`` marker run HA code in an event loop.
+    The tests with HA stubs have no loop to block.
+    """
+    if not request.node.get_closest_marker("real_ha"):
+        yield None
+        return
+    from blockbuster import blockbuster_ctx
 
-
-
+    with blockbuster_ctx() as bb:
+        yield bb

@@ -20,3 +20,10 @@ relative_files = true
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.ruff.lint]
+# Keep ruff's default rules and add the async rules. ASYNC finds blocking
+# calls (open, time.sleep, requests, Path methods) inside "async def". It does
+# not find a Path built with "/", so it is a weak guard. The blockbuster
+# fixture in tests/conftest.py is the real guard.
+extend-select = ["ASYNC"]

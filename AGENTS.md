@@ -61,11 +61,22 @@ When adding new sensors: always include `"dog": self._dog_name` in `extra_state_
 
 ## CI
 
-- `.github/workflows/test.yml` — frontend tests, HACS validation, hassfest, and the Python unit tests on the oldest and the stable Home Assistant (`unit-ha`)
-- `.github/workflows/integration.yml` — Docker-based integration tests (CI only, not local), on stable and on the oldest Home Assistant
+- `.github/workflows/test.yml` — frontend tests, `ruff check --select ASYNC .`, HACS validation, hassfest, and the Python unit tests on the oldest and the stable Home Assistant (`unit-ha`)
+- `.github/workflows/integration.yml` — Docker-based integration tests (CI only, not local), on stable and on the oldest Home Assistant. It saves the Home Assistant log (artifact `ha-log-<lane>`) and runs `ci/check_ha_log.py` on it as the last check (see "Blocking-call gates")
 - `.github/workflows/e2e.yml` — Docker + Playwright browser smoke tests; uploads the Playwright report on failure
 - `.github/workflows/release.yml` — tag-triggered release: tests, version bump via PR, build zip, create GitHub release
 - Uses `pytest-homeassistant-custom-component` (not raw `homeassistant` package)
+
+## Blocking-call gates
+
+A blocking call (file read, `time.sleep`, `requests`) in the event loop freezes Home Assistant. Four gates find it:
+
+- **`blockbuster` fixture** (`tests/conftest.py`): in every test with the `real_ha` marker, a blocking call in the event loop raises `BlockingError` with the file and line. Tests with HA stubs have no event loop to block, so the fixture does nothing for them.
+- **Dev mode in the test container** (`tests/integration/docker-compose.yml`): `PYTHONDEVMODE=1` and `PYTHONASYNCIODEBUG=1` make Home Assistant log never-awaited coroutines, unclosed resources and slow callbacks. The e2e job uses the same container.
+- **Log gate** (`ci/check_ha_log.py`, allowlist `ci/ha_log_allowlist.txt`, tests `tests/unit/test_check_ha_log.py`): the integration job runs it on the container log, last, even when tests fail. It fails on a WARNING or ERROR from `custom_components.pawsistant`, a "Detected blocking call" that names the integration, and known bad patterns. To allow a message that is expected, add a comment line with the reason and, on the next line, a narrow regular expression (logger name and full message). An entry with no reason is rejected. Run it by hand: `cd tests/integration && docker compose logs --no-color homeassistant > ../../ha.log; cd ../..; python ci/check_ha_log.py --domain pawsistant ha.log`.
+- **Surface test** (`tests/integration/test_surfaces.py`): downloads diagnostics, runs the options flow and calls each service once, so the log has a chance to show a problem.
+
+`ruff check --select ASYNC .` is a weak extra guard: it does not find a `Path` built with `/`.
 
 ## Oldest supported Home Assistant
 
