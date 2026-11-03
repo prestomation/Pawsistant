@@ -211,7 +211,11 @@ async def _verify_admin(hass: HomeAssistant, call: ServiceCall) -> None:
 
 
 def _verify_files_dir(hass: HomeAssistant, files_dir: str | None) -> None:
-    """Refuse a files_dir that is not below Home Keeper's import/export folder."""
+    """Refuse a files_dir that is not below Home Keeper's import/export folder.
+
+    ``Path.resolve()`` reads the file system, so call this in an executor job,
+    never on the event loop.
+    """
     from homeassistant.exceptions import ServiceValidationError
 
     if files_dir is None:
@@ -865,7 +869,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from . import import_export
 
         await _verify_admin(hass, call)
-        _verify_files_dir(hass, call.data.get("files_dir"))
+        await hass.async_add_executor_job(
+            _verify_files_dir, hass, call.data.get("files_dir")
+        )
         store, _coord = _get_store_and_coord()
         integration = await async_get_integration(hass, DOMAIN)
         return {
@@ -888,7 +894,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from . import import_export
 
         await _verify_admin(hass, call)
-        _verify_files_dir(hass, call.data.get("files_dir"))
+        await hass.async_add_executor_job(
+            _verify_files_dir, hass, call.data.get("files_dir")
+        )
         store, coord = _get_store_and_coord()
         dry_run: bool = call.data.get("dry_run", False)
         current = await store.import_snapshot()
