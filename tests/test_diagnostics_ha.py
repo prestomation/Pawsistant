@@ -78,7 +78,9 @@ async def test_diagnostics_does_no_blocking_io(hass, enable_custom_integrations,
         result = await async_get_config_entry_diagnostics(hass, entry)
 
     manifest = Path(__file__).parent.parent / "custom_components" / DOMAIN / "manifest.json"
-    assert result["integration_version"] == json.loads(manifest.read_text())["version"]
+    # The test must not block the loop either, so read the file in an executor job.
+    manifest_text = await hass.async_add_executor_job(manifest.read_text)
+    assert result["integration_version"] == json.loads(manifest_text)["version"]
     assert result["num_dogs"] == 1
     assert "card_file_exists" in result["card_registration"]
     assert isinstance(result["storage_files"], dict)
@@ -88,4 +90,4 @@ async def test_diagnostics_does_no_blocking_io(hass, enable_custom_integrations,
 async def test_guard_catches_loop_io(no_loop_io):
     """The guard itself works: file I/O on the loop thread fails."""
     with no_loop_io(), pytest.raises(AssertionError, match="blocking I/O"):
-        Path(__file__).stat()
+        Path(__file__).stat()  # noqa: ASYNC240  (blocking on purpose)
