@@ -458,11 +458,50 @@ def test_cli_prints_the_final_line_last_in_one_stream(tmp_path):
     assert "problem(s) found for 'pawsistant'" in lines[-1]
 
 
-def test_shipped_allowlist_hides_only_the_seeded_duplicate_pet():
-    shipped = check_ha_log.load_allowlist(SCRIPT.with_name("ha_log_allowlist.txt"))
-    line = (
-        "2026-11-02 10:00:07.000 ERROR (MainThread) [custom_components.pawsistant] "
-        "pawsistant.add_dog: Pawsistant: a dog named '{}' already exists"
+def test_used_entries_are_collected_and_stale_ones_are_found():
+    used_entry = EXAMPLE_ALLOWLIST[0]
+    stale_entry = (re.compile(r"never matches anything"), "an old reason")
+    allow = [used_entry, stale_entry]
+    used: set[int] = set()
+    records = check_ha_log.parse_records(_missing_dog_line("itest_1a2b3c4d").splitlines())
+    assert check_ha_log.check_records(records, "pawsistant", allow, used) == []
+    assert used == {0}
+    assert check_ha_log.stale_entries(allow, used) == [stale_entry]
+
+
+def test_an_entry_that_matches_only_a_clean_record_is_stale():
+    # The pattern matches an INFO record, but that record is no finding.
+    info = "2026-11-02 10:00:00.100 INFO (MainThread) [custom_components.pawsistant] Setup done"
+    allow = [(re.compile(r"Setup done"), "reason")]
+    used: set[int] = set()
+    check_ha_log.check_records(check_ha_log.parse_records([info]), "pawsistant", allow, used)
+    assert check_ha_log.stale_entries(allow, used) == allow
+
+
+def test_cli_fails_on_a_stale_entry_in_a_clean_log(tmp_path):
+    allow = tmp_path / "allow.txt"
+    allow.write_text("# reason\nnever matches anything\n")
+    result = _cli(tmp_path, CLEAN_LOG, "--allowlist", str(allow))
+    assert result.returncode == 1
+    assert "Stale allowlist entries" in result.stdout
+    assert "never matches anything" in result.stdout
+
+
+def test_cli_passes_with_the_shipped_empty_allowlist(tmp_path):
+    result = _cli(tmp_path, CLEAN_LOG)
+    assert result.returncode == 0, result.stdout
+
+
+def test_cli_reports_findings_and_stale_entries_together(tmp_path):
+    allow = tmp_path / "allow.txt"
+    allow.write_text("# reason\nnever matches anything\n")
+    log = tmp_path / "ha.log"
+    log.write_text(REAL_JOB_LOG + "\n")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--domain", "pawsistant",
+         "--allowlist", str(allow), str(log)],
+        capture_output=True, text=True, check=False,
     )
-    assert run(line.format("Buddy"), allowlist=shipped) == []
-    assert len(run(line.format("Rex"), allowlist=shipped)) == 1
+    assert result.returncode == 1
+    assert "Stale allowlist entries" in result.stdout
+    assert "problem(s) found for 'pawsistant'" in result.stdout

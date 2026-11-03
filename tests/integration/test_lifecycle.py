@@ -143,7 +143,7 @@ class TestAddRemoveDog:
 
     def test_add_dog_creates_sensors(self, ha):
         call_service(ha, "pawsistant", "add_dog", {
-            "name": "Buddy",
+            "name": "Rex",
             "breed": "Golden Retriever",
         })
 
@@ -151,7 +151,7 @@ class TestAddRemoveDog:
         # This may take a bit longer due to the reload
         state = poll_state(
             ha,
-            "sensor.buddy_most_recent_pee",
+            "sensor.rex_most_recent_pee",
             lambda s: s is not None,
             timeout=30,
         )
@@ -159,10 +159,10 @@ class TestAddRemoveDog:
 
     def test_remove_dog_cleans_up(self, ha):
         call_service(ha, "pawsistant", "remove_dog", {
-            "dog": "Buddy",
+            "dog": "Rex",
         })
 
-        # After removal + coordinator refresh, buddy sensors should go away
+        # After removal + coordinator refresh, rex sensors should go away
         # Note: entity registry may keep the entity as "unavailable" rather
         # than fully removing it. That's expected HA behavior.
         time.sleep(5)  # Give HA time to process the reload
@@ -228,50 +228,50 @@ class TestLogEventWithNote:
 class TestMultiDog:
     """Test that multiple dogs have isolated sensor data."""
 
-    def test_add_buddy(self, ha):
+    def test_add_milo(self, ha):
         """Add a second dog."""
         call_service(ha, "pawsistant", "add_dog", {
-            "name": "Buddy",
+            "name": "Milo",
             "breed": "Labrador",
         })
         # Wait for sensors to appear after reload
         state = poll_state(
             ha,
-            "sensor.buddy_most_recent_pee",
+            "sensor.milo_most_recent_pee",
             lambda s: s is not None,
             timeout=30,
         )
         assert state is not None
 
-    def test_buddy_pee_count_is_isolated(self, ha):
-        """Buddy's pee count starts at 0 and increments independently."""
+    def test_milo_pee_count_is_isolated(self, ha):
+        """Milo's pee count starts at 0 and increments independently."""
         call_service(ha, "pawsistant", "log_event", {
-            "dog": "Buddy",
+            "dog": "Milo",
             "event_type": "pee",
         })
         state = poll_state(
             ha,
-            "sensor.buddy_daily_pee_count",
+            "sensor.milo_daily_pee_count",
             lambda s: s not in ("unavailable", "unknown", None) and int(s) >= 1,
             timeout=45,
         )
-        assert int(state) == 1, f"Buddy's pee count should be 1, got: {state}"
+        assert int(state) == 1, f"Milo's pee count should be 1, got: {state}"
 
-    def test_testdog_poop_does_not_affect_buddy_poop(self, ha):
-        """Log a poop for Testdog and verify Buddy's poop count stays at 0."""
+    def test_testdog_poop_does_not_affect_milo_poop(self, ha):
+        """Log a poop for Testdog and verify Milo's poop count stays at 0."""
         call_service(ha, "pawsistant", "log_event", {
             "dog": "Testdog",
             "event_type": "poop",
         })
         time.sleep(3)
-        state = get_state(ha, "sensor.buddy_daily_poop_count")
+        state = get_state(ha, "sensor.milo_daily_poop_count")
         assert state is not None
-        assert int(state["state"]) == 0, f"Buddy's poop count should be 0, got: {state['state']}"
+        assert int(state["state"]) == 0, f"Milo's poop count should be 0, got: {state['state']}"
 
-    def test_remove_buddy(self, ha):
-        """Clean up: remove Buddy."""
+    def test_remove_milo(self, ha):
+        """Clean up: remove Milo."""
         call_service(ha, "pawsistant", "remove_dog", {
-            "dog": "Buddy",
+            "dog": "Milo",
         })
         time.sleep(5)
 

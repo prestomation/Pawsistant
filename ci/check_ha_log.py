@@ -7,7 +7,8 @@ Usage:
 
 Exit codes:
     0  no findings
-    1  at least one finding that is not in the allowlist
+    1  at least one finding that is not in the allowlist, or a stale
+       allowlist entry (one that hid no finding)
     2  bad input (no log lines, bad allowlist, unreadable file)
 
 The script uses only the Python standard library. It does not know anything
@@ -36,6 +37,9 @@ comment that gives the reason. Entries without a reason are rejected.
 An allowlist regex is checked against every record and hides it from all
 the rules above. Keep each entry narrow: match the logger name or the full
 message, not a short word like "timeout".
+
+An entry that hides no finding in the log is stale, and the gate fails
+(exit 1) until you remove it. This keeps the allowlist short.
 """
 
 from __future__ import annotations
@@ -188,7 +192,10 @@ def check_records(
     records: list[Record],
     domain: str,
     allowlist: list[tuple[re.Pattern[str], str]],
+    used: set[int] | None = None,
 ) -> list[Finding]:
+    """Return the findings. ``used`` collects the index of each allowlist entry
+    that hid a finding, so the caller can report entries that hid nothing."""
     findings: list[Finding] = []
     logger_prefix = f"custom_components.{domain}"
     for record in records:
@@ -210,10 +217,20 @@ def check_records(
                     rules.append(label)
         if not rules:
             continue
-        if any(p.search(text) for p, _ in allowlist):
+        hidden_by = [i for i, (p, _) in enumerate(allowlist) if p.search(text)]
+        if hidden_by:
+            if used is not None:
+                used.update(hidden_by)
             continue
         findings.append(Finding(record.line_no, "; ".join(rules), text))
     return findings
+
+
+def stale_entries(
+    allowlist: list[tuple[re.Pattern[str], str]], used: set[int]
+) -> list[tuple[re.Pattern[str], str]]:
+    """Allowlist entries that hid no finding."""
+    return [entry for i, entry in enumerate(allowlist) if i not in used]
 
 
 def group_findings(findings: list[Finding]) -> list[Group]:
@@ -302,7 +319,20 @@ def main(argv: list[str] | None = None) -> int:
         print_log_sample(lines)
         return 2
 
-    findings = check_records(records, args.domain, allowlist)
+    used: set[int] = set()
+    findings = check_records(records, args.domain, allowlist, used)
+    stale = stale_entries(allowlist, used)
+    if stale:
+        # An entry that hides nothing is dead weight and can hide a future
+        # problem, so remove it.
+        print("Stale allowlist entries (they hid no finding in this log):")
+        for pattern, reason in stale:
+            print(f"    {pattern.pattern}")
+            print(f"        reason given: {reason}")
+        print(
+            f"\n{len(stale)} stale allowlist entry(ies). "
+            "Remove them from the allowlist file.\n"
+        )
     if findings:
         print(format_report(findings))
         # Same stream as the report, so the order of the output is stable.
@@ -310,6 +340,7 @@ def main(argv: list[str] | None = None) -> int:
             f"\n{len(findings)} problem(s) found for '{args.domain}'. "
             "Fix them, or add a reason and a pattern to the allowlist."
         )
+    if findings or stale:
         return 1
     print(f"OK: no problems found for '{args.domain}' in {len(records)} records")
     return 0

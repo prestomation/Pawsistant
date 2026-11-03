@@ -9,10 +9,3 @@
 #
 # Reason: the test config uses a fake dog that does not exist.
 # \[custom_components\.pawsistant\] Dog 'nobody' does not exist
-
-# The seeded test storage (tests/integration/ha_config/.storage/pawsistant) already
-# has a pet named Buddy. tests/integration/test_lifecycle.py::TestAddRemoveDog adds a
-# pet named Buddy again, so the service logs this error. The pattern names the logger,
-# the service, and the full message for Buddy only. A duplicate for any other name is
-# still reported.
-\[custom_components\.pawsistant\] pawsistant\.add_dog: Pawsistant: a dog named 'Buddy' already exists
