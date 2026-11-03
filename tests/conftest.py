@@ -56,4 +56,6 @@ def blockbuster(request):
     from blockbuster import blockbuster_ctx
 
     with blockbuster_ctx() as bb:
+        # The test run installs a stderr log handler. Its write is not code of ours.
+        bb.functions["io.TextIOWrapper.write"].can_block_in("logging/__init__.py", "emit")
         yield bb
