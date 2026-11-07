@@ -4,6 +4,8 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+## [2.25.1] - 2026-11-07
+
 ### Fixed
 - **The storage button works while a care item form is open.** Before, the 📦 button did
   nothing until you closed the form. Now it closes the form and opens the supplies dialog.
