@@ -32,6 +32,10 @@ export const pl: Dict = {
   'timeline.aria.edit_event_title': 'Edytuj zdarzenie',
   'timeline.aria.delete_event_title': 'Usuń zdarzenie',
   'timeline.delete_confirm': 'Usunąć?',
+  'pending.saving': 'Zapisywanie…',
+  'pending.failed': 'Jeszcze nie zapisano',
+  'pending.retry': 'Ponów',
+  'pending.discard': 'Odrzuć',
 
   'button.aria.log_weight': 'Zarejestruj wagę',
   'button.aria.log_event': 'Zarejestruj {label}. Przytrzymaj, aby zarejestrować teraz.',

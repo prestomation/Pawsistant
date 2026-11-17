@@ -32,6 +32,10 @@ export const nl: Dict = {
   'timeline.aria.edit_event_title': 'Gebeurtenis bewerken',
   'timeline.aria.delete_event_title': 'Gebeurtenis verwijderen',
   'timeline.delete_confirm': 'Verwijderen?',
+  'pending.saving': 'Opslaan…',
+  'pending.failed': 'Nog niet opgeslagen',
+  'pending.retry': 'Opnieuw proberen',
+  'pending.discard': 'Verwerpen',
 
   'button.aria.log_weight': 'Gewicht registreren',
   'button.aria.log_event': '{label} registreren. Houd ingedrukt om nu te registreren.',

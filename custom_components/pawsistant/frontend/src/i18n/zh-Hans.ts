@@ -32,6 +32,10 @@ export const zhHans: Dict = {
   'timeline.aria.edit_event_title': '编辑事件',
   'timeline.aria.delete_event_title': '删除事件',
   'timeline.delete_confirm': '删除？',
+  'pending.saving': '正在保存…',
+  'pending.failed': '尚未保存',
+  'pending.retry': '重试',
+  'pending.discard': '放弃',
 
   'button.aria.log_weight': '记录体重',
   'button.aria.log_event': '记录{label}。长按以立即记录。',

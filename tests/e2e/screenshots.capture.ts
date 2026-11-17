@@ -142,3 +142,48 @@ test('capture event types panel for admin and non-admin users', async ({ page, b
     await ctx.close();
   }
 });
+
+/* ── Pending log entries: the three states, desktop and phone ──────────── */
+
+for (const [name, size] of [['desktop', DESKTOP], ['phone', PHONE]] as const) {
+  test(`capture pending log entry screenshots (${name})`, async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize(size);
+    // The log_event call gets no answer until `answer` is set. Other messages pass.
+    let answer = false;
+    await page.routeWebSocket(/\/api\/websocket$/, (ws) => {
+      const server = ws.connectToServer();
+      server.onMessage((m) => ws.send(m));
+      ws.onMessage((m) => {
+        let msg: any = null;
+        try { msg = JSON.parse(String(m)); } catch { /* pass on */ }
+        const isLog = msg?.type === 'call_service' && msg.service === 'log_event';
+        if (!isLog || answer) server.send(m);
+      });
+    });
+    await openDashboard(page);
+    const card = page.locator('pawsistant-card').first();
+    await expect(card.locator('#timeline-body .event-row').first()).toBeVisible();
+    const hold = async () => {
+      const box = (await card.locator('.log-btn[data-type="pee"]').boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(700);
+      await page.mouse.up();
+    };
+
+    await hold();
+    await expect(card.locator('.event-row.pending')).toContainText('Saving…');
+    await card.screenshot({ path: `${OUT}/pending-1-saving-${name}.png` });
+
+    await expect(card.locator('.event-row.failed')).toContainText('Not saved yet', { timeout: 20_000 });
+    await card.screenshot({ path: `${OUT}/pending-2-not-saved-${name}.png` });
+
+    // A late answer is not possible here (the call is lost), so Retry sends it again.
+    answer = true;
+    await card.locator('.retry-btn').click();
+    await expect(card.locator('.event-row[data-pending-id]')).toHaveCount(0);
+    await expect(card.locator('#timeline-body .event-row').first().locator('.delete-btn')).toHaveCount(1);
+    await card.screenshot({ path: `${OUT}/pending-3-saved-${name}.png` });
+  });
+}

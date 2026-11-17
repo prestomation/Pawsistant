@@ -20,6 +20,33 @@ export function displayLabel(type: string, meta: EventMeta): string {
   return meta.label;
 }
 
+/** A row that is not saved yet: "Saving…", or "Not saved yet" with Retry and Discard. */
+function pendingRowHTML(ev: TimelineEvent, meta: EventMeta, noteHTML: string, label: string): string {
+  const { id, state } = ev.pending!;
+  const pid = _escapeHTML(id);
+  const failed = state === 'failed';
+  const status = failed
+    ? `<span class="pending-status" role="alert">⚠ ${T('pending.failed')}</span>`
+    : `<span class="pending-status" role="status"><span class="pending-spin" aria-hidden="true"></span>${T('pending.saving')}</span>`;
+  const what = _escapeHTML(`${label} ${ev.time}`);
+  const actions = failed
+    ? `<span class="pending-actions">
+        <button class="pending-btn retry-btn" data-pending-id="${pid}" aria-label="${T('pending.retry')}: ${what}">${T('pending.retry')}</button>
+        <button class="pending-btn discard-btn" data-pending-id="${pid}" aria-label="${T('pending.discard')}: ${what}">${T('pending.discard')}</button>
+      </span>`
+    : '';
+  return `
+        <div class="event-row ${failed ? 'failed' : 'pending'}" data-pending-id="${pid}" data-type="${_escapeHTML(ev.type)}" data-timestamp="${_escapeHTML(ev.iso || '')}">
+          <span class="event-emoji">${meta.emoji}</span>
+          <span class="event-time">${_escapeHTML(ev.time)}</span>
+          <span class="event-type">${_escapeHTML(label)}</span>
+          ${noteHTML}
+          ${status}
+          ${actions}
+        </div>
+      `;
+}
+
 /** Generate HTML for a batch of events, including day headers.
  *  `lastDate` is the date of the previously rendered row (or null) so
  *  appended batches don't repeat the day header for a continuing date. */
@@ -41,6 +68,10 @@ export function buildEventRowsHTML(
     const noteHTML = ev.note
       ? `<span class="event-note" title="${_escapeHTML(ev.note)}">${_escapeHTML(ev.note)}</span>`
       : '';
+    if (ev.pending) {
+      html += pendingRowHTML(ev, meta, noteHTML, displayLabel(ev.type, meta));
+      continue;
+    }
     const delAriaLabel = T('timeline.aria.delete_event', { type: _escapeHTML(ev.type), time: _escapeHTML(ev.time) });
     const editAriaLabel = T('timeline.aria.edit_event', { type: _escapeHTML(ev.type), time: _escapeHTML(ev.time) });
     html += `
@@ -49,15 +80,67 @@ export function buildEventRowsHTML(
           <span class="event-time">${_escapeHTML(ev.time)}</span>
           <span class="event-type">${_escapeHTML(displayLabel(ev.type, meta))}</span>
           ${noteHTML}
-          <button class="edit-btn" data-id="${_escapeHTML(ev.event_id)}"
+          ${ev.event_id ? `<button class="edit-btn" data-id="${_escapeHTML(ev.event_id)}"
             aria-label="${editAriaLabel}" title="${T('timeline.aria.edit_event_title')}">✏️</button>
           <button class="delete-btn" data-id="${_escapeHTML(ev.event_id)}"
-            aria-label="${delAriaLabel}" title="${T('timeline.aria.delete_event_title')}">🗑️</button>
+            aria-label="${delAriaLabel}" title="${T('timeline.aria.delete_event_title')}">🗑️</button>` : ''}
         </div>
       `;
   }
   return { html, lastDate: currentDate };
 }
+
+/** CSS of the pending rows. Only the emoji and the row background fade: the text keeps its colors. */
+export const PENDING_STYLES = `
+  .event-row.pending, .event-row.failed { flex-wrap: wrap; }
+  .event-row.pending {
+    background: color-mix(in srgb, var(--primary-color, #03a9f4) 8%, transparent);
+    outline: 1px dashed var(--divider-color, #e0e0e0);
+    outline-offset: -1px;
+  }
+  .event-row.failed { background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); }
+  .event-row.pending .event-emoji, .event-row.failed .event-emoji { opacity: 0.45; filter: grayscale(1); }
+  /* The tint lowers the contrast of the secondary text, so these rows use the primary text color. */
+  .event-row.pending .event-time, .event-row.failed .event-time,
+  .event-row.pending .event-note, .event-row.failed .event-note { color: var(--primary-text-color); }
+  .pending-status {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--primary-text-color);
+  }
+  .event-row.failed .pending-status {
+    font-weight: 600;
+    color: color-mix(in srgb, var(--error-color, #db4437) 55%, var(--primary-text-color, #212121));
+  }
+  .pending-spin {
+    width: 11px;
+    height: 11px;
+    border: 2px solid var(--divider-color, #e0e0e0);
+    border-top-color: var(--primary-color, #03a9f4);
+    border-radius: 50%;
+    animation: pending-spin 1s linear infinite;
+  }
+  @keyframes pending-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .pending-spin { animation: none; border-top-color: var(--divider-color, #e0e0e0); border-right-color: var(--primary-color, #03a9f4); }
+  }
+  .pending-actions { display: flex; gap: 8px; width: 100%; padding: 2px 0 4px 26px; }
+  .pending-btn {
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 8px;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    background: transparent;
+    color: var(--primary-text-color);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .pending-btn.retry-btn { border-color: var(--primary-color, #03a9f4); }
+`;
 
 /** Timeline list CSS (rows, day headers, load-more) for standalone use.
  *  Mirrors the big card's inline timeline styles, minus the 380px
@@ -152,6 +235,7 @@ export const TIMELINE_STYLES = `
     transition: background 0.15s;
   }
   .load-more-btn:hover { background: var(--secondary-background-color, #f5f5f5); }
+  ${PENDING_STYLES}
 `;
 
 /** Inject timeline CSS into a root (ShadowRoot or element), deduplicated. */

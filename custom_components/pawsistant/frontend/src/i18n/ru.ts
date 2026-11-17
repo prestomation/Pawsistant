@@ -32,6 +32,10 @@ export const ru: Dict = {
   'timeline.aria.edit_event_title': 'Изменить событие',
   'timeline.aria.delete_event_title': 'Удалить событие',
   'timeline.delete_confirm': 'Удалить?',
+  'pending.saving': 'Сохранение…',
+  'pending.failed': 'Пока не сохранено',
+  'pending.retry': 'Повторить',
+  'pending.discard': 'Отменить',
 
   'button.aria.log_weight': 'Записать вес',
   'button.aria.log_event': 'Записать {label}. Удерживайте, чтобы записать сейчас.',

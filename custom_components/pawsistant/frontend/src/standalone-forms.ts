@@ -6,10 +6,10 @@
  */
 
 import type { HomeAssistant, EventMeta, BackdateFormResult, WeightFormResult, EditFormResult } from './types';
-import { logEvent, logEventWithId, updateEvent } from './services';
+import { logEvent, updateEvent } from './services';
 import { addStockLine, stockOf } from './supply';
 import { mountTimeChooser } from './time-chooser';
-import { _escapeHTML, toDisplayWeight } from './utils';
+import { _escapeHTML } from './utils';
 import { T } from './i18n';
 
 /* ── Form CSS (injected once per shadow root) ───────────────────────── */
@@ -165,7 +165,7 @@ interface BackdateFormOptions {
 }
 
 export function openBackdateForm(opts: BackdateFormOptions): Promise<BackdateFormResult | null> {
-  const { container, meta, hass, dog, eventType } = opts;
+  const { container, meta, hass } = opts;
   const root = container.shadowRoot || container;
 
   _ensureFormStyles(root as ShadowRoot);
@@ -179,7 +179,6 @@ export function openBackdateForm(opts: BackdateFormOptions): Promise<BackdateFor
       <label class="form-label" for="pbc-backdate-note">${T('form.note_optional')}</label>
       <input type="text" id="pbc-backdate-note" placeholder="${T('form.note_placeholder')}" />
     </div>
-    <div class="form-error" id="pbc-form-error" role="alert"></div>
     <div class="form-actions">
       <button class="btn-cancel" id="pbc-form-cancel">${T('form.cancel')}</button>
       <button class="btn-submit" id="pbc-form-submit">${T('form.log_event')}</button>
@@ -206,21 +205,9 @@ export function openBackdateForm(opts: BackdateFormOptions): Promise<BackdateFor
       const note = formWrap.querySelector<HTMLInputElement>('#pbc-backdate-note')!.value.trim();
       const timestamp = chooser.getTimestamp();
 
-      const extra: Record<string, unknown> = { timestamp };
-      if (note) extra['note'] = note;
-
-      logEventWithId(hass, dog, eventType, extra)
-        .then((eventId) => {
-          resolve({ timestamp, note: note || undefined, cleanup, eventId });
-        })
-        .catch((err) => {
-          const errEl = formWrap.querySelector<HTMLElement>('#pbc-form-error');
-          if (errEl) {
-            errEl.textContent = T('form.error.log_event');
-            errEl.classList.add('visible');
-          }
-          console.error('[pawsistant-button-card] backdate failed:', err);
-        });
+      // The card sends the entry as a pending row, so the form closes now.
+      cleanup();
+      resolve({ timestamp, note: note || undefined });
     });
 
     // Focus first input after brief delay

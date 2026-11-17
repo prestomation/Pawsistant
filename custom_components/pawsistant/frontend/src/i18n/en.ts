@@ -41,6 +41,10 @@ export const en = {
   'timeline.aria.edit_event_title': 'Edit event',
   'timeline.aria.delete_event_title': 'Delete event',
   'timeline.delete_confirm': 'Delete?',
+  'pending.saving': 'Saving…',
+  'pending.failed': 'Not saved yet',
+  'pending.retry': 'Retry',
+  'pending.discard': 'Discard',
 
   /* ── Quick-log button aria labels ───────────────────────────────── */
   'button.aria.log_weight': 'Log weight',

@@ -32,6 +32,10 @@ export const de: Dict = {
   'timeline.aria.edit_event_title': 'Ereignis bearbeiten',
   'timeline.aria.delete_event_title': 'Ereignis löschen',
   'timeline.delete_confirm': 'Löschen?',
+  'pending.saving': 'Wird gespeichert…',
+  'pending.failed': 'Noch nicht gespeichert',
+  'pending.retry': 'Erneut versuchen',
+  'pending.discard': 'Verwerfen',
 
   'button.aria.log_weight': 'Gewicht erfassen',
   'button.aria.log_event': '{label} erfassen. Gedrückt halten, um jetzt zu erfassen.',

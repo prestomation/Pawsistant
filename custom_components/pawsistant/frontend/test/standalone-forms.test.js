@@ -52,24 +52,18 @@ describe('openBackdateForm', () => {
     const result = await promise;
     expect(result).not.toBeNull();
     expect(result.timestamp).toBeDefined();
-    expect(typeof result.cleanup).toBe('function');
-    expect(hass.callService).toHaveBeenCalledWith('pawsistant', 'log_event', expect.objectContaining({
-      dog: 'Sharky',
-      event_type: 'poop',
-    }), undefined, true, true);
-    // An older backend answers with no id, so there is nothing to undo.
-    expect(result.eventId).toBeNull();
+    // The form only asks. The card sends the entry as a pending row.
+    expect(hass.callService).not.toHaveBeenCalled();
+    expect(container.querySelector('#pbc-form-submit')).toBeNull();
   });
 
-  it('returns the new event id for an undo', async () => {
+  it('resolves with the note', async () => {
     const container = document.createElement('div');
-    const hass = mockHass();
-    hass.callService.mockResolvedValue({ response: { event_id: 'ev-1' } });
     const meta = { emoji: '🧻', label: 'Roll', color: '#888' };
-    const promise = openBackdateForm({ container, meta, hass, dog: 'Sharky', eventType: 'roll' });
+    const promise = openBackdateForm({ container, meta, hass: mockHass(), dog: 'Sharky', eventType: 'roll' });
+    container.querySelector('#pbc-backdate-note').value = ' park ';
     container.querySelector('#pbc-form-submit').click();
-    const result = await promise;
-    expect(result.eventId).toBe('ev-1');
+    expect((await promise).note).toBe('park');
   });
 
   it('shows what the log takes from a counted supply', async () => {

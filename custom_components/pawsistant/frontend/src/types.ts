@@ -48,6 +48,8 @@ export interface TimelineEvent {
   iso: string;
   note: string;
   value?: number | string | null;
+  /** Set on a row that is not saved yet (see pending.ts). */
+  pending?: { id: string; state: 'saving' | 'failed' };
 }
 
 export interface WSEvent {
@@ -173,12 +175,10 @@ export interface PawsistantButtonCardConfig {
 
 /* ── Standalone form results ─────────────────────────────────────── */
 
+/** What the user chose in the backdate form. The form is closed; the card sends the entry. */
 export interface BackdateFormResult {
   timestamp: string;
   note?: string;
-  cleanup: () => void;
-  /** The logged event, for an Undo; null from an older backend. */
-  eventId?: string | null;
 }
 
 export interface WeightFormResult {

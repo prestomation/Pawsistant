@@ -4,6 +4,9 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Pending log entries.** A new entry shows in the log at once as a faded "Saving…" row, and turns solid when Home Assistant answers. After 15 seconds without an answer, or on an error, the row says "Not saved yet" with Retry and Discard; a button tap now sends the phone time, so a retry keeps it.
+
 ## [2.25.1] - 2026-11-07
 
 ### Fixed
