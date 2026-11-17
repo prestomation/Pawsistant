@@ -15,6 +15,7 @@ function makeNet() {
     calls: [],
     open: [], // calls with no answer yet
     readFails: false,
+    reads: [], // get_events requests
   };
   let n = 0;
   const store = (data) => {
@@ -35,7 +36,9 @@ function makeNet() {
     connection: {
       sendMessagePromise: vi.fn(async (msg) => {
         if (net.readFails) throw new Error('Connection lost');
-        return { events: net.serverEvents.slice(msg.offset, msg.offset + msg.limit), total: net.serverEvents.length };
+        net.reads.push(msg);
+        const all = msg.event_type ? net.serverEvents.filter((e) => e.type === msg.event_type) : net.serverEvents;
+        return { events: all.slice(msg.offset, msg.offset + msg.limit), total: all.length };
       }),
     },
   };
@@ -65,7 +68,7 @@ function makeLog(net, extra = {}) {
 
 const spec = (over = {}) => ({ dog: 'Sharky', type: 'pee', iso: '2026-11-16T17:41:00.000Z', ...over });
 const flush = async () => {
-  for (let i = 0; i < 5; i++) await Promise.resolve();
+  for (let i = 0; i < 100; i++) await Promise.resolve();
 };
 
 beforeEach(() => vi.useFakeTimers());
@@ -248,6 +251,50 @@ describe('PendingLog — Retry', () => {
     expect(log.entries[0].state).toBe('saved');
   });
 
+  it('finds a backdated event that is deeper than 50 newer events', async () => {
+    const net = makeNet();
+    const { log } = makeLog(net);
+    const entry = log.add(spec({ iso: '2026-11-10T17:41:00.000Z' }));
+    net.arrive(0); // stored, reply lost
+    // 120 newer events of the same type sit above it in the list
+    for (let i = 0; i < 120; i++) {
+      net.serverEvents.unshift({ type: 'pee', event_id: `n${i}`, iso: new Date(Date.UTC(2026, 10, 12, 0, i)).toISOString() });
+    }
+    await vi.advanceTimersByTimeAsync(PENDING_TIMEOUT_MS);
+    log.retry(entry.id);
+    await flush();
+    expect(net.hass.callService).toHaveBeenCalledTimes(1);
+    expect(log.entries[0].state).toBe('saved');
+  });
+
+  it('stops reading when the list is older than the entry', async () => {
+    const net = makeNet();
+    const { log } = makeLog(net);
+    for (let i = 0; i < 600; i++) {
+      net.serverEvents.push({ type: 'pee', event_id: `o${i}`, iso: new Date(Date.UTC(2026, 0, 1, 0, 600 - i)).toISOString() });
+    }
+    const entry = log.add(spec({ iso: '2026-11-16T17:41:00.000Z' }));
+    await vi.advanceTimersByTimeAsync(PENDING_TIMEOUT_MS);
+    log.retry(entry.id);
+    await flush();
+    expect(net.reads).toHaveLength(1); // the first page is already older
+    expect(net.hass.callService).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays "failed" and sends nothing when the list is too long to read', async () => {
+    const net = makeNet();
+    const { log } = makeLog(net);
+    for (let i = 0; i < 6000; i++) {
+      net.serverEvents.push({ type: 'pee', event_id: `n${i}`, iso: new Date(Date.UTC(2027, 0, 1) - i * 60000).toISOString() });
+    }
+    const entry = log.add(spec({ iso: '2026-01-01T00:00:00.000Z' }));
+    await vi.advanceTimersByTimeAsync(PENDING_TIMEOUT_MS);
+    log.retry(entry.id);
+    await flush();
+    expect(net.hass.callService).toHaveBeenCalledTimes(1);
+    expect(log.entries[0].state).toBe('failed');
+  });
+
   it('does not match an event of another type or time', async () => {
     const net = makeNet();
     const { log } = makeLog(net);
@@ -309,6 +356,25 @@ describe('PendingLog — Retry', () => {
     net.open[0].reject(new Error('Connection lost'));
     await flush();
     expect(log.entries[0].state).toBe('saving');
+  });
+
+  it('turns a row that waits for the second try to "saved" when the first call answers late', async () => {
+    const net = makeNet();
+    const { log, saved } = makeLog(net);
+    const entry = log.add(spec());
+    await vi.advanceTimersByTimeAsync(PENDING_TIMEOUT_MS);
+    net.mode = 'hang';
+    log.retry(entry.id);
+    await flush();
+    expect(log.entries[0].state).toBe('saving');
+    expect(net.open).toHaveLength(2);
+    net.answer(0); // the first call answers late
+    await flush();
+    expect(log.entries[0].state).toBe('saved');
+    expect(saved).toHaveBeenCalledTimes(1);
+    net.open[1].resolve({ response: { event_id: 'second' } }); // a second answer changes nothing
+    await flush();
+    expect(saved).toHaveBeenCalledTimes(1);
   });
 
   it('ignores Retry for a row that is not "failed"', async () => {

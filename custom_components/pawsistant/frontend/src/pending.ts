@@ -13,6 +13,10 @@ import { logEventWithId } from './services';
 /** Time without an answer before the row says "Not saved yet". */
 export const PENDING_TIMEOUT_MS = 15000;
 
+/** Retry reads the list in pages of this size, at most this many pages. */
+const READ_PAGE = 200;
+const READ_MAX_PAGES = 10;
+
 export type PendingState = 'saving' | 'failed' | 'saved';
 
 export interface PendingEntry {
@@ -159,7 +163,8 @@ export class PendingLog {
     const found = await this.findOnServer(slot.entry);
     if (slot.entry.state !== 'saving' || !this.slots.includes(slot)) return;
     if (found === undefined) {
-      // We cannot tell if the first call arrived. A second call could make a copy.
+      // We cannot read the list, so we cannot tell if the first call arrived. A second call would
+      // make a copy when it did, so the row stays "failed" and the user can try again.
       this.fail(slot);
     } else if (found) {
       this.settle(slot, found);
@@ -173,16 +178,25 @@ export class PendingLog {
     const hass = this.opts.getHass();
     const dogId = this.opts.getDogId();
     if (!hass?.connection || !dogId) return undefined;
+    const at = Date.parse(entry.iso);
     try {
-      const result = (await hass.connection.sendMessagePromise({
-        type: 'pawsistant/get_events',
-        dog_id: dogId,
-        offset: 0,
-        limit: 50,
-      })) as { events?: TimelineEvent[] };
-      const at = Date.parse(entry.iso);
-      const same = (result.events || []).find((e) => e.type === entry.type && Date.parse(e.iso) === at);
-      return same ? same.event_id : null;
+      // The list is newest first. Read pages of this type until one reaches events older than
+      // the entry, so a backdated entry deep in the history is found too.
+      for (let page = 0; page < READ_MAX_PAGES; page++) {
+        const result = (await hass.connection.sendMessagePromise({
+          type: 'pawsistant/get_events',
+          dog_id: dogId,
+          event_type: entry.type,
+          offset: page * READ_PAGE,
+          limit: READ_PAGE,
+        })) as { events?: TimelineEvent[]; total?: number };
+        const events = result.events || [];
+        const same = events.find((e) => Date.parse(e.iso) === at);
+        if (same) return same.event_id;
+        const last = events[events.length - 1];
+        if (!last || Date.parse(last.iso) < at || (page + 1) * READ_PAGE >= (result.total ?? 0)) return null;
+      }
+      return undefined; // too many events to read: we cannot tell
     } catch (err) {
       console.warn('[pawsistant-card] could not read events for Retry:', err);
       return undefined;

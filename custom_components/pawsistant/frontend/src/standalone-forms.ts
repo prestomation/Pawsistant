@@ -9,7 +9,7 @@ import type { HomeAssistant, EventMeta, BackdateFormResult, WeightFormResult, Ed
 import { logEvent, updateEvent } from './services';
 import { addStockLine, stockOf } from './supply';
 import { mountTimeChooser } from './time-chooser';
-import { _escapeHTML, toDisplayWeight } from './utils';
+import { _escapeHTML } from './utils';
 import { T } from './i18n';
 
 /* ── Form CSS (injected once per shadow root) ───────────────────────── */
