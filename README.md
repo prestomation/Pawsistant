@@ -154,6 +154,8 @@ dog: Sharky
 - Full event timeline with infinite scroll, inline edit and delete
 - Stats row: pee count, poop count, days since medicine
 
+A new entry shows in the log at once as a faded row that says "Saving…". If Home Assistant does not answer in 15 seconds, the row says "Not saved yet" and offers **Retry** and **Discard**.
+
 **Card config options:**
 
 | Key | Default | Description |
