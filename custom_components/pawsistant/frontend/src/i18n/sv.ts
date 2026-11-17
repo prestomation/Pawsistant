@@ -32,6 +32,10 @@ export const sv: Dict = {
   'timeline.aria.edit_event_title': 'Redigera händelse',
   'timeline.aria.delete_event_title': 'Ta bort händelse',
   'timeline.delete_confirm': 'Ta bort?',
+  'pending.saving': 'Sparar…',
+  'pending.failed': 'Inte sparad än',
+  'pending.retry': 'Försök igen',
+  'pending.discard': 'Förkasta',
 
   'button.aria.log_weight': 'Logga vikt',
   'button.aria.log_event': 'Logga {label}. Håll in för att logga nu.',

@@ -32,6 +32,10 @@ export const tr: Dict = {
   'timeline.aria.edit_event_title': 'Olayı düzenle',
   'timeline.aria.delete_event_title': 'Olayı sil',
   'timeline.delete_confirm': 'Silinsin mi?',
+  'pending.saving': 'Kaydediliyor…',
+  'pending.failed': 'Henüz kaydedilmedi',
+  'pending.retry': 'Yeniden dene',
+  'pending.discard': 'Vazgeç',
 
   'button.aria.log_weight': 'Kilo kaydet',
   'button.aria.log_event': '{label} kaydet. Şimdi kaydetmek için basılı tutun.',

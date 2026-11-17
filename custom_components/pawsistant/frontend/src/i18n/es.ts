@@ -32,6 +32,10 @@ export const es: Dict = {
   'timeline.aria.edit_event_title': 'Editar evento',
   'timeline.aria.delete_event_title': 'Eliminar evento',
   'timeline.delete_confirm': '¿Eliminar?',
+  'pending.saving': 'Guardando…',
+  'pending.failed': 'Aún sin guardar',
+  'pending.retry': 'Reintentar',
+  'pending.discard': 'Descartar',
 
   'button.aria.log_weight': 'Registrar peso',
   'button.aria.log_event': 'Registrar {label}. Mantén pulsado para registrar ahora.',

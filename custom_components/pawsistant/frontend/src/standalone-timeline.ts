@@ -7,6 +7,8 @@
  */
 
 import type { HomeAssistant, Registry, TimelineEvent } from './types';
+import type { PendingLog } from './pending';
+import { mergePending } from './pending';
 import { getMeta } from './registry';
 import { deleteEvent } from './services';
 import { buildEventRowsHTML, ensureTimelineStyles } from './timeline-render';
@@ -23,6 +25,8 @@ export interface EventLogOptions {
   registry: Registry;
   weightUnit: 'kg' | 'lbs';
   pageSize?: number;
+  /** Entries that wait for Home Assistant. They show as faded rows in the list. */
+  pending?: PendingLog;
 }
 
 export interface EventLogHandle {
@@ -83,11 +87,12 @@ export function createEventLog(opts: EventLogOptions): EventLogHandle {
   }
 
   function renderList(): void {
-    if (events.length === 0) {
+    const shown = mergePending(events, opts.pending?.entries ?? [], hass.config?.time_zone);
+    if (shown.length === 0) {
       container.innerHTML = `<div class="empty">${T('timeline.empty_no_events')}</div>`;
       return;
     }
-    const built = buildEventRowsHTML(events, registry, null);
+    const built = buildEventRowsHTML(shown, registry, null);
     lastDate = built.lastDate;
     const loadMoreHTML = total > events.length
       ? `<button class="load-more-btn" id="pbc-load-more-btn">${loadMoreLabel()}</button>`
@@ -111,6 +116,7 @@ export function createEventLog(opts: EventLogOptions): EventLogHandle {
     }
     events = result.events || [];
     total = result.total || 0;
+    opts.pending?.clearSaved(events.map(e => e.event_id));
     renderList();
   }
 
@@ -236,6 +242,16 @@ export function createEventLog(opts: EventLogOptions): EventLogHandle {
       loadMore();
       return;
     }
+    const retryBtn = target.closest<HTMLButtonElement>('.retry-btn');
+    if (retryBtn) {
+      opts.pending?.retry(retryBtn.dataset.pendingId || '');
+      return;
+    }
+    const discardBtn = target.closest<HTMLButtonElement>('.discard-btn');
+    if (discardBtn) {
+      opts.pending?.discard(discardBtn.dataset.pendingId || '');
+      return;
+    }
     const delBtn = target.closest<HTMLButtonElement>('.delete-btn');
     if (delBtn) {
       e.stopPropagation();
@@ -251,6 +267,10 @@ export function createEventLog(opts: EventLogOptions): EventLogHandle {
 
   // One delegated listener survives row injection and refreshes
   container.addEventListener('click', onContainerClick);
+  // Draw again when a pending row changes. Not while the first load runs.
+  const stopPending = opts.pending?.subscribe(() => {
+    if (!disposed && !loading) renderList();
+  });
 
   function cleanup(): void {
     disposed = true;
@@ -263,6 +283,7 @@ export function createEventLog(opts: EventLogOptions): EventLogHandle {
     for (const id of deleteConfirm.values()) clearTimeout(id);
     deleteConfirm.clear();
     container.removeEventListener('click', onContainerClick);
+    stopPending?.();
     container.innerHTML = '';
     formSlot.innerHTML = '';
   }

@@ -12,9 +12,10 @@ import {
 } from './registry';
 import { METRIC_LABELS, resolveMetricValue } from './metrics';
 import { setupLongPress, withCooldown } from './interactions';
-import { logEvent, logEventWithId, updateSupply, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services';
+import { logEvent, updateSupply, deleteEvent, updateEvent, setShownTypes, addEventType, updateEventType, deleteEventType } from './services';
 import { slugify, findEntitiesByDog, stateNum, stateStr, stateAttr, buildHash, _escapeHTML, getDogId, dogNamesFromHass } from './utils';
-import { buildEventRowsHTML, displayLabel } from './timeline-render';
+import { buildEventRowsHTML, displayLabel, PENDING_STYLES } from './timeline-render';
+import { PendingLog, mergePending } from './pending';
 
 /* ── Slugify helper for auto-generating event type keys ─────────────── */
 function slugifyEventKey(name: string): string {
@@ -27,7 +28,7 @@ function slugifyEventKey(name: string): string {
 import type { HomeAssistant, PawsistantCardConfig, DogEntities, Registry, RegistryResult, EventTypeFormState, TimelineEvent, LongPressHandlers } from './types';
 import { PawsistantCardEditor } from './editor';
 import { openBackdateForm, openWeightForm, openEditForm, closeForm, showFormError } from './forms';
-import { bindEvents } from './bindings';
+import { bindEvents, bindTimelineButtons } from './bindings';
 import { badgeHTML, stockOf, supplyRows, openSuppliesDialog, showToast, toastText, SUPPLY_CSS } from './supply';
 import type { Stock } from './supply';
 import type { EventMeta, SupplyFormState } from './types';
@@ -67,6 +68,18 @@ export class PawsistantCard extends HTMLElement {
   _timelineTotal: number = 0;
   _timelineLoading: boolean = false;
   _timelineFetched: boolean = false;
+  /** Entries that wait for Home Assistant. They show in the log as faded rows. */
+  _pending: PendingLog = new PendingLog({
+    getHass: () => this._hass ?? undefined,
+    getDogId: () => this._getDogId(),
+    onChange: () => this._redrawTimeline(),
+    onSaved: () => {
+      // Load the list again. The solid row stays until the list has the event.
+      void this._fetchTimeline().then(() => {
+        if (this._timelineFetched) this._pending.clearSaved(this._timelineEvents.map(e => e.event_id));
+      });
+    },
+  });
 
   constructor() {
     super();
@@ -349,6 +362,45 @@ export class PawsistantCard extends HTMLElement {
     `;
   }
 
+  /** The rows and the load-more button of the log. Pending entries are in the rows. */
+  _timelineParts(): { timelineHTML: string; loadMoreHTML: string } {
+    const hass = this._hass!;
+    const loaded: TimelineEvent[] = this._timelineFetched
+      ? this._timelineEvents
+      : ((stateAttr(hass, this._entities().timeline, 'events') as TimelineEvent[]) || []);
+    const events = mergePending(loaded, this._pending.entries, hass.config?.time_zone);
+
+    let timelineHTML = '';
+    if (this._timelineLoading && events.length === 0) {
+      timelineHTML = `<div class="empty">${T('timeline.loading')}</div>`;
+    } else if (events.length === 0) {
+      timelineHTML = this._timelineFetched
+        ? `<div class="empty">${T('timeline.empty_no_events')}</div>`
+        : `<div class="empty">${T('timeline.empty_24h')}</div>`;
+    } else {
+      timelineHTML = this._buildEventRowsHTML(events, this._registry().registry, null).html;
+    }
+
+    let loadMoreHTML = '';
+    if (this._timelineFetched && this._timelineTotal > loaded.length) {
+      const showingLabel = this._timelineLoading
+        ? T('timeline.loading_short')
+        : T('timeline.load_more', { shown: loaded.length, total: this._timelineTotal });
+      loadMoreHTML = `<button class="load-more-btn" id="load-more-btn">${showingLabel}</button>`;
+    }
+    return { timelineHTML, loadMoreHTML };
+  }
+
+  /** Draw only the log again, so an open form and the scroll position stay. */
+  _redrawTimeline() {
+    const body = this.shadowRoot?.getElementById('timeline-body');
+    if (!body || !this._hass || this._eventTypesPanel) return;
+    const { timelineHTML, loadMoreHTML } = this._timelineParts();
+    body.innerHTML = timelineHTML + loadMoreHTML;
+    bindTimelineButtons(this, body);
+    this._setupLoadMoreObserver();
+  }
+
   _render() {
     const hass = this._hass;
     if (!hass) return;
@@ -377,35 +429,11 @@ export class PawsistantCard extends HTMLElement {
 
     const medDays = stateNum(hass, ent.medicine_days);
     // Use WS-fetched events if available; fall back to sensor attributes for backward compat
-    const events: TimelineEvent[] = this._timelineFetched
-      ? this._timelineEvents
-      : ((stateAttr(hass, ent.timeline, 'events') as TimelineEvent[]) || []);
     const weightUnit = this._weightUnit();
 
     const medDaysText = medDays === null ? '—' : Math.floor(medDays) + 'd';
 
-    /* Build timeline HTML */
-    let timelineHTML = '';
-    if (this._timelineLoading && events.length === 0) {
-      timelineHTML = `<div class="empty">${T('timeline.loading')}</div>`;
-    } else if (events.length === 0) {
-      timelineHTML = this._timelineFetched
-        ? `<div class="empty">${T('timeline.empty_no_events')}</div>`
-        : `<div class="empty">${T('timeline.empty_24h')}</div>`;
-    } else {
-      const registry = this._registry().registry;
-      const { html } = this._buildEventRowsHTML(events, registry, null);
-      timelineHTML = html;
-    }
-
-    /* Build load-more button */
-    let loadMoreHTML = '';
-    if (this._timelineFetched && this._timelineTotal > events.length) {
-      const showingLabel = this._timelineLoading
-        ? T('timeline.loading_short')
-        : T('timeline.load_more', { shown: events.length, total: this._timelineTotal });
-      loadMoreHTML = `<button class="load-more-btn" id="load-more-btn">${showingLabel}</button>`;
-    }
+    const { timelineHTML, loadMoreHTML } = this._timelineParts();
 
     /* Build quick-log buttons */
     const shownTypes = this._shownTypes();
@@ -764,6 +792,7 @@ export class PawsistantCard extends HTMLElement {
         .event-type { font-size: 12px; font-weight: 500; color: var(--primary-text-color); flex-shrink: 0; }
         /* U14 — truncated notes with title attr for tooltip */
         .event-note { font-size: 12px; color: var(--secondary-text-color); flex: 1; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        ${PENDING_STYLES}
         /* U6 — 44px touch target for delete button */
         .edit-btn {
           background: none;
@@ -1520,8 +1549,9 @@ export class PawsistantCard extends HTMLElement {
     if (btn) btn.dataset.pending = '1';
     const meta = getMeta(type, this._registry().registry);
     const before = stockOf(this._hass, meta.supply);
-    logEventWithId(this._hass!, this._config.dog, type)
-      .then((eventId) => {
+    // The row shows in the log at once. The tap sends the phone time, so a retry keeps it.
+    this._pending.add({ dog: this._config.dog, type, iso: new Date().toISOString() }, {
+      onSaved: (eventId) => {
         this._supplyToast(meta, type, before, eventId);
         if (btn) {
           delete btn.dataset.pending;
@@ -1530,11 +1560,11 @@ export class PawsistantCard extends HTMLElement {
           btn.classList.add('flash');
           btn.addEventListener('animationend', () => btn.classList.remove('flash'), { once: true });
         }
-        this._fetchTimeline();
-      })
-      .catch(() => {
+      },
+      onFailed: () => {
         if (btn) delete btn.dataset.pending;
-      });
+      },
+    });
   }, 500);
 
   /** Close an open care item form (backdate, weight or edit) so that another view can open.

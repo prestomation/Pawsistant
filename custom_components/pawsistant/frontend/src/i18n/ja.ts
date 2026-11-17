@@ -32,6 +32,10 @@ export const ja: Dict = {
   'timeline.aria.edit_event_title': 'イベントを編集',
   'timeline.aria.delete_event_title': 'イベントを削除',
   'timeline.delete_confirm': '削除しますか？',
+  'pending.saving': '保存中…',
+  'pending.failed': 'まだ保存されていません',
+  'pending.retry': '再試行',
+  'pending.discard': '破棄',
 
   'button.aria.log_weight': '体重を記録',
   'button.aria.log_event': '{label}を記録。長押しで今すぐ記録します。',

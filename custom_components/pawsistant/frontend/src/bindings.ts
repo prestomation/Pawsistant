@@ -14,6 +14,60 @@ interface LongPressBtn extends HTMLButtonElement {
   _longPressCleanup?: () => void;
 }
 
+/** Wire the buttons of the log rows (edit, delete, Retry, Discard). Used on each draw of the log. */
+export function bindTimelineButtons(card: PawsistantCard, root: ParentNode): void {
+  /* U9 — two-tap delete confirmation */
+  root.querySelectorAll<HTMLButtonElement>('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const eventId = btn.dataset.id;
+      if (!eventId) return;
+
+      if (card._deleteConfirmState.has(eventId)) {
+        // Second tap — confirm and delete
+        clearTimeout(card._deleteConfirmState.get(eventId));
+        card._deleteConfirmState.delete(eventId);
+        btn.classList.remove('confirm-pending');
+        btn.textContent = '🗑️';
+        card._deleteEvent(eventId, btn);
+      } else {
+        // First tap — show confirm state
+        btn.classList.add('confirm-pending');
+        btn.textContent = T('timeline.delete_confirm');
+        const revertId = card._setTimeout(() => {
+          card._deleteConfirmState.delete(eventId);
+          btn.classList.remove('confirm-pending');
+          btn.textContent = '🗑️';
+        }, 3000);
+        card._deleteConfirmState.set(eventId, revertId);
+      }
+    });
+  });
+
+  /* Edit button on event rows */
+  root.querySelectorAll<HTMLButtonElement>('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const row = btn.closest<HTMLElement>('.event-row');
+      if (!row) return;
+      const eventType = row.dataset.type;
+      const timestamp = row.dataset.timestamp;
+      const note = row.dataset.note;
+      const value = row.dataset.value;
+      const eventId = row.dataset.id;
+      openEditForm(card, eventType, timestamp, note, value, eventId);
+    });
+  });
+
+  /* Pending rows */
+  root.querySelectorAll<HTMLButtonElement>('.retry-btn').forEach(btn => {
+    btn.addEventListener('click', () => card._pending.retry(btn.dataset.pendingId || ''));
+  });
+  root.querySelectorAll<HTMLButtonElement>('.discard-btn').forEach(btn => {
+    btn.addEventListener('click', () => card._pending.discard(btn.dataset.pendingId || ''));
+  });
+}
+
 export function bindEvents(card: PawsistantCard, root: ShadowRoot): void {
 
   root.querySelectorAll<LongPressBtn>('.log-btn').forEach(btn => {
@@ -70,48 +124,7 @@ export function bindEvents(card: PawsistantCard, root: ShadowRoot): void {
     });
   });
 
-  /* U9 — two-tap delete confirmation */
-  root.querySelectorAll<HTMLButtonElement>('.delete-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const eventId = btn.dataset.id;
-      if (!eventId) return;
-
-      if (card._deleteConfirmState.has(eventId)) {
-        // Second tap — confirm and delete
-        clearTimeout(card._deleteConfirmState.get(eventId));
-        card._deleteConfirmState.delete(eventId);
-        btn.classList.remove('confirm-pending');
-        btn.textContent = '🗑️';
-        card._deleteEvent(eventId, btn);
-      } else {
-        // First tap — show confirm state
-        btn.classList.add('confirm-pending');
-        btn.textContent = T('timeline.delete_confirm');
-        const revertId = card._setTimeout(() => {
-          card._deleteConfirmState.delete(eventId);
-          btn.classList.remove('confirm-pending');
-          btn.textContent = '🗑️';
-        }, 3000);
-        card._deleteConfirmState.set(eventId, revertId);
-      }
-    });
-  });
-
-  /* Edit button on event rows */
-  root.querySelectorAll<HTMLButtonElement>('.edit-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const row = btn.closest<HTMLElement>('.event-row');
-      if (!row) return;
-      const eventType = row.dataset.type;
-      const timestamp = row.dataset.timestamp;
-      const note = row.dataset.note;
-      const value = row.dataset.value;
-      const eventId = row.dataset.id;
-      openEditForm(card, eventType, timestamp, note, value, eventId);
-    });
-  });
+  bindTimelineButtons(card, root);
 
   /* Load more button — click is fallback, IntersectionObserver auto-triggers */
   const loadMoreBtn = root.querySelector('#load-more-btn');

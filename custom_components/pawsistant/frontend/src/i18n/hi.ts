@@ -32,6 +32,10 @@ export const hi: Dict = {
   'timeline.aria.edit_event_title': 'घटना संपादित करें',
   'timeline.aria.delete_event_title': 'घटना हटाएँ',
   'timeline.delete_confirm': 'हटाएँ?',
+  'pending.saving': 'सहेजा जा रहा है…',
+  'pending.failed': 'अभी सहेजा नहीं गया',
+  'pending.retry': 'फिर कोशिश करें',
+  'pending.discard': 'छोड़ें',
 
   'button.aria.log_weight': 'वज़न दर्ज करें',
   'button.aria.log_event': '{label} दर्ज करें। अभी दर्ज करने के लिए दबाए रखें।',

@@ -18,6 +18,7 @@ import { renderPawsistantButton } from './button';
 import { openBackdateForm, openWeightForm } from './standalone-forms';
 import { displayLabel, ensureTimelineStyles } from './timeline-render';
 import { createEventLog } from './standalone-timeline';
+import { PendingLog } from './pending';
 import type { EventLogHandle } from './standalone-timeline';
 
 /* ── Card picker registration ──────────────────────────────────────── */
@@ -45,6 +46,17 @@ export class PawsistantButtonCard extends HTMLElement {
   _entCache: { dog: string; ent: DogEntities; found: string[]; timelineFound: boolean; dogSeen: boolean; scannedAt: number } | null = null;
   _formCleanup: (() => void) | null = null;
   _eventLogHandle: EventLogHandle | null = null;
+  /** Entries that wait for Home Assistant. The popup log shows them as faded rows. */
+  _pending: PendingLog = new PendingLog({
+    getHass: () => this._hass ?? undefined,
+    getDogId: () => getDogId(this._hass, this._config.dog),
+    onChange: () => {},
+    onSaved: () => {
+      const log = this._eventLogHandle;
+      if (log) void log.refresh();
+      else this._pending.clearSaved();
+    },
+  });
   /** The toast after a log, kept here so a re-render can draw it again. */
   _toast: { text: string; sub: string; eventId: string | null; until: number } | null = null;
   _closeSupplies: (() => void) | null = null;
@@ -583,6 +595,7 @@ export class PawsistantButtonCard extends HTMLElement {
         dogId,
         registry,
         weightUnit: this._config.weight_unit === 'kg' ? 'kg' : 'lbs',
+        pending: this._pending,
       });
     } else {
       body.innerHTML = `<div class="empty">${T('timeline.empty_no_events')}</div>`;
@@ -671,18 +684,19 @@ export class PawsistantButtonCard extends HTMLElement {
       eventType,
     });
 
-    if (result) {
-      this._showSuccessFlash(btn);
-      this._supplyToast(meta, eventType, before, result.eventId ?? null);
-      setTimeout(() => {
-        result.cleanup();
-        this._activeForm = false;
-        this._lastHash = null;
-        if (this._hass) this.hass = this._hass;
-      }, 600);
-    } else {
-      this._activeForm = false;
-    }
+    this._activeForm = false;
+    if (result) this._logPending(btn, meta, eventType, result.timestamp, result.note);
+  }
+
+  /** Add a pending entry. It shows in the popup log, and the button flashes when it is saved. */
+  _logPending(btn: HTMLButtonElement, meta: EventMeta, eventType: string, iso: string, note?: string): void {
+    const before = stockOf(this._hass, meta.supply);
+    this._pending.add({ dog: this._config.dog, type: eventType, iso, note }, {
+      onSaved: (eventId) => {
+        this._showSuccessFlash(btn);
+        this._supplyToast(meta, eventType, before, eventId);
+      },
+    });
   }
 
   async _openWeight(btn: HTMLButtonElement, meta: EventMeta, eventType: string): Promise<void> {
@@ -716,15 +730,7 @@ export class PawsistantButtonCard extends HTMLElement {
 
   _instantLog(btn: HTMLButtonElement, eventType: string): void {
     const meta = getMeta(eventType, buildRegistry(this._hass).registry);
-    const before = stockOf(this._hass, meta.supply);
-    logEventWithId(this._hass!, this._config.dog, eventType)
-      .then((eventId) => {
-        this._showSuccessFlash(btn);
-        this._supplyToast(meta, eventType, before, eventId);
-      })
-      .catch((err) => {
-        console.error('[pawsistant-button-card] instant log failed:', err);
-      });
+    this._logPending(btn, meta, eventType, new Date().toISOString());
   }
 
   _showSuccessFlash(btn: HTMLButtonElement): void {

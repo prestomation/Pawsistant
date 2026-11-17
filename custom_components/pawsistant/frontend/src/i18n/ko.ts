@@ -32,6 +32,10 @@ export const ko: Dict = {
   'timeline.aria.edit_event_title': '이벤트 편집',
   'timeline.aria.delete_event_title': '이벤트 삭제',
   'timeline.delete_confirm': '삭제할까요?',
+  'pending.saving': '저장 중…',
+  'pending.failed': '아직 저장되지 않음',
+  'pending.retry': '다시 시도',
+  'pending.discard': '버리기',
 
   'button.aria.log_weight': '체중 기록',
   'button.aria.log_event': '{label} 기록. 길게 눌러 지금 기록합니다.',

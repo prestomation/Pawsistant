@@ -32,6 +32,10 @@ export const ar: Dict = {
   'timeline.aria.edit_event_title': 'تعديل الحدث',
   'timeline.aria.delete_event_title': 'حذف الحدث',
   'timeline.delete_confirm': 'حذف؟',
+  'pending.saving': 'جارٍ الحفظ…',
+  'pending.failed': 'لم يُحفظ بعد',
+  'pending.retry': 'إعادة المحاولة',
+  'pending.discard': 'تجاهل',
 
   'button.aria.log_weight': 'تسجيل الوزن',
   'button.aria.log_event': 'تسجيل {label}. اضغط مع الاستمرار للتسجيل الآن.',

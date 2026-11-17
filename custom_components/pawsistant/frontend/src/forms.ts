@@ -8,7 +8,7 @@
 import type { PawsistantCard } from './index';
 import { T } from './i18n';
 import { getMeta } from './registry';
-import { logEvent, logEventWithId, updateEvent } from './services';
+import { logEvent, updateEvent } from './services';
 import { addStockLine, stockOf } from './supply';
 import { mountTimeChooser } from './time-chooser';
 import { stateNum, _escapeHTML, toDisplayWeight } from './utils';
@@ -199,25 +199,17 @@ export function submitBackdate(
   timestamp: string,
   note: string | undefined,
 ): void {
-  const extra: Record<string, unknown> = { timestamp };
-  if (note) extra['note'] = note;
   const meta = getMeta(type, card._registry().registry);
   const before = stockOf(card._hass, meta.supply);
 
-  logEventWithId(card._hass!, card._config.dog, type, extra)
-    .then((eventId) => {
+  // The form closes now. The row in the log shows the state, and has Retry if the save fails.
+  closeForm(card);
+  card._pending.add({ dog: card._config.dog, type, iso: timestamp, note }, {
+    onSaved: (eventId) => {
       if (btn) card._showSuccessFlash(btn);
       card._supplyToast(meta, type, before, eventId);
-      card._setTimeout(() => {
-        closeForm(card);
-        card._fetchTimeline();
-      }, 600);
-    })
-    .catch(err => {
-      /* U11 — show error in form instead of just console.error */
-      console.error('[pawsistant-card] log_event (backdate) failed:', err);
-      showFormError(card, T('form.error.log_event'));
-    });
+    },
+  });
 }
 
 /* ── Submit weight ─────────────────────────────────────────────────── */
