@@ -108,6 +108,16 @@ describe('the destructive-action scanner', () => {
     expect(violations.map((v) => v.callee)).toEqual(['_deleteEvent']);
   });
 
+  it('scans the code in a template slot, and ignores the text around it', () => {
+    const { violations } = scan(
+      file(`
+        function deleteThing() {}
+        function wire() { const a = \`deleteThing() text \${deleteThing()} more\`; }
+      `),
+    );
+    expect(violations.map((v) => v.callee)).toEqual(['deleteThing']);
+  });
+
   it('keeps offsets when it blanks text', () => {
     const src = "const a = 'x(';\n// c )\nfoo();";
     expect(blank(src)).toHaveLength(src.length);

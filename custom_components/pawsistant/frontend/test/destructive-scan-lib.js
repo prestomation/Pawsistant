@@ -7,7 +7,7 @@
 // turn), or has an entry in the allowlist with a written reason.
 //
 // It is a text scan, not a type check. It cannot see a call that goes through a
-// variable, and it ignores code inside template literals. Its job is the common slip:
+// variable. The text of a template literal is ignored, but the code in its `${...}` slots is scanned. Its job is the common slip:
 // a new delete button that calls the action at once.
 
 /** A function that deletes or removes something is named like one. A bare `delete`, `remove` or `clear` is the platform's (`el.remove()`), so it needs a suffix. */
@@ -58,8 +58,23 @@ export function blank(src) {
       i = to;
     } else if (c === "'" || c === '"' || c === '`') {
       let k = i + 1;
-      while (k < src.length && src[k] !== c) k += src[k] === '\\' ? 2 : 1;
-      wipe(i + 1, k);
+      let from = i + 1;
+      while (k < src.length && src[k] !== c) {
+        if (c === '`' && src[k] === '$' && src[k + 1] === '{') {
+          // A template slot is code: wipe the text before it, and blank the slot on
+          // its own, so that a call inside it stays visible to the scan.
+          const close = matching(src, k + 1);
+          if (close < 0) break;
+          wipe(from, k + 2);
+          const inner = blank(src.slice(k + 2, close));
+          for (let n = 0; n < inner.length; n += 1) out[k + 2 + n] = inner[n];
+          k = close + 1;
+          from = close;
+        } else {
+          k += src[k] === '\\' ? 2 : 1;
+        }
+      }
+      wipe(from, k);
       i = k + 1;
       prev = c;
     } else if (c === '/' && /[(,=:[!&|?{};]|^$/.test(prev)) {
