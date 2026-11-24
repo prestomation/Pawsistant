@@ -9,7 +9,9 @@
 import type { HomeAssistant, Registry, TimelineEvent } from './types';
 import { getMeta } from './registry';
 import { deleteEvent } from './services';
-import { buildEventRowsHTML, ensureTimelineStyles } from './timeline-render';
+import { buildEventRowsHTML, displayLabel, ensureTimelineStyles } from './timeline-render';
+import { closeConfirm, confirmDestructive } from './confirm-dialog';
+import { eventDeleteText } from './confirm-texts';
 import { openEditForm } from './standalone-forms';
 import { T } from './i18n';
 
@@ -49,7 +51,6 @@ export function createEventLog(opts: EventLogOptions): EventLogHandle {
   let editing = false;
   let observer: IntersectionObserver | null = null;
   let timers: ReturnType<typeof setTimeout>[] = [];
-  const deleteConfirm = new Map<string, ReturnType<typeof setTimeout>>();
 
   const rootNode = container.getRootNode();
   ensureTimelineStyles(rootNode instanceof ShadowRoot ? rootNode : document.head);
@@ -165,40 +166,32 @@ export function createEventLog(opts: EventLogOptions): EventLogHandle {
   function handleDelete(btn: HTMLButtonElement): void {
     const eventId = btn.dataset.id;
     if (!eventId) return;
+    const row = btn.closest<HTMLElement>('.event-row');
+    const type = row?.dataset.type || '';
+    const label = displayLabel(type, getMeta(type, registry));
+    confirmDestructive(
+      eventDeleteText(label, row?.dataset.timestamp || '', row?.dataset.note || '', hass.language),
+      () => deleteNow(btn, eventId),
+    );
+  }
 
-    if (deleteConfirm.has(eventId)) {
-      // Second tap — confirm and delete
-      clearTimeout(deleteConfirm.get(eventId)!);
-      deleteConfirm.delete(eventId);
-      btn.classList.remove('confirm-pending');
-      btn.textContent = '🗑️';
-      if (btn.dataset.pending) return;
-      btn.dataset.pending = '1';
-      deleteEvent(hass, eventId)
-        .then(() => {
-          delete btn.dataset.pending;
-          refresh();
-        })
-        .catch(err => {
-          console.error('[pawsistant-button-card] delete_event failed:', err);
-          delete btn.dataset.pending;
-          const row = btn.closest<HTMLElement>('.event-row');
-          if (row) {
-            row.style.background = 'color-mix(in srgb, var(--error-color, #ef5350) 15%, transparent)';
-            setTimer(() => { row.style.background = ''; }, 2000);
-          }
-        });
-    } else {
-      // First tap — show confirm state
-      btn.classList.add('confirm-pending');
-      btn.textContent = T('timeline.delete_confirm');
-      const revertId = setTimer(() => {
-        deleteConfirm.delete(eventId);
-        btn.classList.remove('confirm-pending');
-        btn.textContent = '🗑️';
-      }, 3000);
-      deleteConfirm.set(eventId, revertId);
-    }
+  function deleteNow(btn: HTMLButtonElement, eventId: string): void {
+    if (btn.dataset.pending) return;
+    btn.dataset.pending = '1';
+    deleteEvent(hass, eventId)
+      .then(() => {
+        delete btn.dataset.pending;
+        refresh();
+      })
+      .catch(err => {
+        console.error('[pawsistant-button-card] delete_event failed:', err);
+        delete btn.dataset.pending;
+        const row = btn.closest<HTMLElement>('.event-row');
+        if (row) {
+          row.style.background = 'color-mix(in srgb, var(--error-color, #ef5350) 15%, transparent)';
+          setTimer(() => { row.style.background = ''; }, 2000);
+        }
+      });
   }
 
   async function handleEdit(btn: HTMLButtonElement): Promise<void> {
@@ -260,8 +253,7 @@ export function createEventLog(opts: EventLogOptions): EventLogHandle {
     }
     for (const id of timers) clearTimeout(id);
     timers = [];
-    for (const id of deleteConfirm.values()) clearTimeout(id);
-    deleteConfirm.clear();
+    closeConfirm();
     container.removeEventListener('click', onContainerClick);
     container.innerHTML = '';
     formSlot.innerHTML = '';

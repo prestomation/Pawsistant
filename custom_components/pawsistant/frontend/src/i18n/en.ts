@@ -40,7 +40,6 @@ export const en = {
   'timeline.aria.delete_event': 'Delete {type} event at {time}',
   'timeline.aria.edit_event_title': 'Edit event',
   'timeline.aria.delete_event_title': 'Delete event',
-  'timeline.delete_confirm': 'Delete?',
 
   /* ── Quick-log button aria labels ───────────────────────────────── */
   'button.aria.log_weight': 'Log weight',
@@ -69,7 +68,6 @@ export const en = {
   'panel.show_on_card': 'Show on card',
   'panel.edit_key': "Edit '{key}'",
   'panel.delete_key': "Delete '{key}'",
-  'panel.delete_confirm': "Delete event type '{key}'? Events logged with this type will be preserved.",
   'panel.delete_failed': 'Delete failed: {msg}',
   'panel.unknown_error': 'Unknown error',
 
@@ -157,6 +155,18 @@ export const en = {
   'panel.form.supply_unit': 'Unit',
   'panel.form.supply_pack': 'Pack size',
   'panel.form.supply_hint': 'Counted in Home Keeper. Leave Supply empty to stop using one.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'This cannot be undone.',
+  'confirm.event_title': 'Delete this {type} entry?',
+  'confirm.event_confirm': 'Delete entry',
+  'confirm.type_title': 'Delete event type \'{name}\'?',
+  'confirm.type_confirm': 'Delete event type',
+  'confirm.type_kept': 'Entries already logged stay in the log.',
+  'confirm.type_supply': 'The link to the supply {supply} is removed.',
+  'confirm.unlink_title': 'Stop using the supply \'{supply}\'?',
+  'confirm.unlink_confirm': 'Stop using supply',
+  'confirm.unlink_body': 'New {type} entries no longer take from this supply.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

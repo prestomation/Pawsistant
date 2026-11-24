@@ -15,6 +15,7 @@ import { badgeHTML, showToast, stockOf, supplyRows, openSuppliesDialog, toastTex
 import type { Stock } from './supply';
 import { findEntitiesByDog, stateNum, stateAttr, toDisplayWeight, _escapeHTML, getDogId, dogNamesFromHass } from './utils';
 import { renderPawsistantButton } from './button';
+import { closeConfirm } from './confirm-dialog';
 import { openBackdateForm, openWeightForm } from './standalone-forms';
 import { displayLabel, ensureTimelineStyles } from './timeline-render';
 import { createEventLog } from './standalone-timeline';
@@ -762,6 +763,7 @@ export class PawsistantButtonCard extends HTMLElement {
       clearTimeout(id);
     }
     this._timers = [];
+    closeConfirm();
     this._cleanupButtons();
     if (this._formCleanup) {
       this._formCleanup();

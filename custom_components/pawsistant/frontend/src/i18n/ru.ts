@@ -31,7 +31,6 @@ export const ru: Dict = {
   'timeline.aria.delete_event': 'Удалить событие {type} в {time}',
   'timeline.aria.edit_event_title': 'Изменить событие',
   'timeline.aria.delete_event_title': 'Удалить событие',
-  'timeline.delete_confirm': 'Удалить?',
 
   'button.aria.log_weight': 'Записать вес',
   'button.aria.log_event': 'Записать {label}. Удерживайте, чтобы записать сейчас.',
@@ -57,7 +56,6 @@ export const ru: Dict = {
   'panel.show_on_card': 'Показать на карточке',
   'panel.edit_key': "Изменить '{key}'",
   'panel.delete_key': "Удалить '{key}'",
-  'panel.delete_confirm': "Удалить тип события '{key}'? События, записанные с этим типом, будут сохранены.",
   'panel.delete_failed': 'Не удалось удалить: {msg}',
   'panel.unknown_error': 'Неизвестная ошибка',
 
@@ -140,4 +138,16 @@ export const ru: Dict = {
   'panel.form.supply_unit': 'Единица',
   'panel.form.supply_pack': 'Размер упаковки',
   'panel.form.supply_hint': 'Учитывается в Home Keeper. Оставьте поле Запас пустым, чтобы не использовать.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'Это нельзя отменить.',
+  'confirm.event_title': 'Удалить эту запись «{type}»?',
+  'confirm.event_confirm': 'Удалить запись',
+  'confirm.type_title': 'Удалить тип события «{name}»?',
+  'confirm.type_confirm': 'Удалить тип события',
+  'confirm.type_kept': 'Уже записанные события остаются в журнале.',
+  'confirm.type_supply': 'Связь с запасом {supply} будет удалена.',
+  'confirm.unlink_title': 'Больше не использовать запас «{supply}»?',
+  'confirm.unlink_confirm': 'Не использовать запас',
+  'confirm.unlink_body': 'Новые записи «{type}» больше не списывают с этого запаса.',
 };

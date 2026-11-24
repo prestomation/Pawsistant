@@ -31,7 +31,6 @@ export const sv: Dict = {
   'timeline.aria.delete_event': 'Ta bort {type}-händelse kl. {time}',
   'timeline.aria.edit_event_title': 'Redigera händelse',
   'timeline.aria.delete_event_title': 'Ta bort händelse',
-  'timeline.delete_confirm': 'Ta bort?',
 
   'button.aria.log_weight': 'Logga vikt',
   'button.aria.log_event': 'Logga {label}. Håll in för att logga nu.',
@@ -57,7 +56,6 @@ export const sv: Dict = {
   'panel.show_on_card': 'Visa på kortet',
   'panel.edit_key': "Redigera '{key}'",
   'panel.delete_key': "Ta bort '{key}'",
-  'panel.delete_confirm': "Ta bort händelsetypen '{key}'? Händelser som loggats med den här typen bevaras.",
   'panel.delete_failed': 'Borttagning misslyckades: {msg}',
   'panel.unknown_error': 'Okänt fel',
 
@@ -140,4 +138,16 @@ export const sv: Dict = {
   'panel.form.supply_unit': 'Enhet',
   'panel.form.supply_pack': 'Förpackningsstorlek',
   'panel.form.supply_hint': 'Räknas i Home Keeper. Lämna Förråd tomt för att inte använda något.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'Det går inte att ångra.',
+  'confirm.event_title': 'Ta bort denna {type}-post?',
+  'confirm.event_confirm': 'Ta bort post',
+  'confirm.type_title': 'Ta bort händelsetypen \'{name}\'?',
+  'confirm.type_confirm': 'Ta bort händelsetyp',
+  'confirm.type_kept': 'Poster som redan loggats finns kvar i loggen.',
+  'confirm.type_supply': 'Länken till förrådet {supply} tas bort.',
+  'confirm.unlink_title': 'Sluta använda förrådet \'{supply}\'?',
+  'confirm.unlink_confirm': 'Sluta använda förråd',
+  'confirm.unlink_body': 'Nya {type}-poster tar inte längre från detta förråd.',
 };

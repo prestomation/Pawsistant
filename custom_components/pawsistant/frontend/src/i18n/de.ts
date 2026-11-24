@@ -31,7 +31,6 @@ export const de: Dict = {
   'timeline.aria.delete_event': '{type}-Ereignis um {time} löschen',
   'timeline.aria.edit_event_title': 'Ereignis bearbeiten',
   'timeline.aria.delete_event_title': 'Ereignis löschen',
-  'timeline.delete_confirm': 'Löschen?',
 
   'button.aria.log_weight': 'Gewicht erfassen',
   'button.aria.log_event': '{label} erfassen. Gedrückt halten, um jetzt zu erfassen.',
@@ -57,7 +56,6 @@ export const de: Dict = {
   'panel.show_on_card': 'Auf der Karte anzeigen',
   'panel.edit_key': "'{key}' bearbeiten",
   'panel.delete_key': "'{key}' löschen",
-  'panel.delete_confirm': "Ereignistyp '{key}' löschen? Mit diesem Typ erfasste Ereignisse bleiben erhalten.",
   'panel.delete_failed': 'Löschen fehlgeschlagen: {msg}',
   'panel.unknown_error': 'Unbekannter Fehler',
 
@@ -140,4 +138,16 @@ export const de: Dict = {
   'panel.form.supply_unit': 'Einheit',
   'panel.form.supply_pack': 'Packungsgröße',
   'panel.form.supply_hint': 'In Home Keeper gezählt. Vorrat leer lassen, um keinen zu verwenden.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'Das kann nicht rückgängig gemacht werden.',
+  'confirm.event_title': 'Diesen Eintrag „{type}“ löschen?',
+  'confirm.event_confirm': 'Eintrag löschen',
+  'confirm.type_title': 'Ereignistyp „{name}“ löschen?',
+  'confirm.type_confirm': 'Ereignistyp löschen',
+  'confirm.type_kept': 'Bereits protokollierte Einträge bleiben im Protokoll.',
+  'confirm.type_supply': 'Die Verknüpfung mit dem Vorrat {supply} wird entfernt.',
+  'confirm.unlink_title': 'Vorrat „{supply}“ nicht mehr verwenden?',
+  'confirm.unlink_confirm': 'Vorrat nicht mehr verwenden',
+  'confirm.unlink_body': 'Neue Einträge „{type}“ entnehmen diesem Vorrat nichts mehr.',
 };

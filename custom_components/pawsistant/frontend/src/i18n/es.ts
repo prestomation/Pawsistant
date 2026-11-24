@@ -31,7 +31,6 @@ export const es: Dict = {
   'timeline.aria.delete_event': 'Eliminar evento {type} a las {time}',
   'timeline.aria.edit_event_title': 'Editar evento',
   'timeline.aria.delete_event_title': 'Eliminar evento',
-  'timeline.delete_confirm': '¿Eliminar?',
 
   'button.aria.log_weight': 'Registrar peso',
   'button.aria.log_event': 'Registrar {label}. Mantén pulsado para registrar ahora.',
@@ -57,7 +56,6 @@ export const es: Dict = {
   'panel.show_on_card': 'Mostrar en la tarjeta',
   'panel.edit_key': "Editar '{key}'",
   'panel.delete_key': "Eliminar '{key}'",
-  'panel.delete_confirm': "¿Eliminar el tipo de evento '{key}'? Los eventos registrados con este tipo se conservarán.",
   'panel.delete_failed': 'Error al eliminar: {msg}',
   'panel.unknown_error': 'Error desconocido',
 
@@ -140,4 +138,16 @@ export const es: Dict = {
   'panel.form.supply_unit': 'Unidad',
   'panel.form.supply_pack': 'Tamaño del paquete',
   'panel.form.supply_hint': 'Se cuenta en Home Keeper. Deja Suministro vacío para no usar ninguno.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'Esto no se puede deshacer.',
+  'confirm.event_title': '¿Eliminar esta entrada de {type}?',
+  'confirm.event_confirm': 'Eliminar entrada',
+  'confirm.type_title': '¿Eliminar el tipo de evento «{name}»?',
+  'confirm.type_confirm': 'Eliminar tipo de evento',
+  'confirm.type_kept': 'Las entradas ya registradas se quedan en el registro.',
+  'confirm.type_supply': 'Se quita el vínculo con el suministro {supply}.',
+  'confirm.unlink_title': '¿Dejar de usar el suministro «{supply}»?',
+  'confirm.unlink_confirm': 'Dejar de usar suministro',
+  'confirm.unlink_body': 'Las nuevas entradas de {type} ya no restan de este suministro.',
 };

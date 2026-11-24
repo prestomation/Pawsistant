@@ -31,7 +31,6 @@ export const zhHans: Dict = {
   'timeline.aria.delete_event': '删除 {time} 的 {type} 事件',
   'timeline.aria.edit_event_title': '编辑事件',
   'timeline.aria.delete_event_title': '删除事件',
-  'timeline.delete_confirm': '删除？',
 
   'button.aria.log_weight': '记录体重',
   'button.aria.log_event': '记录{label}。长按以立即记录。',
@@ -57,7 +56,6 @@ export const zhHans: Dict = {
   'panel.show_on_card': '在卡片中显示',
   'panel.edit_key': "编辑“{key}”",
   'panel.delete_key': "删除“{key}”",
-  'panel.delete_confirm': "删除事件类型“{key}”？使用此类型记录的事件将被保留。",
   'panel.delete_failed': '删除失败：{msg}',
   'panel.unknown_error': '未知错误',
 
@@ -140,4 +138,16 @@ export const zhHans: Dict = {
   'panel.form.supply_unit': '单位',
   'panel.form.supply_pack': '包装数量',
   'panel.form.supply_hint': '由 Home Keeper 计数。留空“用品”即可停用。',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': '此操作无法撤销。',
+  'confirm.event_title': '删除这条{type}记录？',
+  'confirm.event_confirm': '删除记录',
+  'confirm.type_title': '删除事件类型“{name}”？',
+  'confirm.type_confirm': '删除事件类型',
+  'confirm.type_kept': '已记录的条目会保留在日志中。',
+  'confirm.type_supply': '与用品 {supply} 的关联将被移除。',
+  'confirm.unlink_title': '停止使用用品“{supply}”？',
+  'confirm.unlink_confirm': '停止使用用品',
+  'confirm.unlink_body': '新的{type}记录不再从此用品中扣减。',
 };

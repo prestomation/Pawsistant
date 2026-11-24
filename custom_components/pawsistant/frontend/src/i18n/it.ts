@@ -31,7 +31,6 @@ export const it: Dict = {
   'timeline.aria.delete_event': 'Elimina evento {type} alle {time}',
   'timeline.aria.edit_event_title': 'Modifica evento',
   'timeline.aria.delete_event_title': 'Elimina evento',
-  'timeline.delete_confirm': 'Eliminare?',
 
   'button.aria.log_weight': 'Registra peso',
   'button.aria.log_event': 'Registra {label}. Tieni premuto per registrare ora.',
@@ -57,7 +56,6 @@ export const it: Dict = {
   'panel.show_on_card': 'Mostra sulla scheda',
   'panel.edit_key': "Modifica '{key}'",
   'panel.delete_key': "Elimina '{key}'",
-  'panel.delete_confirm': "Eliminare il tipo di evento '{key}'? Gli eventi registrati con questo tipo verranno conservati.",
   'panel.delete_failed': 'Eliminazione non riuscita: {msg}',
   'panel.unknown_error': 'Errore sconosciuto',
 
@@ -140,4 +138,16 @@ export const it: Dict = {
   'panel.form.supply_unit': 'Unità',
   'panel.form.supply_pack': 'Dimensione confezione',
   'panel.form.supply_hint': 'Contata in Home Keeper. Lascia Scorta vuoto per non usarne.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'Questa azione non può essere annullata.',
+  'confirm.event_title': 'Eliminare questa voce {type}?',
+  'confirm.event_confirm': 'Elimina voce',
+  'confirm.type_title': 'Eliminare il tipo di evento «{name}»?',
+  'confirm.type_confirm': 'Elimina tipo di evento',
+  'confirm.type_kept': 'Le voci già registrate restano nel registro.',
+  'confirm.type_supply': 'Il collegamento con la scorta {supply} viene rimosso.',
+  'confirm.unlink_title': 'Non usare più la scorta «{supply}»?',
+  'confirm.unlink_confirm': 'Non usare più la scorta',
+  'confirm.unlink_body': 'Le nuove voci {type} non prelevano più da questa scorta.',
 };

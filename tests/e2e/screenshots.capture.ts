@@ -56,11 +56,11 @@ test('capture button card event log popup screenshots', async ({ page }) => {
   await expect(dialog.locator('#pbc-edit-form-submit')).toBeVisible();
   await page.screenshot({ path: `${OUT}/3-popup-edit-form.png` });
 
-  // Two-tap delete confirm state
+  // The delete confirmation dialog
   await dialog.locator('#pbc-edit-form-cancel').click();
   await firstRow.hover();
   await firstRow.locator('.delete-btn').click();
-  await expect(firstRow.locator('.delete-btn')).toHaveClass(/confirm-pending/);
+  await expect(page.locator('.pw-confirm-scrim [role="alertdialog"]')).toBeVisible();
   await page.screenshot({ path: `${OUT}/4-popup-delete-confirm.png` });
 });
 
@@ -140,5 +140,52 @@ test('capture event types panel for admin and non-admin users', async ({ page, b
     await captureEventTypesPanel(vpage, 'event-types-non-admin', false);
   } finally {
     await ctx.close();
+  }
+});
+
+
+/* ── Confirmation dialogs: desktop and phone, at 2x ────────────────────── */
+
+test.describe('capture confirmation dialogs', () => {
+  test.use({ deviceScaleFactor: 2 });
+
+  for (const [name, size] of [['desktop', { width: 1280, height: 900 }], ['phone', { width: 390, height: 844 }]] as const) {
+    test(`capture ${name}`, async ({ page }) => {
+      await page.setViewportSize(size);
+      await openDashboard(page);
+      const alert = page.locator('.pw-confirm-scrim [role="alertdialog"]');
+      const card = page.locator('pawsistant-card').first();
+
+      // 1. Delete a log entry.
+      const row = card.locator('.event-row', { hasText: 'Heartworm pill' }).first();
+      await row.locator('.delete-btn').click();
+      await expect(alert).toBeVisible();
+      await page.screenshot({ path: `${OUT}/confirm-entry-${name}.png` });
+      await page.keyboard.press('Escape');
+
+      // 2. Delete an event type.
+      await expect(async () => {
+        if ((await card.locator('.event-type-row').count()) === 0) await card.locator('#et-gear-btn').click();
+        await expect(card.locator('.et-btn.delete').first()).toBeVisible({ timeout: 2000 });
+      }).toPass({ timeout: 30_000 });
+      await card.locator('.et-btn.delete[data-et-key="medicine"]').click();
+      await expect(alert).toBeVisible();
+      await page.screenshot({ path: `${OUT}/confirm-type-${name}.png` });
+      await page.keyboard.press('Escape');
+
+      // 3. Stop using a supply. Home Keeper is not in the test setup, so the card
+      // is given a supply for the type in its own registry, then the name is cleared.
+      await card.evaluate((node) => {
+        const el = node as any;
+        el._registryCache.registry.poop.supply = { name: 'Poop bag rolls', amount: 1 };
+        el._openEventTypeForm('poop');
+      });
+      await card.locator('#et-supply-name').fill('');
+      await card.locator('#et-form-submit').click();
+      await expect(alert).toBeVisible();
+      await expect(alert.locator('.pw-confirm-title')).toContainText('Poop bag rolls');
+      await page.screenshot({ path: `${OUT}/confirm-supply-${name}.png` });
+      await page.keyboard.press('Escape');
+    });
   }
 });

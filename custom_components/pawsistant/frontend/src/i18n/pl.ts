@@ -31,7 +31,6 @@ export const pl: Dict = {
   'timeline.aria.delete_event': 'Usuń zdarzenie {type} o {time}',
   'timeline.aria.edit_event_title': 'Edytuj zdarzenie',
   'timeline.aria.delete_event_title': 'Usuń zdarzenie',
-  'timeline.delete_confirm': 'Usunąć?',
 
   'button.aria.log_weight': 'Zarejestruj wagę',
   'button.aria.log_event': 'Zarejestruj {label}. Przytrzymaj, aby zarejestrować teraz.',
@@ -57,7 +56,6 @@ export const pl: Dict = {
   'panel.show_on_card': 'Pokaż na karcie',
   'panel.edit_key': "Edytuj '{key}'",
   'panel.delete_key': "Usuń '{key}'",
-  'panel.delete_confirm': "Usunąć typ zdarzenia '{key}'? Zdarzenia zarejestrowane z tym typem zostaną zachowane.",
   'panel.delete_failed': 'Usuwanie nie powiodło się: {msg}',
   'panel.unknown_error': 'Nieznany błąd',
 
@@ -140,4 +138,16 @@ export const pl: Dict = {
   'panel.form.supply_unit': 'Jednostka',
   'panel.form.supply_pack': 'Wielkość opakowania',
   'panel.form.supply_hint': 'Liczone w Home Keeper. Zostaw Zapas pusty, aby nie używać.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'Tego nie można cofnąć.',
+  'confirm.event_title': 'Usunąć ten wpis {type}?',
+  'confirm.event_confirm': 'Usuń wpis',
+  'confirm.type_title': 'Usunąć typ zdarzenia „{name}”?',
+  'confirm.type_confirm': 'Usuń typ zdarzenia',
+  'confirm.type_kept': 'Wpisy już zapisane zostają w dzienniku.',
+  'confirm.type_supply': 'Powiązanie z zapasem {supply} zostanie usunięte.',
+  'confirm.unlink_title': 'Przestać używać zapasu „{supply}”?',
+  'confirm.unlink_confirm': 'Przestań używać zapasu',
+  'confirm.unlink_body': 'Nowe wpisy {type} nie pobierają już z tego zapasu.',
 };
