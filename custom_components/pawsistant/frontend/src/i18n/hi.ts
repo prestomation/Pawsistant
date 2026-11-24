@@ -31,7 +31,6 @@ export const hi: Dict = {
   'timeline.aria.delete_event': '{time} पर {type} घटना हटाएँ',
   'timeline.aria.edit_event_title': 'घटना संपादित करें',
   'timeline.aria.delete_event_title': 'घटना हटाएँ',
-  'timeline.delete_confirm': 'हटाएँ?',
 
   'button.aria.log_weight': 'वज़न दर्ज करें',
   'button.aria.log_event': '{label} दर्ज करें। अभी दर्ज करने के लिए दबाए रखें।',
@@ -57,7 +56,6 @@ export const hi: Dict = {
   'panel.show_on_card': 'कार्ड पर दिखाएँ',
   'panel.edit_key': "'{key}' संपादित करें",
   'panel.delete_key': "'{key}' हटाएँ",
-  'panel.delete_confirm': "घटना प्रकार '{key}' हटाएँ? इस प्रकार से दर्ज की गई घटनाएँ सुरक्षित रहेंगी।",
   'panel.delete_failed': 'हटाना विफल: {msg}',
   'panel.unknown_error': 'अज्ञात त्रुटि',
 
@@ -140,4 +138,16 @@ export const hi: Dict = {
   'panel.form.supply_unit': 'इकाई',
   'panel.form.supply_pack': 'पैक आकार',
   'panel.form.supply_hint': 'Home Keeper में गिना जाता है। बंद करने के लिए सामग्री खाली छोड़ें।',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'इसे वापस नहीं किया जा सकता।',
+  'confirm.event_title': 'यह {type} प्रविष्टि हटाएँ?',
+  'confirm.event_confirm': 'प्रविष्टि हटाएँ',
+  'confirm.type_title': 'इवेंट प्रकार \'{name}\' हटाएँ?',
+  'confirm.type_confirm': 'इवेंट प्रकार हटाएँ',
+  'confirm.type_kept': 'पहले से दर्ज प्रविष्टियाँ लॉग में रहती हैं।',
+  'confirm.type_supply': 'आपूर्ति {supply} से लिंक हटा दिया जाएगा।',
+  'confirm.unlink_title': 'आपूर्ति \'{supply}\' का उपयोग बंद करें?',
+  'confirm.unlink_confirm': 'आपूर्ति का उपयोग बंद करें',
+  'confirm.unlink_body': 'नई {type} प्रविष्टियाँ अब इस आपूर्ति से नहीं घटेंगी।',
 };

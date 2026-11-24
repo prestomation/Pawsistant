@@ -31,7 +31,6 @@ export const ja: Dict = {
   'timeline.aria.delete_event': '{time} の {type} イベントを削除',
   'timeline.aria.edit_event_title': 'イベントを編集',
   'timeline.aria.delete_event_title': 'イベントを削除',
-  'timeline.delete_confirm': '削除しますか？',
 
   'button.aria.log_weight': '体重を記録',
   'button.aria.log_event': '{label}を記録。長押しで今すぐ記録します。',
@@ -57,7 +56,6 @@ export const ja: Dict = {
   'panel.show_on_card': 'カードに表示',
   'panel.edit_key': "「{key}」を編集",
   'panel.delete_key': "「{key}」を削除",
-  'panel.delete_confirm': "イベントタイプ「{key}」を削除しますか？このタイプで記録されたイベントは保持されます。",
   'panel.delete_failed': '削除に失敗しました：{msg}',
   'panel.unknown_error': '不明なエラー',
 
@@ -140,4 +138,16 @@ export const ja: Dict = {
   'panel.form.supply_unit': '単位',
   'panel.form.supply_pack': 'パックサイズ',
   'panel.form.supply_hint': 'Home Keeper で数えます。使わない場合は消耗品を空にします。',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'この操作は元に戻せません。',
+  'confirm.event_title': 'この{type}の記録を削除しますか？',
+  'confirm.event_confirm': '記録を削除',
+  'confirm.type_title': 'イベントタイプ「{name}」を削除しますか？',
+  'confirm.type_confirm': 'イベントタイプを削除',
+  'confirm.type_kept': 'すでに記録した内容はログに残ります。',
+  'confirm.type_supply': '備品「{supply}」とのリンクは削除されます。',
+  'confirm.unlink_title': '備品「{supply}」の使用をやめますか？',
+  'confirm.unlink_confirm': '備品の使用をやめる',
+  'confirm.unlink_body': '新しい{type}の記録は、この備品から減らなくなります。',
 };

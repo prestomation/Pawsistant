@@ -31,7 +31,6 @@ export const ptBR: Dict = {
   'timeline.aria.delete_event': 'Excluir evento {type} às {time}',
   'timeline.aria.edit_event_title': 'Editar evento',
   'timeline.aria.delete_event_title': 'Excluir evento',
-  'timeline.delete_confirm': 'Excluir?',
 
   'button.aria.log_weight': 'Registrar peso',
   'button.aria.log_event': 'Registrar {label}. Mantenha pressionado para registrar agora.',
@@ -57,7 +56,6 @@ export const ptBR: Dict = {
   'panel.show_on_card': 'Mostrar no cartão',
   'panel.edit_key': "Editar '{key}'",
   'panel.delete_key': "Excluir '{key}'",
-  'panel.delete_confirm': "Excluir o tipo de evento '{key}'? Os eventos registrados com este tipo serão mantidos.",
   'panel.delete_failed': 'Falha ao excluir: {msg}',
   'panel.unknown_error': 'Erro desconhecido',
 
@@ -140,4 +138,16 @@ export const ptBR: Dict = {
   'panel.form.supply_unit': 'Unidade',
   'panel.form.supply_pack': 'Tamanho do pacote',
   'panel.form.supply_hint': 'Contado no Home Keeper. Deixe Suprimento vazio para não usar.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'Isso não pode ser desfeito.',
+  'confirm.event_title': 'Excluir esta entrada de {type}?',
+  'confirm.event_confirm': 'Excluir entrada',
+  'confirm.type_title': 'Excluir o tipo de evento \'{name}\'?',
+  'confirm.type_confirm': 'Excluir tipo de evento',
+  'confirm.type_kept': 'As entradas já registradas ficam no registro.',
+  'confirm.type_supply': 'O vínculo com o suprimento {supply} é removido.',
+  'confirm.unlink_title': 'Parar de usar o suprimento \'{supply}\'?',
+  'confirm.unlink_confirm': 'Parar de usar suprimento',
+  'confirm.unlink_body': 'As novas entradas de {type} não tiram mais deste suprimento.',
 };

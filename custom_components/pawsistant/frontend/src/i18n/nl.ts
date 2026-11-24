@@ -31,7 +31,6 @@ export const nl: Dict = {
   'timeline.aria.delete_event': '{type}-gebeurtenis om {time} verwijderen',
   'timeline.aria.edit_event_title': 'Gebeurtenis bewerken',
   'timeline.aria.delete_event_title': 'Gebeurtenis verwijderen',
-  'timeline.delete_confirm': 'Verwijderen?',
 
   'button.aria.log_weight': 'Gewicht registreren',
   'button.aria.log_event': '{label} registreren. Houd ingedrukt om nu te registreren.',
@@ -57,7 +56,6 @@ export const nl: Dict = {
   'panel.show_on_card': 'Tonen op kaart',
   'panel.edit_key': "'{key}' bewerken",
   'panel.delete_key': "'{key}' verwijderen",
-  'panel.delete_confirm': "Gebeurtenistype '{key}' verwijderen? Gebeurtenissen die met dit type zijn geregistreerd, blijven behouden.",
   'panel.delete_failed': 'Verwijderen mislukt: {msg}',
   'panel.unknown_error': 'Onbekende fout',
 
@@ -140,4 +138,16 @@ export const nl: Dict = {
   'panel.form.supply_unit': 'Eenheid',
   'panel.form.supply_pack': 'Verpakkingsgrootte',
   'panel.form.supply_hint': 'Geteld in Home Keeper. Laat Voorraad leeg om er geen te gebruiken.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'Dit kan niet ongedaan worden gemaakt.',
+  'confirm.event_title': 'Deze invoer {type} verwijderen?',
+  'confirm.event_confirm': 'Invoer verwijderen',
+  'confirm.type_title': 'Gebeurtenistype \'{name}\' verwijderen?',
+  'confirm.type_confirm': 'Gebeurtenistype verwijderen',
+  'confirm.type_kept': 'Al vastgelegde invoer blijft in het logboek.',
+  'confirm.type_supply': 'De koppeling met de voorraad {supply} wordt verwijderd.',
+  'confirm.unlink_title': 'De voorraad \'{supply}\' niet meer gebruiken?',
+  'confirm.unlink_confirm': 'Voorraad niet meer gebruiken',
+  'confirm.unlink_body': 'Nieuwe invoer {type} haalt niets meer uit deze voorraad.',
 };

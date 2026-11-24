@@ -126,12 +126,6 @@ export const TIMELINE_STYLES = `
     margin-left: auto;
   }
   .delete-btn:hover { opacity: 1; background: color-mix(in srgb, var(--error-color, #ef5350) 12%, transparent); }
-  .delete-btn.confirm-pending {
-    opacity: 1;
-    color: var(--error-color, #ef5350);
-    background: color-mix(in srgb, var(--error-color, #ef5350) 15%, transparent);
-    font-size: 11px;
-  }
   .empty {
     text-align: center;
     padding: 24px;

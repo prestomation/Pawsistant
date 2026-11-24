@@ -15,6 +15,11 @@
 - **Always post screenshots to the PR when a change adds, changes, or fixes UI.** Capture the relevant card/dashboard state with the Playwright e2e harness (see `tests/e2e/screenshots.capture.ts`), commit the PNG(s) under `docs/images/`, and embed them in the PR description (or a PR comment) via a `raw.githubusercontent.com/<owner>/<repo>/<commit-sha>/docs/images/<file>.png` URL pinned to the commit that added them — this is how reviewers see before/after without the GitHub web composer. (Example: PR #56.)
   - **Embed PR-body screenshots with an HTML `<img src="…" alt="…" width="820">` tag, not markdown `![](…)`.** The `update_pull_request` path can silently wrap a markdown image URL in double backticks (turning it into a code span), so the image renders broken — and it may hit only some of several otherwise-identical lines. HTML `<img>` avoids markdown link parsing. Pin the `src` to a commit SHA (branch names contain slashes and are ambiguous for `raw.githubusercontent.com`). After updating the body, re-read it with `pull_request_read` to confirm the URLs weren't mangled, and check each returns HTTP 200.
 
+## Destructive actions
+
+- **An action that deletes data or is hard to reverse asks first, through `confirmDestructive`** (`frontend/src/confirm-dialog.ts`, texts in `confirm-texts.ts`). There is no undo. Put the item's name in the title and the action word on the button. Do not ask for a reversible or high-frequency action (a log tap, a stock step).
+- `frontend/test/destructive-scan-parity.test.js` fails on a call of a `delete…`, `remove…` or `clear…` function outside `confirmDestructive`. An exception needs an `ALLOW` entry with a reason.
+
 ## Project Structure
 
 - **Domain:** `pawsistant` (renamed from `doglog` in March 2026)

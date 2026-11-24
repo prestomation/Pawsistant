@@ -31,7 +31,6 @@ export const fr: Dict = {
   'timeline.aria.delete_event': 'Supprimer l’événement {type} à {time}',
   'timeline.aria.edit_event_title': 'Modifier l’événement',
   'timeline.aria.delete_event_title': 'Supprimer l’événement',
-  'timeline.delete_confirm': 'Supprimer ?',
 
   'button.aria.log_weight': 'Enregistrer le poids',
   'button.aria.log_event': 'Enregistrer {label}. Maintenez pour enregistrer maintenant.',
@@ -57,7 +56,6 @@ export const fr: Dict = {
   'panel.show_on_card': 'Afficher sur la carte',
   'panel.edit_key': "Modifier '{key}'",
   'panel.delete_key': "Supprimer '{key}'",
-  'panel.delete_confirm': "Supprimer le type d’événement '{key}' ? Les événements enregistrés avec ce type seront conservés.",
   'panel.delete_failed': 'Échec de la suppression : {msg}',
   'panel.unknown_error': 'Erreur inconnue',
 
@@ -140,4 +138,16 @@ export const fr: Dict = {
   'panel.form.supply_unit': 'Unité',
   'panel.form.supply_pack': 'Taille du paquet',
   'panel.form.supply_hint': 'Compté dans Home Keeper. Laissez Fourniture vide pour ne rien utiliser.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'Cette action est irréversible.',
+  'confirm.event_title': 'Supprimer cette entrée {type} ?',
+  'confirm.event_confirm': 'Supprimer l\'entrée',
+  'confirm.type_title': 'Supprimer le type d\'événement « {name} » ?',
+  'confirm.type_confirm': 'Supprimer le type d\'événement',
+  'confirm.type_kept': 'Les entrées déjà enregistrées restent dans le journal.',
+  'confirm.type_supply': 'Le lien avec le stock {supply} est supprimé.',
+  'confirm.unlink_title': 'Ne plus utiliser le stock « {supply} » ?',
+  'confirm.unlink_confirm': 'Ne plus utiliser le stock',
+  'confirm.unlink_body': 'Les nouvelles entrées {type} ne prélèvent plus sur ce stock.',
 };

@@ -31,7 +31,6 @@ export const tr: Dict = {
   'timeline.aria.delete_event': '{time} saatindeki {type} olayını sil',
   'timeline.aria.edit_event_title': 'Olayı düzenle',
   'timeline.aria.delete_event_title': 'Olayı sil',
-  'timeline.delete_confirm': 'Silinsin mi?',
 
   'button.aria.log_weight': 'Kilo kaydet',
   'button.aria.log_event': '{label} kaydet. Şimdi kaydetmek için basılı tutun.',
@@ -57,7 +56,6 @@ export const tr: Dict = {
   'panel.show_on_card': 'Kartta göster',
   'panel.edit_key': "'{key}' düzenle",
   'panel.delete_key': "'{key}' sil",
-  'panel.delete_confirm': "'{key}' olay türü silinsin mi? Bu türle kaydedilen olaylar korunacaktır.",
   'panel.delete_failed': 'Silme başarısız: {msg}',
   'panel.unknown_error': 'Bilinmeyen hata',
 
@@ -140,4 +138,16 @@ export const tr: Dict = {
   'panel.form.supply_unit': 'Birim',
   'panel.form.supply_pack': 'Paket boyutu',
   'panel.form.supply_hint': 'Home Keeper\'da sayılır. Kullanmamak için Malzeme\'yi boş bırakın.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'Bu geri alınamaz.',
+  'confirm.event_title': 'Bu {type} kaydı silinsin mi?',
+  'confirm.event_confirm': 'Kaydı sil',
+  'confirm.type_title': '\'{name}\' olay türü silinsin mi?',
+  'confirm.type_confirm': 'Olay türünü sil',
+  'confirm.type_kept': 'Önceden kaydedilen girdiler günlükte kalır.',
+  'confirm.type_supply': '{supply} stokuyla bağlantı kaldırılır.',
+  'confirm.unlink_title': '\'{supply}\' stoku kullanılmasın mı?',
+  'confirm.unlink_confirm': 'Stoku kullanmayı bırak',
+  'confirm.unlink_body': 'Yeni {type} girdileri artık bu stoktan düşmez.',
 };

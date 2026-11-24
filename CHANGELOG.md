@@ -4,6 +4,11 @@ All notable changes to Pawsistant will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Every delete asks first, in one dialog.** Deleting a log entry or an event type, and
+  clearing the supply of an event type, now opens a dialog that names the item and says
+  what stays. The button names the action, and Cancel is the default.
+
 ## [2.25.1] - 2026-11-07
 
 ### Fixed

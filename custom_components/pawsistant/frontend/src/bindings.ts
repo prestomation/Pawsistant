@@ -8,7 +8,6 @@
 import type { PawsistantCard } from './index';
 import { setupLongPress } from './interactions';
 import { openBackdateForm, openWeightForm, openEditForm, closeForm } from './forms';
-import { T } from './i18n';
 
 interface LongPressBtn extends HTMLButtonElement {
   _longPressCleanup?: () => void;
@@ -70,31 +69,13 @@ export function bindEvents(card: PawsistantCard, root: ShadowRoot): void {
     });
   });
 
-  /* U9 — two-tap delete confirmation */
+  /* A delete asks first, in the shared dialog. */
   root.querySelectorAll<HTMLButtonElement>('.delete-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const eventId = btn.dataset.id;
       if (!eventId) return;
-
-      if (card._deleteConfirmState.has(eventId)) {
-        // Second tap — confirm and delete
-        clearTimeout(card._deleteConfirmState.get(eventId));
-        card._deleteConfirmState.delete(eventId);
-        btn.classList.remove('confirm-pending');
-        btn.textContent = '🗑️';
-        card._deleteEvent(eventId, btn);
-      } else {
-        // First tap — show confirm state
-        btn.classList.add('confirm-pending');
-        btn.textContent = T('timeline.delete_confirm');
-        const revertId = card._setTimeout(() => {
-          card._deleteConfirmState.delete(eventId);
-          btn.classList.remove('confirm-pending');
-          btn.textContent = '🗑️';
-        }, 3000);
-        card._deleteConfirmState.set(eventId, revertId);
-      }
+      card._askDeleteEvent(eventId, btn);
     });
   });
 
@@ -163,7 +144,7 @@ export function bindEvents(card: PawsistantCard, root: ShadowRoot): void {
   root.querySelectorAll<HTMLButtonElement>('.et-btn.delete').forEach(btn => {
     btn.addEventListener('click', () => {
       const key = btn.dataset.etKey;
-      if (key) card._deleteEventType(key);
+      if (key) card._askDeleteEventType(key);
     });
   });
 

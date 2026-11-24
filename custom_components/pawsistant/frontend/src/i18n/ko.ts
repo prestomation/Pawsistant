@@ -31,7 +31,6 @@ export const ko: Dict = {
   'timeline.aria.delete_event': '{time}의 {type} 이벤트 삭제',
   'timeline.aria.edit_event_title': '이벤트 편집',
   'timeline.aria.delete_event_title': '이벤트 삭제',
-  'timeline.delete_confirm': '삭제할까요?',
 
   'button.aria.log_weight': '체중 기록',
   'button.aria.log_event': '{label} 기록. 길게 눌러 지금 기록합니다.',
@@ -57,7 +56,6 @@ export const ko: Dict = {
   'panel.show_on_card': '카드에 표시',
   'panel.edit_key': "'{key}' 편집",
   'panel.delete_key': "'{key}' 삭제",
-  'panel.delete_confirm': "이벤트 유형 '{key}'을(를) 삭제할까요? 이 유형으로 기록된 이벤트는 유지됩니다.",
   'panel.delete_failed': '삭제 실패: {msg}',
   'panel.unknown_error': '알 수 없는 오류',
 
@@ -140,4 +138,16 @@ export const ko: Dict = {
   'panel.form.supply_unit': '단위',
   'panel.form.supply_pack': '팩 크기',
   'panel.form.supply_hint': 'Home Keeper에서 셉니다. 사용하지 않으려면 소모품을 비워 두세요.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': '이 작업은 되돌릴 수 없습니다.',
+  'confirm.event_title': '이 {type} 기록을 삭제할까요?',
+  'confirm.event_confirm': '기록 삭제',
+  'confirm.type_title': '이벤트 유형 \'{name}\'을(를) 삭제할까요?',
+  'confirm.type_confirm': '이벤트 유형 삭제',
+  'confirm.type_kept': '이미 기록된 항목은 로그에 남습니다.',
+  'confirm.type_supply': '소모품 {supply}와(과)의 연결이 제거됩니다.',
+  'confirm.unlink_title': '소모품 \'{supply}\' 사용을 중지할까요?',
+  'confirm.unlink_confirm': '소모품 사용 중지',
+  'confirm.unlink_body': '새 {type} 기록은 더 이상 이 소모품에서 차감되지 않습니다.',
 };

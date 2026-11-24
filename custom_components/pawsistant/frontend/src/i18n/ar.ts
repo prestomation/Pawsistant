@@ -31,7 +31,6 @@ export const ar: Dict = {
   'timeline.aria.delete_event': 'حذف حدث {type} في {time}',
   'timeline.aria.edit_event_title': 'تعديل الحدث',
   'timeline.aria.delete_event_title': 'حذف الحدث',
-  'timeline.delete_confirm': 'حذف؟',
 
   'button.aria.log_weight': 'تسجيل الوزن',
   'button.aria.log_event': 'تسجيل {label}. اضغط مع الاستمرار للتسجيل الآن.',
@@ -57,7 +56,6 @@ export const ar: Dict = {
   'panel.show_on_card': 'إظهار على البطاقة',
   'panel.edit_key': "تعديل '{key}'",
   'panel.delete_key': "حذف '{key}'",
-  'panel.delete_confirm': "هل تريد حذف نوع الحدث '{key}'؟ سيتم الاحتفاظ بالأحداث المسجَّلة بهذا النوع.",
   'panel.delete_failed': 'فشل الحذف: {msg}',
   'panel.unknown_error': 'خطأ غير معروف',
 
@@ -140,4 +138,16 @@ export const ar: Dict = {
   'panel.form.supply_unit': 'الوحدة',
   'panel.form.supply_pack': 'حجم العبوة',
   'panel.form.supply_hint': 'يُعدّ في Home Keeper. اترك المستلزم فارغًا لإيقاف استخدامه.',
+
+  /* ── Confirm dialog (non-English texts are not native-reviewed) ── */
+  'confirm.cannot_undo': 'لا يمكن التراجع عن هذا.',
+  'confirm.event_title': 'حذف سجل {type} هذا؟',
+  'confirm.event_confirm': 'حذف السجل',
+  'confirm.type_title': 'حذف نوع الحدث \'{name}\'؟',
+  'confirm.type_confirm': 'حذف نوع الحدث',
+  'confirm.type_kept': 'تبقى السجلات المدوّنة سابقًا في السجل.',
+  'confirm.type_supply': 'تتم إزالة الرابط مع المخزون {supply}.',
+  'confirm.unlink_title': 'إيقاف استخدام المخزون \'{supply}\'؟',
+  'confirm.unlink_confirm': 'إيقاف استخدام المخزون',
+  'confirm.unlink_body': 'لن تخصم سجلات {type} الجديدة من هذا المخزون.',
 };

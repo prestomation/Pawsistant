@@ -32,6 +32,8 @@ import { badgeHTML, stockOf, supplyRows, openSuppliesDialog, showToast, toastTex
 import type { Stock } from './supply';
 import type { EventMeta, SupplyFormState } from './types';
 import { setLang, T, TP } from './i18n';
+import { closeConfirm, confirmDestructive } from './confirm-dialog';
+import { eventDeleteText, eventTypeDeleteText, supplyUnlinkText } from './confirm-texts';
 
 /* ── Card picker registration ───────────────────────────────────────────── */
 window.customCards = window.customCards || [];
@@ -54,7 +56,6 @@ export class PawsistantCard extends HTMLElement {
   _activeType: string | null = null;         // event type for backdate form
   _activeTriggerBtn: HTMLButtonElement | null = null;
   _timers: (ReturnType<typeof setTimeout> | number)[] = [];
-  _deleteConfirmState: Map<string, ReturnType<typeof setTimeout> | number> = new Map();
   _eventTypesPanel: boolean = false;
   _editingEventType: EventTypeFormState | '__ADD__' | null = null;
   _eventTypeFormError: string | null = null;
@@ -124,10 +125,7 @@ export class PawsistantCard extends HTMLElement {
       clearTimeout(id);
     }
     this._timers = [];
-    for (const id of this._deleteConfirmState.values()) {
-      clearTimeout(id);
-    }
-    this._deleteConfirmState.clear();
+    closeConfirm();
   }
 
   /** Schedule a timeout and track its ID for cleanup */
@@ -801,13 +799,6 @@ export class PawsistantCard extends HTMLElement {
           margin-left: auto;
         }
         .delete-btn:hover { opacity: 1; background: color-mix(in srgb, var(--error-color, #ef5350) 12%, transparent); }
-        /* U9 — confirm state */
-        .delete-btn.confirm-pending {
-          opacity: 1;
-          color: var(--error-color, #ef5350);
-          background: color-mix(in srgb, var(--error-color, #ef5350) 15%, transparent);
-          font-size: 11px;
-        }
         .empty {
           text-align: center;
           padding: 24px;
@@ -1367,7 +1358,7 @@ export class PawsistantCard extends HTMLElement {
   }
 
   /* ── Save Event Type Form ─────────────────────────────────────────── */
-  _saveEventTypeForm() {
+  _saveEventTypeForm(unlinkConfirmed = false) {
     const isAdd = this._editingEventType === '__ADD__';
     const formEl = this.shadowRoot!.getElementById('et-form');
     if (!formEl) return;
@@ -1436,7 +1427,16 @@ export class PawsistantCard extends HTMLElement {
       metric: metric,
     };
     // A supply name sets or changes the supply. An empty name clears one the type had.
-    const hadSupply = !isAdd && Boolean(getMeta(eventType, this._registry().registry).supply);
+    const oldMeta = isAdd ? null : getMeta(eventType, this._registry().registry);
+    const hadSupply = Boolean(oldMeta?.supply);
+    if (hadSupply && !supply.name && !unlinkConfirmed) {
+      // Stopping a supply loses its link to the type: ask first.
+      confirmDestructive(
+        supplyUnlinkText(name.trim(), (oldMeta!.supply as { name?: string }).name || ''),
+        () => this._saveEventTypeForm(true),
+      );
+      return;
+    }
     if (supply.name) {
       const amount = supply.amount === '' ? 1 : Number(supply.amount);
       if (!Number.isFinite(amount) || amount <= 0) {
@@ -1493,8 +1493,13 @@ export class PawsistantCard extends HTMLElement {
   }
 
   /* ── Delete Event Type ─────────────────────────────────────────────── */
+  _askDeleteEventType(key: string) {
+    const meta = getMeta(key, this._registry().registry);
+    const supplyName = (meta.supply as { name?: string } | undefined)?.name;
+    confirmDestructive(eventTypeDeleteText(displayLabel(key, meta), supplyName), () => this._deleteEventType(key));
+  }
+
   _deleteEventType(key: string) {
-    if (!confirm(T('panel.delete_confirm', { key }))) return;
     deleteEventType(this._hass!, key)
       .then(() => {
         // Optimistically remove the type from the cached registry immediately,
@@ -1622,6 +1627,17 @@ export class PawsistantCard extends HTMLElement {
   /* ── Service calls ─────────────────────────────────────────────────── */
   _logEvent(eventType: string, extra: Record<string, unknown> = {}) {
     return logEvent(this._hass!, this._config.dog, eventType, extra);
+  }
+
+  /** Ask first, then delete 1 log entry. */
+  _askDeleteEvent(eventId: string, btn: HTMLButtonElement) {
+    const row = btn.closest<HTMLElement>('.event-row');
+    const type = row?.dataset.type || '';
+    const label = displayLabel(type, getMeta(type, this._registry().registry));
+    confirmDestructive(
+      eventDeleteText(label, row?.dataset.timestamp || '', row?.dataset.note || '', this._hass?.language),
+      () => this._deleteEvent(eventId, btn),
+    );
   }
 
   _deleteEvent(eventId: string, btn: HTMLButtonElement) {

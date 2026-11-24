@@ -129,45 +129,55 @@ describe('createEventLog', () => {
     handle.cleanup();
   });
 
-  it('deletes an event after two-tap confirmation and refetches', async () => {
+  const dialog = () => document.querySelector('.pw-confirm-scrim');
+  const dialogBtn = (i) => document.querySelectorAll('.pw-confirm-scrim button')[i];
+
+  it('asks first, naming the entry, and deletes only after the confirm button', async () => {
     const { container, formSlot } = makeDom();
-    const hass = mockHass(() => ({ events: [ev('e1')], total: 1 }));
+    const hass = mockHass(() => ({ events: [ev('e1', { note: 'at the park' })], total: 1 }));
 
     const handle = createEventLog({ container, formSlot, hass, dogId: 'dog1', registry: REGISTRY, weightUnit: 'lbs' });
     await flush();
 
-    const delBtn = container.querySelector('.delete-btn');
-    delBtn.click();
-    expect(delBtn.classList.contains('confirm-pending')).toBe(true);
+    container.querySelector('.delete-btn').click();
+    expect(dialog().querySelector('[role=alertdialog]')).not.toBeNull();
+    expect(dialog().querySelector('.pw-confirm-title').textContent).toBe('Delete this Pee entry?');
+    expect(dialog().querySelector('.pw-confirm-body').textContent).toContain('at the park');
+    expect(dialogBtn(1).textContent).toBe('Delete entry');
+    expect(document.activeElement).toBe(dialogBtn(0));
     expect(hass.callService).not.toHaveBeenCalled();
 
-    delBtn.click();
+    dialogBtn(1).click();
     await flush();
     expect(hass.callService).toHaveBeenCalledWith('pawsistant', 'delete_event', { event_id: 'e1' });
+    expect(dialog()).toBeNull();
     // Refetched page 0 after delete
     expect(hass.connection.sendMessagePromise).toHaveBeenCalledTimes(2);
     handle.cleanup();
   });
 
-  it('reverts delete confirmation after 3 seconds', async () => {
-    vi.useFakeTimers();
+  it('deletes nothing on Cancel', async () => {
     const { container, formSlot } = makeDom();
     const hass = mockHass(() => ({ events: [ev('e1')], total: 1 }));
-
     const handle = createEventLog({ container, formSlot, hass, dogId: 'dog1', registry: REGISTRY, weightUnit: 'lbs' });
-    await vi.advanceTimersByTimeAsync(0);
+    await flush();
 
-    const delBtn = container.querySelector('.delete-btn');
-    delBtn.click();
-    expect(delBtn.classList.contains('confirm-pending')).toBe(true);
-
-    await vi.advanceTimersByTimeAsync(3000);
-    expect(delBtn.classList.contains('confirm-pending')).toBe(false);
-
-    // A click after the revert is a fresh first tap, not a confirm
-    delBtn.click();
+    container.querySelector('.delete-btn').click();
+    dialogBtn(0).click();
+    await flush();
     expect(hass.callService).not.toHaveBeenCalled();
+    expect(dialog()).toBeNull();
     handle.cleanup();
+  });
+
+  it('closes the dialog when the log goes away', async () => {
+    const { container, formSlot } = makeDom();
+    const hass = mockHass(() => ({ events: [ev('e1')], total: 1 }));
+    const handle = createEventLog({ container, formSlot, hass, dogId: 'dog1', registry: REGISTRY, weightUnit: 'lbs' });
+    await flush();
+    container.querySelector('.delete-btn').click();
+    handle.cleanup();
+    expect(dialog()).toBeNull();
   });
 
   it('opens a prefilled edit form and submits update_event, then refetches', async () => {
